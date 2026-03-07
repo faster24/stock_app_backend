@@ -1,0 +1,6 @@
+PHP Warning:  Failed loading Zend extension 'opcache' (tried: /usr/lib/php/modules/opcache (/usr/lib/php/modules/opcache: cannot open shared object file: No such file or directory), /usr/lib/php/modules/opcache.so (/usr/lib/php/modules/opcache.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+PASS: auth_catches_authentication_exception
+PASS: auth_returns_401_on_login_failure
+PASS: register_has_unique_email_rule
+PASS: validation_envelope_uses_422
+PASS: validation_envelope_has_errors_key

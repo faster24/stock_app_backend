@@ -1,0 +1,6 @@
+Task 1 SQLite Extension Check
+Date: 2026-03-07
+
+$ php -m | grep -E 'pdo_sqlite|sqlite3'
+No matches found for `pdo_sqlite` or `sqlite3`.
+Observed output only included PHP warning about missing Zend opcache extension.

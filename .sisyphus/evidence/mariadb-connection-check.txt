@@ -1,0 +1,16 @@
+Command: php artisan config:clear && php artisan config:cache
+Result: PASS
+Output:
+- INFO  Configuration cache cleared successfully.
+- INFO  Configuration cached successfully.
+
+Command: php artisan migrate:status
+Result: FAIL (database authentication)
+Output:
+- Illuminate\Database\QueryException
+- SQLSTATE[HY000] [1698] Access denied for user 'root'@'localhost'
+- Connection: mariadb
+- SQL: select exists (select 1 from information_schema.tables where table_schema = 'laravel' and table_name = 'migrations' and table_type in ('BASE TABLE', 'SYSTEM VERSIONED')) as `exists`
+
+Environment note:
+- PHP emits warning before each artisan command: Failed loading Zend extension 'opcache'.

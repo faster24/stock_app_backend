@@ -1,0 +1,27 @@
+Task 4 - Install and Configure Sanctum for PAT Authentication
+Date: 2026-03-07
+
+Command: CACHE_STORE=file php artisan install:api --no-interaction
+Result: Partial success
+- composer.json updated with "laravel/sanctum": "^4.0"
+- composer.lock updated and laravel/sanctum v4.3.1 installed
+- API routes file published (routes/api.php)
+- Sanctum config published (config/sanctum.php)
+- Sanctum config remains PAT-baseline oriented; no SPA middleware wiring added in bootstrap
+- Personal access token migration created: database/migrations/2026_03_07_114103_create_personal_access_tokens_table.php
+- User model was left unchanged in this task (PAT auth endpoints/service logic are out of scope)
+
+Verification command: php artisan migrate:fresh --force
+Result: failed due environment blocker (sqlite driver missing)
+
+Verification command: CACHE_STORE=file php artisan tinker --execute="echo class_exists('Laravel\\Sanctum\\Sanctum') ? 'ok' : 'fail';"
+Result: ok
+
+Verification command: php artisan route:list
+Result: ran successfully, includes:
+- GET|HEAD api/user with auth:sanctum
+- GET|HEAD sanctum/csrf-cookie
+
+PAT-only check (no SPA middleware wiring):
+- Searched for EnsureFrontendRequestsAreStateful/statefulApi middleware wiring
+- No runtime middleware wiring found in bootstrap/app.php

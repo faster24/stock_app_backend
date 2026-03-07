@@ -1,0 +1,78 @@
+Task: F3 Real Manual QA (API-only)
+Timestamp (UTC): 2026-03-07T13:08:32Z
+Base URL: http://127.0.0.1:8000/api/v1
+Runtime: php artisan serve --host=127.0.0.1 --port=8000
+
+Route/behavior mapping reviewed before runtime QA:
+- routes/api.php: POST /register, POST /login, GET /me (auth:sanctum), POST /logout (auth:sanctum)
+- bootstrap/app.php: AuthenticationException JSON envelope expected for unauthenticated requests
+- AuthController + AuthFormRequest: response envelope keys are message/data/errors
+
+Manual QA transcript (curl-driven):
+1) Unauthorized profile without token
+   - Request: GET /me (Accept: application/json)
+   - HTTP: 401
+   - JSON keys: message,data,errors
+   - Key checks: errors.auth present (PASS)
+   - message: "Unauthenticated."
+
+2) Unauthorized logout without token
+   - Request: POST /logout (Accept: application/json)
+   - HTTP: 401
+   - JSON keys: message,data,errors
+   - Key checks: errors.auth present (PASS)
+   - message: "Unauthenticated."
+
+3) Register success
+   - Request: POST /register with unique email manualqa_1772888879@example.com
+   - HTTP: 201
+   - JSON keys: message,data,errors
+   - Key checks: data.user.id present (PASS), data.token present (PASS), errors null (PASS)
+   - message: "Registration successful."
+
+4) Register duplicate email failure
+   - Request: POST /register reusing manualqa_1772888879@example.com
+   - HTTP: 422
+   - JSON keys: message,data,errors
+   - Key checks: errors.email present (PASS)
+   - message: "The given data was invalid."
+
+5) Login success
+   - Request: POST /login with valid credentials for manualqa_1772888879@example.com
+   - HTTP: 200
+   - JSON keys: message,data,errors
+   - Key checks: data.user.email present (PASS), data.token present (PASS)
+   - message: "Login successful."
+
+6) Login invalid credentials failure
+   - Request: POST /login with wrong password
+   - HTTP: 401
+   - JSON keys: message,data,errors
+   - Key checks: errors.credentials present (PASS)
+   - message: "Invalid credentials."
+
+7) Authorized profile with bearer token
+   - Request: GET /me with Authorization: Bearer <token from step 5>
+   - HTTP: 200
+   - JSON keys: message,data,errors
+   - Key checks: data.user.email present (PASS), errors null (PASS)
+   - message: "Authenticated user profile."
+
+8) Authorized logout with bearer token
+   - Request: POST /logout with Authorization: Bearer <token from step 5>
+   - HTTP: 200
+   - JSON keys: message,data,errors
+   - Key checks: data null (PASS), errors null (PASS)
+   - message: "Logout successful."
+
+9) Post-logout token denial
+   - Request: GET /me with same revoked bearer token
+   - HTTP: 401
+   - JSON keys: message,data,errors
+   - Key checks: errors.auth present (PASS)
+   - message: "Unauthenticated."
+
+Determinism/repro notes:
+- All requests sent with Accept: application/json.
+- Register uses a timestamped unique email to keep duplicate test deterministic.
+- QA pass/fail determined by HTTP status + required payload shape/keys.

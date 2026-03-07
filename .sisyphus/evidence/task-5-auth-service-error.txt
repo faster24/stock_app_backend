@@ -1,0 +1,15 @@
+Task: 5 - AuthService Failure-Path Evidence
+Date: 2026-03-07
+
+Goal:
+- Exercise deterministic invalid-credentials path for login.
+
+Command:
+- CACHE_STORE=file php artisan tinker --execute="app()->make(\\App\\Services\\Auth\\AuthService::class)->login('nobody@example.com', 'wrong-password');"
+
+Observed output:
+- Illuminate\Database\QueryException  could not find driver (Connection: sqlite, SQL: PRAGMA foreign_keys = ON;).
+
+Interpretation:
+- Runtime execution of login failure-path is blocked by missing sqlite PHP driver in this environment.
+- Service implementation contains deterministic failure behavior for invalid credentials by throwing AuthenticationException('Invalid credentials.') once database access is available.

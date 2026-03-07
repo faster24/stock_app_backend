@@ -1,0 +1,62 @@
+PHP Warning:  Failed loading Zend extension 'opcache' (tried: /usr/lib/php/modules/opcache (/usr/lib/php/modules/opcache: cannot open shared object file: No such file or directory), /usr/lib/php/modules/opcache.so (/usr/lib/php/modules/opcache.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+
+   INFO  Configuration cache cleared successfully.  
+
+PHP Warning:  Failed loading Zend extension 'opcache' (tried: /usr/lib/php/modules/opcache (/usr/lib/php/modules/opcache: cannot open shared object file: No such file or directory), /usr/lib/php/modules/opcache.so (/usr/lib/php/modules/opcache.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+
+  Dropping all tables ........................................... 26.67ms DONE
+
+   INFO  Preparing database.  
+
+  Creating migration table ....................................... 6.10ms DONE
+
+   INFO  Running migrations.  
+
+  0001_01_01_000000_create_users_table .......................... 37.97ms DONE
+  0001_01_01_000001_create_cache_table ........................... 8.30ms DONE
+  0001_01_01_000002_create_jobs_table ........................... 29.05ms DONE
+  2026_03_07_114103_create_personal_access_tokens_table ......... 28.91ms DONE
+
+PHP Warning:  Failed loading Zend extension 'opcache' (tried: /usr/lib/php/modules/opcache (/usr/lib/php/modules/opcache: cannot open shared object file: No such file or directory), /usr/lib/php/modules/opcache.so (/usr/lib/php/modules/opcache.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+PHP Warning:  Failed loading Zend extension 'opcache' (tried: /usr/lib/php/modules/opcache (/usr/lib/php/modules/opcache: cannot open shared object file: No such file or directory), /usr/lib/php/modules/opcache.so (/usr/lib/php/modules/opcache.so: cannot open shared object file: No such file or directory)) in Unknown on line 0
+
+   PASS  Tests\Unit\ExampleTest
+  ✓ that true is true                                                    0.01s  
+
+   DEPR  Tests\Feature\Auth\AuthFailureCasesTest
+  ! duplicate registration email returns 422 with email error → Constan… 0.33s  
+  ! invalid login password returns 401 with credentials error envelope…  0.02s  
+  ! me without token returns 401 → Constant PDO::MYSQL_ATTR_SSL_CA is d… 0.01s  
+  ! logout without token returns 401 → Constant PDO::MYSQL_ATTR_SSL_CA…  0.01s  
+
+   DEPR  Tests\Feature\Auth\AuthLifecycleTest
+  ! register success returns 201 with envelope and token → Constant PDO… 0.02s  
+  ! login success returns 200 with envelope and token → Constant PDO::M… 0.01s  
+  ! me success with valid token returns 200 with user data → Constant P… 0.04s  
+  ! logout success revokes current token and denies subsequent me acces… 0.02s  
+
+   FAIL  Tests\Feature\ExampleTest
+  ⨯ the application returns a successful response                        0.02s  
+  ────────────────────────────────────────────────────────────────────────────  
+   FAILED  Tests\Feature\ExampleTest > the application returns a successful…    
+  Expected response status code [200] but received 404.
+Failed asserting that 404 is identical to 200.
+
+  at tests/Feature/ExampleTest.php:17
+     13▕     public function test_the_application_returns_a_successful_response(): void
+     14▕     {
+     15▕         $response = $this->get('/');
+     16▕ 
+  ➜  17▕         $response->assertStatus(200);
+     18▕     }
+     19▕ }
+     20▕
+
+
+  Tests:    8 deprecated, 1 failed, 1 passed (70 assertions)
+  Duration: 0.52s
+
+  POST       api/v1/login ........................ Api\V1\AuthController@login
+  POST       api/v1/logout ...................... Api\V1\AuthController@logout
+  GET|HEAD   api/v1/me .............................. Api\V1\AuthController@me
+  POST       api/v1/register .................. Api\V1\AuthController@register

@@ -1,0 +1,71 @@
+Task: F2 Code Quality Review (auth service/controller/request/route/test/CI)
+Timestamp (UTC): 2026-03-07 13:07:59Z
+
+Scope reviewed:
+- app/Services/Auth/AuthService.php
+- app/Services/Service.php
+- app/Http/Controllers/Api/V1/AuthController.php
+- app/Http/Requests/Auth/AuthFormRequest.php
+- app/Http/Requests/Auth/LoginRequest.php
+- app/Http/Requests/Auth/RegisterRequest.php
+- routes/api.php
+- tests/Feature/Auth/AuthLifecycleTest.php
+- tests/Feature/Auth/AuthFailureCasesTest.php
+- .github/workflows/ci.yml
+- bootstrap/app.php
+
+Quality verdict:
+- PASS with one medium-severity maintainability/correctness risk and one low-severity coverage gap.
+
+Severity-ranked findings:
+1) [MEDIUM] Possible token-type mismatch in logout token deletion path.
+   - File: app/Services/Auth/AuthService.php:47
+   - File: app/Services/Auth/AuthService.php:50
+   - Evidence: LSP reports `Undefined method 'delete'` at delete call, meaning static type of `currentAccessToken()` is not guaranteed to expose `delete()` in all Sanctum auth contexts.
+   - Impact: Could break logout in non-PAT contexts where token object differs, and weakens static safety.
+   - Scope fit: Directly within auth service correctness/maintainability.
+
+2) [LOW] Unauthenticated contract assertions are incomplete in failure tests.
+   - File: tests/Feature/Auth/AuthFailureCasesTest.php:61
+   - File: tests/Feature/Auth/AuthFailureCasesTest.php:70
+   - File: bootstrap/app.php:23
+   - Evidence: tests for `/me` and `/logout` without token assert only `message`, not full envelope (`data`, `errors`) now defined in exception handler.
+   - Impact: Future envelope drift for unauthenticated responses may pass unnoticed.
+   - Scope fit: Auth response contract verification.
+
+Contract checks (auth response envelope):
+- Success responses from controller return consistent envelope via `respond(...)`.
+  - File: app/Http/Controllers/Api/V1/AuthController.php:77
+  - Keys: `message`, `data`, `errors` (null when no errors)
+- Validation failures return 422 with same envelope via base auth request.
+  - File: app/Http/Requests/Auth/AuthFormRequest.php:18
+- Unauthenticated middleware failures return 401 with same envelope via global exception handler.
+  - File: bootstrap/app.php:23
+
+Controller/service boundary checks:
+- Controller remains thin and delegates auth business logic to service methods (`register/login/me/logout`).
+  - File: app/Http/Controllers/Api/V1/AuthController.php:22
+  - File: app/Http/Controllers/Api/V1/AuthController.php:34
+  - File: app/Http/Controllers/Api/V1/AuthController.php:58
+  - File: app/Http/Controllers/Api/V1/AuthController.php:72
+- Business logic remains service-bound (user creation, hashing, credential check, token issue/revocation).
+  - File: app/Services/Auth/AuthService.php:14
+  - File: app/Services/Auth/AuthService.php:30
+  - File: app/Services/Auth/AuthService.php:36
+  - File: app/Services/Auth/AuthService.php:47
+
+Logout behavior check:
+- Confirmed current-token-only revocation logic remains intact.
+  - File: app/Services/Auth/AuthService.php:47
+  - File: app/Services/Auth/AuthService.php:50
+
+Anti-pattern scan results:
+- Pattern set: TODO|FIXME|HACK|@ts-ignore|as any|dd\(|dump\(|var_dump\(|die\(|exit\(
+- Result: No matches across all scoped files (services, controller, auth requests, auth tests, routes/api.php, ci.yml, bootstrap/app.php).
+
+Diagnostics and command verification:
+- LSP diagnostics run on reviewed PHP files.
+  - Notable: `Undefined method 'delete'` in app/Services/Auth/AuthService.php:50
+  - Notable hint: unused `$exception` in bootstrap/app.php:18
+- `php artisan route:list --path=api/v1` passed; expected 4 auth routes present.
+- `php artisan test --filter=Auth` passed (8 tests, 68 assertions) with non-blocking environment warnings/deprecations.
