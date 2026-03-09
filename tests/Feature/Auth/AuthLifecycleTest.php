@@ -12,6 +12,9 @@ class AuthLifecycleTest extends TestCase
 
     public function test_register_success_returns_201_with_envelope_and_token(): void
     {
+        app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+
         $response = $this->postJson('/api/v1/register', [
             'name' => 'Jane Doe',
             'email' => 'jane@example.com',
@@ -32,6 +35,11 @@ class AuthLifecycleTest extends TestCase
 
         $this->assertIsString($response->json('data.token'));
         $this->assertNotEmpty($response->json('data.token'));
+        $this->assertDatabaseHas('model_has_roles', [
+            'role_id' => call_user_func(['Spatie\\Permission\\Models\\Role', 'findByName'], 'user')->id,
+            'model_id' => $response->json('data.user.id'),
+            'model_type' => User::class,
+        ]);
     }
 
     public function test_login_success_returns_200_with_envelope_and_token(): void
