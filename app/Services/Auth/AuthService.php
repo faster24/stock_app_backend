@@ -18,6 +18,8 @@ class AuthService extends Service
             'password' => Hash::make($password),
         ]);
 
+        $user->assignRole('user');
+
         return [
             'user' => $user,
             'token' => $user->createToken('auth_token')->plainTextToken,

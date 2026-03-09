@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -38,7 +39,27 @@ class UserFactory extends Factory
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+            'email_verified_at' => $attributes['email_verified_at'] ?? null,
         ]);
+    }
+
+    public function admin(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin');
+
+            $user->syncRoles(['admin']);
+        });
+    }
+
+    public function normalUser(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+
+            $user->syncRoles(['user']);
+        });
     }
 }
