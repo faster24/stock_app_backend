@@ -34,6 +34,7 @@ class DatabaseSeeder extends Seeder
             'bet_type' => BetType::STRAIGHT,
         ], [
             'odd' => '80.00',
+            'bet_amount' => 1_000,
             'is_active' => true,
         ]);
 
@@ -41,6 +42,7 @@ class DatabaseSeeder extends Seeder
             'bet_type' => BetType::PERMUTATION,
         ], [
             'odd' => '10.00',
+            'bet_amount' => 1_000,
             'is_active' => true,
         ]);
     }

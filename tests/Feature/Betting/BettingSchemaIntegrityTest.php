@@ -102,4 +102,17 @@ class BettingSchemaIntegrityTest extends TestCase
             'updated_at' => now(),
         ]);
     }
+
+    public function test_betting_schema_rejects_odd_setting_without_bet_amount(): void
+    {
+        $this->expectException(QueryException::class);
+
+        DB::table('odd_settings')->insert([
+            'bet_type' => BetType::STRAIGHT->value,
+            'odd' => '80.00',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
 }

@@ -12,6 +12,7 @@ class OddSettingFactory extends Factory
         return [
             'bet_type' => BetType::STRAIGHT,
             'odd' => '80.00',
+            'bet_amount' => 1_000,
             'is_active' => true,
         ];
     }
@@ -21,6 +22,7 @@ class OddSettingFactory extends Factory
         return $this->state([
             'bet_type' => BetType::PERMUTATION,
             'odd' => '10.00',
+            'bet_amount' => 1_000,
         ]);
     }
 }
