@@ -2,9 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Enums\BetType;
+use App\Models\OddSetting;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,11 +16,32 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
 
-        User::factory()->create([
-            'name' => 'Test User',
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin');
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+
+        app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+
+        User::query()->firstOrCreate([
             'email' => 'test@example.com',
+        ], [
+            'name' => 'Test User',
+            'password' => Hash::make('password'),
+        ]);
+
+        OddSetting::query()->updateOrCreate([
+            'bet_type' => BetType::STRAIGHT,
+        ], [
+            'odd' => '80.00',
+            'is_active' => true,
+        ]);
+
+        OddSetting::query()->updateOrCreate([
+            'bet_type' => BetType::PERMUTATION,
+        ], [
+            'odd' => '10.00',
+            'is_active' => true,
         ]);
     }
 }
