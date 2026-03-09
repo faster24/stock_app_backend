@@ -1,0 +1,654 @@
+openapi: 3.0.3
+info:
+  title: Stock App Backend API
+  version: 1.0.0
+  description: |
+    OpenAPI documentation for current Laravel API routes under `/api/v1`.
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+  - name: Announcement
+  - name: OddSetting
+  - name: Admin
+
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /me:
+    get:
+      tags: [Auth]
+      summary: Get authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /logout:
+    post:
+      tags: [Auth]
+      summary: Logout current access token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /announcements:
+    get:
+      tags: [Announcement]
+      summary: List announcements (authenticated)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Announcements list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /announcements/{announcement}:
+    get:
+      tags: [Announcement]
+      summary: Get announcement by id (authenticated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      responses:
+        '200':
+          description: Announcement detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /odd-settings:
+    get:
+      tags: [OddSetting]
+      summary: List odd settings (authenticated)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Odd settings list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OddSettingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /odd-settings/{oddSetting}:
+    get:
+      tags: [OddSetting]
+      summary: Get odd setting by id (authenticated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OddSettingId'
+      responses:
+        '200':
+          description: Odd setting detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OddSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Admin dashboard scope check
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/announcements:
+    post:
+      tags: [Announcement]
+      summary: Create announcement (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementWriteRequest'
+      responses:
+        '201':
+          description: Announcement created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/announcements/{announcement}:
+    put:
+      tags: [Announcement]
+      summary: Update announcement (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnnouncementWriteRequest'
+      responses:
+        '200':
+          description: Announcement updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Announcement]
+      summary: Delete announcement (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AnnouncementId'
+      responses:
+        '200':
+          description: Announcement deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/odd-settings:
+    post:
+      tags: [OddSetting]
+      summary: Create odd setting (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OddSettingWriteRequest'
+      responses:
+        '201':
+          description: Odd setting created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OddSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/odd-settings/{oddSetting}:
+    put:
+      tags: [OddSetting]
+      summary: Update odd setting (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OddSettingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OddSettingWriteRequest'
+      responses:
+        '200':
+          description: Odd setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OddSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [OddSetting]
+      summary: Delete odd setting (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OddSettingId'
+      responses:
+        '200':
+          description: Odd setting deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+
+  parameters:
+    AnnouncementId:
+      name: announcement
+      in: path
+      required: true
+      schema:
+        type: integer
+    OddSettingId:
+      name: oddSetting
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    Unauthenticated:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Forbidden for current user role
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: No query results for model [App\\Models\\Resource] 999999
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [name, email, password, password_confirmation]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          maxLength: 255
+        password:
+          type: string
+          minLength: 8
+        password_confirmation:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        username:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        summary:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OddSetting:
+      type: object
+      properties:
+        id:
+          type: integer
+        bet_type:
+          type: string
+          enum: [STRAIGHT, PERMUTATION]
+        odd:
+          type: string
+          example: "80.00"
+        bet_amount:
+          type: integer
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuthData:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/AuthData'
+        errors:
+          type: object
+          nullable: true
+
+    MeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+        errors:
+          type: object
+          nullable: true
+
+    AnnouncementWriteRequest:
+      type: object
+      required: [title, summary, description]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        summary:
+          type: string
+        description:
+          type: string
+
+    OddSettingWriteRequest:
+      type: object
+      required: [bet_type, odd, bet_amount]
+      properties:
+        bet_type:
+          type: string
+          enum: [STRAIGHT, PERMUTATION]
+        odd:
+          type: number
+          minimum: 0
+        bet_amount:
+          type: integer
+          minimum: 1
+        is_active:
+          type: boolean
+
+    AnnouncementListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            announcements:
+              type: array
+              items:
+                $ref: '#/components/schemas/Announcement'
+        errors:
+          type: object
+          nullable: true
+
+    AnnouncementItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            announcement:
+              $ref: '#/components/schemas/Announcement'
+        errors:
+          type: object
+          nullable: true
+
+    OddSettingListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            odd_settings:
+              type: array
+              items:
+                $ref: '#/components/schemas/OddSetting'
+        errors:
+          type: object
+          nullable: true
+
+    OddSettingItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            odd_setting:
+              $ref: '#/components/schemas/OddSetting'
+        errors:
+          type: object
+          nullable: true
+
+    AdminDashboardResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            dashboard:
+              type: object
+              properties:
+                scope:
+                  type: string
+                  example: admin
+        errors:
+          type: object
+          nullable: true
+
+    SuccessNoDataResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: The given data was invalid.
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
