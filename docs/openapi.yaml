@@ -11,6 +11,7 @@ servers:
 
 tags:
   - name: Auth
+  - name: Wallet
   - name: Announcement
   - name: OddSetting
   - name: Admin
@@ -75,6 +76,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /me/bank-info:
+    get:
+      tags: [Wallet]
+      summary: Get authenticated user's bank info
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bank info retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletBankInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/WalletBankInfoNotFound'
+    post:
+      tags: [Wallet]
+      summary: Create authenticated user's bank info
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletBankInfoStoreRequest'
+      responses:
+        '201':
+          description: Bank info created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletBankInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    put:
+      tags: [Wallet]
+      summary: Update authenticated user's bank info
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WalletBankInfoUpdateRequest'
+      responses:
+        '200':
+          description: Bank info updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletBankInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Wallet]
+      summary: Clear authenticated user's bank info
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bank info cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
@@ -387,6 +464,13 @@ components:
                 type: string
                 example: No query results for model [App\\Models\\Resource] 999999
 
+    WalletBankInfoNotFound:
+      description: Bank info not found for current user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WalletBankInfoNotFoundResponse'
+
   schemas:
     RegisterRequest:
       type: object
@@ -507,6 +591,76 @@ components:
         errors:
           type: object
           nullable: true
+
+    WalletBankInfo:
+      type: object
+      properties:
+        bank_name:
+          type: string
+          enum: [KBZ, AYA, CB, UAB, YOMA, OTHER]
+        account_name:
+          type: string
+          maxLength: 255
+        account_number:
+          type: string
+          maxLength: 255
+
+    WalletBankInfoData:
+      type: object
+      properties:
+        bank_info:
+          $ref: '#/components/schemas/WalletBankInfo'
+
+    WalletBankInfoResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/WalletBankInfoData'
+        errors:
+          type: object
+          nullable: true
+
+    WalletBankInfoNotFoundResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Bank info not found.
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+          nullable: true
+
+    WalletBankInfoStoreRequest:
+      type: object
+      required: [bank_name, account_name, account_number]
+      properties:
+        bank_name:
+          type: string
+          enum: [KBZ, AYA, CB, UAB, YOMA, OTHER]
+        account_name:
+          type: string
+          maxLength: 255
+        account_number:
+          type: string
+          maxLength: 255
+
+    WalletBankInfoUpdateRequest:
+      type: object
+      properties:
+        bank_name:
+          type: string
+          enum: [KBZ, AYA, CB, UAB, YOMA, OTHER]
+        account_name:
+          type: string
+          maxLength: 255
+        account_number:
+          type: string
+          maxLength: 255
 
     AnnouncementWriteRequest:
       type: object

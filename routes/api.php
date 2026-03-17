@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\OddSettingController;
+use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -13,6 +14,10 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me/bank-info', [WalletBankInfoController::class, 'show']);
+        Route::post('/me/bank-info', [WalletBankInfoController::class, 'store']);
+        Route::put('/me/bank-info', [WalletBankInfoController::class, 'update']);
+        Route::delete('/me/bank-info', [WalletBankInfoController::class, 'destroy']);
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
         Route::get('/odd-settings', [OddSettingController::class, 'index']);
