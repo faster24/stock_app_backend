@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BetController;
 use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +23,13 @@ Route::prefix('v1')->group(function () {
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
         Route::get('/odd-settings', [OddSettingController::class, 'index']);
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
+        Route::prefix('bets')->controller(BetController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::get('/{bet}', 'show');
+            Route::post('/', 'store');
+            Route::put('/{bet}', 'update');
+            Route::delete('/{bet}', 'destroy');
+        });
 
         Route::prefix('admin')
             ->middleware('role:admin,sanctum')
