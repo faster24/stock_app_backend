@@ -11,6 +11,7 @@ servers:
 
 tags:
   - name: Auth
+  - name: Bet
   - name: Wallet
   - name: Announcement
   - name: OddSetting
@@ -170,6 +171,127 @@ paths:
                 $ref: '#/components/schemas/SuccessNoDataResponse'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+
+  /bets:
+    get:
+      tags: [Bet]
+      summary: List authenticated user's bets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Bets list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    post:
+      tags: [Bet]
+      summary: Create bet for authenticated user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BetStoreRequest'
+      responses:
+        '201':
+          description: Bet created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /bets/{bet}:
+    get:
+      tags: [Bet]
+      summary: Get bet by id (authenticated, owner-scoped)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      responses:
+        '200':
+          description: Bet detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+    put:
+      tags: [Bet]
+      summary: Update bet by id (authenticated, owner-scoped)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BetUpdateRequest'
+      responses:
+        '200':
+          description: Bet updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Bet]
+      summary: Delete bet by id (authenticated, owner-scoped)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      responses:
+        '200':
+          description: Bet deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+        '409':
+          $ref: '#/components/responses/BetDeleteConflict'
 
   /announcements:
     get:
@@ -433,6 +555,12 @@ components:
       required: true
       schema:
         type: integer
+    BetId:
+      name: bet
+      in: path
+      required: true
+      schema:
+        type: integer
 
   responses:
     Unauthenticated:
@@ -470,6 +598,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WalletBankInfoNotFoundResponse'
+
+    BetNotFound:
+      description: Bet not found (or not owned by current user)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BetNotFoundResponse'
+
+    BetDeleteConflict:
+      description: Bet cannot be deleted due to dependent results
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BetDeleteConflictResponse'
 
   schemas:
     RegisterRequest:
@@ -806,3 +948,157 @@ components:
             type: array
             items:
               type: string
+
+    BetNumber:
+      type: object
+      properties:
+        id:
+          type: integer
+        bet_id:
+          type: integer
+        number:
+          type: integer
+          minimum: 0
+          maximum: 255
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Bet:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        round_id:
+          type: integer
+        bet_type:
+          type: string
+          enum: [STRAIGHT, PERMUTATION]
+        amount:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum: [PENDING, WON, LOST, CANCELLED]
+        placed_at:
+          type: string
+          format: date-time
+          nullable: true
+        bet_numbers:
+          type: array
+          items:
+            $ref: '#/components/schemas/BetNumber'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BetStoreRequest:
+      type: object
+      required: [round_id, bet_type, amount, bet_numbers]
+      properties:
+        round_id:
+          type: integer
+        bet_type:
+          type: string
+          enum: [STRAIGHT, PERMUTATION]
+        amount:
+          type: integer
+          minimum: 1
+        bet_numbers:
+          type: array
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 255
+
+    BetUpdateRequest:
+      type: object
+      properties:
+        bet_type:
+          type: string
+          enum: [STRAIGHT, PERMUTATION]
+        amount:
+          type: integer
+          minimum: 1
+        bet_numbers:
+          type: array
+          uniqueItems: true
+          items:
+            type: integer
+            minimum: 0
+            maximum: 255
+
+    BetListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            bets:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bet'
+        errors:
+          type: object
+          nullable: true
+
+    BetItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            bet:
+              $ref: '#/components/schemas/Bet'
+        errors:
+          type: object
+          nullable: true
+
+    BetNotFoundResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Bet not found.
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+          properties:
+            bet:
+              type: array
+              items:
+                type: string
+              example: [The selected bet is invalid.]
+
+    BetDeleteConflictResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Bet cannot be deleted.
+        data:
+          type: object
+          nullable: true
+        errors:
+          type: object
+          properties:
+            bet:
+              type: array
+              items:
+                type: string
+              example: [This bet has dependent results and cannot be deleted.]
