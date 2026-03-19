@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('odd_settings', function (Blueprint $table) {
             $table->id();
-            $table->enum('bet_type', ['STRAIGHT', 'PERMUTATION'])->unique();
+            $table->enum('bet_type', ['2D', '3D'])->unique();
             $table->decimal('odd', 8, 2);
             $table->integer('bet_amount');
             $table->boolean('is_active')->default(true);

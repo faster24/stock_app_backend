@@ -9,8 +9,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('bet_numbers', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('bet_id');
+            $table->uuid('id')->primary();
+            $table->uuid('bet_id');
             $table->unsignedTinyInteger('number');
             $table->timestamps();
 

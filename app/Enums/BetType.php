@@ -4,6 +4,6 @@ namespace App\Enums;
 
 enum BetType: string
 {
-    case STRAIGHT = 'STRAIGHT';
-    case PERMUTATION = 'PERMUTATION';
+    case TWO_D = '2D';
+    case THREE_D = '3D';
 }

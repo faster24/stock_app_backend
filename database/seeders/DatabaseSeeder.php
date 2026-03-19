@@ -8,6 +8,7 @@ use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Guard;
 
 class DatabaseSeeder extends Seeder
 {
@@ -18,10 +19,14 @@ class DatabaseSeeder extends Seeder
     {
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
 
-        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin');
-        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+        $guard = Guard::getDefaultName(User::class);
+
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin', $guard);
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
 
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+
+        $this->call(AdminSeeder::class);
 
         User::query()->firstOrCreate([
             'email' => 'test@example.com',
@@ -31,7 +36,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         OddSetting::query()->updateOrCreate([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
         ], [
             'odd' => '80.00',
             'bet_amount' => 1_000,
@@ -39,7 +44,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         OddSetting::query()->updateOrCreate([
-            'bet_type' => BetType::PERMUTATION,
+            'bet_type' => BetType::THREE_D,
         ], [
             'odd' => '10.00',
             'bet_amount' => 1_000,

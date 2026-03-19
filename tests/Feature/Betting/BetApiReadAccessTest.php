@@ -5,6 +5,7 @@ namespace Tests\Feature\Betting;
 use App\Models\Bet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BetApiReadAccessTest extends TestCase
@@ -32,6 +33,9 @@ class BetApiReadAccessTest extends TestCase
         $ownerBet = Bet::factory()->for($owner)->create();
         Bet::factory()->for($otherUser)->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
+
+        $this->assertTrue(Str::isUuid($ownerBet->id));
+        $this->assertTrue(Str::isUuid($ownerBet->bet_slip));
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson('/api/v1/bets')

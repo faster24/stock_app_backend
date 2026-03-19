@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Guard;
 use Tests\TestCase;
 
 class AuthLifecycleTest extends TestCase
@@ -13,7 +14,8 @@ class AuthLifecycleTest extends TestCase
     public function test_register_success_returns_201_with_envelope_and_token(): void
     {
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
-        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+        $guard = Guard::getDefaultName(User::class);
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
 
         $response = $this->postJson('/api/v1/register', [
             'name' => 'Jane Doe',
@@ -36,7 +38,7 @@ class AuthLifecycleTest extends TestCase
         $this->assertIsString($response->json('data.token'));
         $this->assertNotEmpty($response->json('data.token'));
         $this->assertDatabaseHas('model_has_roles', [
-            'role_id' => call_user_func(['Spatie\\Permission\\Models\\Role', 'findByName'], 'user')->id,
+            'role_id' => call_user_func(['Spatie\\Permission\\Models\\Role', 'findByName'], 'user', $guard)->id,
             'model_id' => $response->json('data.user.id'),
             'model_type' => User::class,
         ]);

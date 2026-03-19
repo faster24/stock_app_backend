@@ -4,9 +4,10 @@ namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
 use App\Models\Bet;
-use App\Models\Round;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BetApiWriteAccessTest extends TestCase
@@ -16,13 +17,12 @@ class BetApiWriteAccessTest extends TestCase
     public function test_owner_can_store_update_and_delete_own_bet(): void
     {
         $owner = User::factory()->normalUser()->create();
-        $round = Round::factory()->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/bets', [
-                'round_id' => $round->id,
-                'bet_type' => BetType::STRAIGHT->value,
+                'bet_type' => BetType::TWO_D->value,
+                'target_opentime' => '11:00:00',
                 'amount' => 1500,
                 'bet_numbers' => [11, 22],
             ]);
@@ -30,7 +30,8 @@ class BetApiWriteAccessTest extends TestCase
         $createResponse->assertStatus(201)
             ->assertJsonPath('message', 'Bet created successfully.')
             ->assertJsonPath('data.bet.user_id', $owner->id)
-            ->assertJsonPath('data.bet.round_id', $round->id)
+            ->assertJsonPath('data.bet.target_opentime', '11:00:00')
+            ->assertJsonPath('data.bet.stock_date', Carbon::now()->startOfDay()->utc()->format('Y-m-d\TH:i:s.000000\Z'))
             ->assertJsonPath('data.bet.bet_numbers.0.number', 11)
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
@@ -39,19 +40,26 @@ class BetApiWriteAccessTest extends TestCase
                 'errors',
             ]);
 
-        $betId = (int) $createResponse->json('data.bet.id');
+        $betId = (string) $createResponse->json('data.bet.id');
+        $betSlip = (string) $createResponse->json('data.bet.bet_slip');
+
+        $this->assertTrue(Str::isUuid($betId));
+        $this->assertTrue(Str::isUuid($betSlip));
 
         $this->assertDatabaseHas('bets', [
             'id' => $betId,
             'user_id' => $owner->id,
-            'round_id' => $round->id,
-            'bet_type' => BetType::STRAIGHT->value,
+            'bet_slip' => $betSlip,
+            'bet_type' => BetType::TWO_D->value,
+            'target_opentime' => '11:00:00',
+            'stock_date' => Carbon::now()->toDateString(),
             'amount' => 1500,
+            'total_amount' => 3000.00,
         ]);
 
         $updateResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/bets/'.$betId, [
-                'bet_type' => BetType::PERMUTATION->value,
+                'bet_type' => BetType::THREE_D->value,
                 'amount' => 2500,
                 'bet_numbers' => [33, 44],
             ]);
@@ -70,8 +78,9 @@ class BetApiWriteAccessTest extends TestCase
 
         $this->assertDatabaseHas('bets', [
             'id' => $betId,
-            'bet_type' => BetType::PERMUTATION->value,
+            'bet_type' => BetType::THREE_D->value,
             'amount' => 2500,
+            'total_amount' => 5000.00,
         ]);
 
         $this->assertDatabaseHas('bet_numbers', [
@@ -82,6 +91,40 @@ class BetApiWriteAccessTest extends TestCase
         $this->assertDatabaseMissing('bet_numbers', [
             'bet_id' => $betId,
             'number' => 11,
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/bets/'.$betId, [
+                'amount' => 1000,
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $betId,
+            'amount' => 1000,
+            'total_amount' => 2000.00,
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/bets/'.$betId, [
+                'bet_numbers' => [123, 234, 255],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $betId,
+            'amount' => 1000,
+            'total_amount' => 3000.00,
+        ]);
+
+        $this->assertDatabaseHas('bet_numbers', [
+            'bet_id' => $betId,
+            'number' => 123,
+        ]);
+
+        $this->assertDatabaseMissing('bet_numbers', [
+            'bet_id' => $betId,
+            'number' => 33,
         ]);
 
         $deleteResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -136,17 +179,15 @@ class BetApiWriteAccessTest extends TestCase
             ]);
     }
 
-    public function test_owner_cannot_update_round_id_after_creation(): void
+    public function test_owner_cannot_submit_invalid_amount_when_updating_bet(): void
     {
         $owner = User::factory()->normalUser()->create();
-        $currentRound = Round::factory()->create();
-        $newRound = Round::factory()->create();
-        $bet = Bet::factory()->for($owner)->for($currentRound)->create();
+        $bet = Bet::factory()->for($owner)->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/bets/'.$bet->id, [
-                'round_id' => $newRound->id,
+                'amount' => 0,
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -154,12 +195,12 @@ class BetApiWriteAccessTest extends TestCase
             ->assertJsonStructure([
                 'message',
                 'data',
-                'errors' => ['round_id'],
+                'errors' => ['amount'],
             ]);
 
         $this->assertDatabaseHas('bets', [
             'id' => $bet->id,
-            'round_id' => $currentRound->id,
+            'amount' => $bet->amount,
         ]);
     }
 }

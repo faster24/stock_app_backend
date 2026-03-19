@@ -2,11 +2,14 @@
 
 namespace App\Services\Bet;
 
+use App\Enums\BetType;
 use App\Models\Bet;
 use App\Services\Service;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class BetService extends Service
 {
@@ -29,7 +32,7 @@ class BetService extends Service
             ->get();
     }
 
-    public function showForUser(int $userId, int $betId): ?Bet
+    public function showForUser(int $userId, string $betId): ?Bet
     {
         return Bet::query()
             ->with('betNumbers')
@@ -43,6 +46,14 @@ class BetService extends Service
         $numbers = $attributes['bet_numbers'] ?? [];
         unset($attributes['bet_numbers']);
 
+        $attributes['total_amount'] = $this->calculateTotalAmount(
+            (int) ($attributes['amount'] ?? 0),
+            count($numbers)
+        );
+        $attributes['stock_date'] = Carbon::now()->toDateString();
+
+        $this->validateCreateBetNumbersForType((string) ($attributes['bet_type'] ?? ''), $numbers);
+
         return DB::transaction(function () use ($userId, $attributes, $numbers): Bet {
             $bet = Bet::query()->create(array_merge($attributes, [
                 'user_id' => $userId,
@@ -54,7 +65,7 @@ class BetService extends Service
         });
     }
 
-    public function updateForUser(int $userId, int $betId, array $attributes): ?Bet
+    public function updateForUser(int $userId, string $betId, array $attributes): ?Bet
     {
         $bet = Bet::query()
             ->where('user_id', $userId)
@@ -69,6 +80,14 @@ class BetService extends Service
         $numbers = $attributes['bet_numbers'] ?? [];
         unset($attributes['bet_numbers'], $attributes['user_id']);
 
+        $resolvedAmount = array_key_exists('amount', $attributes)
+            ? (int) $attributes['amount']
+            : (int) $bet->amount;
+        $resolvedBetCount = $hasBetNumbers
+            ? count($numbers)
+            : $bet->betNumbers()->count();
+        $attributes['total_amount'] = $this->calculateTotalAmount($resolvedAmount, $resolvedBetCount);
+
         return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numbers): Bet {
             $bet->update($attributes);
 
@@ -80,7 +99,7 @@ class BetService extends Service
         });
     }
 
-    public function deleteForUser(int $userId, int $betId): string
+    public function deleteForUser(int $userId, string $betId): string
     {
         $bet = Bet::query()
             ->where('user_id', $userId)
@@ -126,5 +145,46 @@ class BetService extends Service
         );
 
         $bet->betNumbers()->createMany($rows);
+    }
+
+    private function validateCreateBetNumbersForType(string $betType, array $numbers): void
+    {
+        $min = null;
+        $max = null;
+
+        if ($betType === BetType::TWO_D->value) {
+            $min = 10;
+            $max = 99;
+        }
+
+        if ($betType === BetType::THREE_D->value) {
+            $min = 100;
+            $max = 999;
+        }
+
+        if ($min === null || $max === null) {
+            return;
+        }
+
+        foreach (array_values($numbers) as $index => $number) {
+            $resolvedNumber = (int) $number;
+
+            if ($resolvedNumber >= $min && $resolvedNumber <= $max) {
+                continue;
+            }
+
+            throw ValidationException::withMessages([
+                'bet_numbers.'.$index => [
+                    'The bet number must be between '.$min.' and '.$max.' when bet type is '.$betType.'.',
+                ],
+            ]);
+        }
+    }
+
+    private function calculateTotalAmount(int $amount, int $betNumberCount): string
+    {
+        $total = max(0, $amount) * max(0, $betNumberCount);
+
+        return number_format($total, 2, '.', '');
     }
 }

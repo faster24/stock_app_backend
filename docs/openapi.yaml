@@ -254,7 +254,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/BetId'
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -560,7 +560,8 @@ components:
       in: path
       required: true
       schema:
-        type: integer
+        type: string
+        format: uuid
 
   responses:
     Unauthenticated:
@@ -686,7 +687,7 @@ components:
           type: integer
         bet_type:
           type: string
-          enum: [STRAIGHT, PERMUTATION]
+          enum: ['2D', '3D']
         odd:
           type: string
           example: "80.00"
@@ -822,7 +823,7 @@ components:
       properties:
         bet_type:
           type: string
-          enum: [STRAIGHT, PERMUTATION]
+          enum: ['2D', '3D']
         odd:
           type: number
           minimum: 0
@@ -953,9 +954,11 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
+          format: uuid
         bet_id:
-          type: integer
+          type: string
+          format: uuid
         number:
           type: integer
           minimum: 0
@@ -971,23 +974,47 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
+          format: uuid
         user_id:
           type: integer
-        round_id:
-          type: integer
+        bet_slip:
+          type: string
+          format: uuid
         bet_type:
           type: string
-          enum: [STRAIGHT, PERMUTATION]
+          enum: ['2D', '3D']
+        target_opentime:
+          type: string
+          enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+        stock_date:
+          type: string
+          format: date
         amount:
           type: integer
           minimum: 1
+        total_amount:
+          type: string
+          example: '200.00'
         status:
           type: string
-          enum: [PENDING, WON, LOST, CANCELLED]
+          enum: [PENDING, ACCEPTED, REJECTED, REFUNDED]
+        bet_result_status:
+          type: string
+          enum: [OPEN, WON, LOST, VOID]
+        payout_status:
+          type: string
+          enum: [PENDING, PAID_OUT]
         placed_at:
           type: string
           format: date-time
+          nullable: true
+        settled_at:
+          type: string
+          format: date-time
+          nullable: true
+        settled_result_history_id:
+          type: string
           nullable: true
         bet_numbers:
           type: array
@@ -1002,19 +1029,25 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [round_id, bet_type, amount, bet_numbers]
+      required: [bet_type, target_opentime, amount, bet_numbers]
+      description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied.
       properties:
-        round_id:
-          type: integer
         bet_type:
           type: string
-          enum: [STRAIGHT, PERMUTATION]
+          enum: ['2D', '3D']
+          description: Bet type enum used by the current 2D/3D flow.
+        target_opentime:
+          type: string
+          enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+          description: Target stock market open time for this bet.
         amount:
           type: integer
           minimum: 1
+          description: Stake amount. Must be at least 1.
         bet_numbers:
           type: array
           uniqueItems: true
+          description: Unique list of numbers for this bet.
           items:
             type: integer
             minimum: 0
@@ -1022,16 +1055,24 @@ components:
 
     BetUpdateRequest:
       type: object
+      description: Partial update payload. Send only client-writable fields that should be changed. Review/result/payout statuses are server-managed and rejected if supplied.
       properties:
         bet_type:
           type: string
-          enum: [STRAIGHT, PERMUTATION]
+          enum: ['2D', '3D']
+          description: Bet type enum used by the current 2D/3D flow.
+        target_opentime:
+          type: string
+          enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+          description: Target stock market open time for this bet.
         amount:
           type: integer
           minimum: 1
+          description: Stake amount. Must be at least 1.
         bet_numbers:
           type: array
           uniqueItems: true
+          description: Replaces existing bet numbers when provided.
           items:
             type: integer
             minimum: 0

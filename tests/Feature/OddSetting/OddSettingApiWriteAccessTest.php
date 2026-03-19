@@ -15,7 +15,7 @@ class OddSettingApiWriteAccessTest extends TestCase
     public function test_non_admin_cannot_write_odd_settings(): void
     {
         $oddSetting = OddSetting::query()->create([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
             'odd' => '80.00',
             'bet_amount' => 1000,
             'is_active' => true,
@@ -25,7 +25,7 @@ class OddSettingApiWriteAccessTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $payload = [
-            'bet_type' => BetType::PERMUTATION->value,
+            'bet_type' => BetType::THREE_D->value,
             'odd' => '10.00',
             'bet_amount' => 2000,
             'is_active' => true,
@@ -57,7 +57,7 @@ class OddSettingApiWriteAccessTest extends TestCase
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/admin/odd-settings', [
-                'bet_type' => BetType::PERMUTATION->value,
+                'bet_type' => BetType::THREE_D->value,
                 'odd' => '10.00',
                 'bet_amount' => 2000,
                 'is_active' => true,
@@ -65,14 +65,14 @@ class OddSettingApiWriteAccessTest extends TestCase
 
         $createResponse->assertStatus(201)
             ->assertJsonPath('message', 'Odd setting created successfully.')
-            ->assertJsonPath('data.odd_setting.bet_type', BetType::PERMUTATION->value)
+            ->assertJsonPath('data.odd_setting.bet_type', BetType::THREE_D->value)
             ->assertJsonPath('errors', null);
 
         $oddSettingId = $createResponse->json('data.odd_setting.id');
 
         $this->assertDatabaseHas('odd_settings', [
             'id' => $oddSettingId,
-            'bet_type' => BetType::PERMUTATION->value,
+            'bet_type' => BetType::THREE_D->value,
             'bet_amount' => 2000,
         ]);
 

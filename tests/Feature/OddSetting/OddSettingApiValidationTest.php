@@ -39,7 +39,7 @@ class OddSettingApiValidationTest extends TestCase
         $token = $admin->createToken('auth_token')->plainTextToken;
 
         $oddSetting = OddSetting::query()->create([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
             'odd' => '80.00',
             'bet_amount' => 1000,
             'is_active' => true,
@@ -66,7 +66,7 @@ class OddSettingApiValidationTest extends TestCase
         $token = $admin->createToken('auth_token')->plainTextToken;
 
         OddSetting::query()->create([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
             'odd' => '80.00',
             'bet_amount' => 1000,
             'is_active' => true,
@@ -74,7 +74,7 @@ class OddSettingApiValidationTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/admin/odd-settings', [
-                'bet_type' => BetType::STRAIGHT->value,
+                'bet_type' => BetType::TWO_D->value,
                 'odd' => '81.00',
                 'bet_amount' => 2000,
                 'is_active' => true,

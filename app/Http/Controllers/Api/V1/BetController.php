@@ -24,7 +24,7 @@ class BetController extends Controller
         ]);
     }
 
-    public function show(Request $request, int $bet): JsonResponse
+    public function show(Request $request, string $bet): JsonResponse
     {
         $userId = (int) $request->user()->id;
         $resolvedBet = $this->betService->showForUser($userId, $bet);
@@ -50,7 +50,7 @@ class BetController extends Controller
         ], 201);
     }
 
-    public function update(UpdateBetRequest $request, int $bet): JsonResponse
+    public function update(UpdateBetRequest $request, string $bet): JsonResponse
     {
         $userId = (int) $request->user()->id;
         $updatedBet = $this->betService->updateForUser($userId, $bet, $request->validated());
@@ -66,7 +66,7 @@ class BetController extends Controller
         ]);
     }
 
-    public function destroy(Request $request, int $bet): JsonResponse
+    public function destroy(Request $request, string $bet): JsonResponse
     {
         $userId = (int) $request->user()->id;
         $deleted = $this->betService->deleteForUser($userId, $bet);

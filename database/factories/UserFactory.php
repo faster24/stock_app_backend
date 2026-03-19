@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Spatie\Permission\Guard;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
@@ -47,7 +48,7 @@ class UserFactory extends Factory
     {
         return $this->afterCreating(function (User $user): void {
             app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
-            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin');
+            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin', Guard::getDefaultName($user));
 
             $user->syncRoles(['admin']);
         });
@@ -57,7 +58,7 @@ class UserFactory extends Factory
     {
         return $this->afterCreating(function (User $user): void {
             app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
-            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user');
+            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', Guard::getDefaultName($user));
 
             $user->syncRoles(['user']);
         });

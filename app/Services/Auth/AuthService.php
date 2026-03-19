@@ -7,6 +7,8 @@ use App\Services\Service;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
+use Spatie\Permission\Guard;
+use Spatie\Permission\Models\Role;
 
 class AuthService extends Service
 {
@@ -18,7 +20,9 @@ class AuthService extends Service
             'password' => Hash::make($password),
         ]);
 
-        $user->assignRole('user');
+        $guard = Guard::getDefaultName($user);
+        $role = Role::findOrCreate('user', $guard);
+        $user->assignRole($role);
 
         return [
             'user' => $user,

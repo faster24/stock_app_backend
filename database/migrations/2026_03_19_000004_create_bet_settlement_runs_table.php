@@ -8,19 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('rounds', function (Blueprint $table) {
+        Schema::create('bet_settlement_runs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedInteger('round_number')->unique();
-            $table->enum('status', ['PENDING', 'OPEN', 'CLOSED', 'SETTLED', 'CANCELLED'])->default('PENDING');
-            $table->timestamp('opens_at')->nullable();
-            $table->timestamp('closes_at')->nullable();
+            $table->string('history_id')->unique();
+            $table->foreignId('two_d_result_id')->nullable()->constrained('two_d_results')->nullOnDelete();
             $table->timestamp('settled_at')->nullable();
+            $table->json('summary')->nullable();
             $table->timestamps();
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('rounds');
+        Schema::dropIfExists('bet_settlement_runs');
     }
 };

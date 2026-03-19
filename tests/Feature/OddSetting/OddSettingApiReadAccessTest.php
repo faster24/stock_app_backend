@@ -15,7 +15,7 @@ class OddSettingApiReadAccessTest extends TestCase
     public function test_authenticated_users_can_list_and_show_odd_settings(): void
     {
         $oddSetting = OddSetting::query()->create([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
             'odd' => '80.00',
             'bet_amount' => 1000,
             'is_active' => true,
@@ -42,7 +42,7 @@ class OddSettingApiReadAccessTest extends TestCase
     public function test_guests_cannot_read_odd_settings(): void
     {
         $oddSetting = OddSetting::query()->create([
-            'bet_type' => BetType::STRAIGHT,
+            'bet_type' => BetType::TWO_D,
             'odd' => '80.00',
             'bet_amount' => 1000,
             'is_active' => true,
