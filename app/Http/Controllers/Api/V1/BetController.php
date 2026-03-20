@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
+use App\Models\Bet;
 use App\Services\Bet\BetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BetController extends Controller
 {
@@ -84,6 +86,42 @@ class BetController extends Controller
         }
 
         return $this->respond('Bet deleted successfully.', null);
+    }
+
+    public function downloadPaySlip(Request $request, string $bet): BinaryFileResponse|JsonResponse
+    {
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        $resolvedBet = Bet::query()->with('media')->whereKey($bet)->first();
+
+        if ($resolvedBet === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        if (! $user->hasRole('admin') && (int) $resolvedBet->user_id !== $userId) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        $media = $resolvedBet->getFirstMedia('pay_slip');
+
+        if ($media === null) {
+            return $this->respond('Pay slip image not found.', null, 404, [
+                'pay_slip_image' => ['No pay slip image is attached to this bet.'],
+            ]);
+        }
+
+        return response()->download(
+            $media->getPath(),
+            $media->file_name,
+            array_filter([
+                'Content-Type' => $media->mime_type,
+            ])
+        );
     }
 
     private function respond(string $message, ?array $data, int $status = 200, ?array $errors = null): JsonResponse

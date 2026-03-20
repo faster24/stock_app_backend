@@ -212,7 +212,7 @@ paths:
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/BetStoreRequest'
       responses:
@@ -292,6 +292,31 @@ paths:
           $ref: '#/components/responses/BetNotFound'
         '409':
           $ref: '#/components/responses/BetDeleteConflict'
+
+  /bets/{bet}/pay-slip:
+    get:
+      tags: [Bet]
+      summary: Download pay slip image (authenticated, owner or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      responses:
+        '200':
+          description: Pay slip image
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Bet or pay slip not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /announcements:
     get:
@@ -534,6 +559,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
 
 components:
   securitySchemes:
@@ -1020,6 +1046,23 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BetNumber'
+        pay_slip:
+          type: object
+          properties:
+            exists:
+              type: boolean
+            download_url:
+              type: string
+              nullable: true
+            file_name:
+              type: string
+              nullable: true
+            mime_type:
+              type: string
+              nullable: true
+            size:
+              type: integer
+              nullable: true
         created_at:
           type: string
           format: date-time
@@ -1029,9 +1072,13 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [bet_type, target_opentime, amount, bet_numbers]
+      required: [pay_slip_image, bet_type, target_opentime, amount, bet_numbers]
       description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied.
       properties:
+        pay_slip_image:
+          type: string
+          format: binary
+          description: Required pay slip image attachment (jpg/jpeg/png/webp; max 10MB).
         bet_type:
           type: string
           enum: ['2D', '3D']

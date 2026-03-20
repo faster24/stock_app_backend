@@ -25,6 +25,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
+            Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
             Route::get('/{bet}', 'show');
             Route::post('/', 'store');
             Route::put('/{bet}', 'update');
