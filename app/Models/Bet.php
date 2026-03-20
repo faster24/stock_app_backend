@@ -12,15 +12,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Bet extends Model
+class Bet extends Model implements HasMedia
 {
     use HasFactory;
     use HasUuids;
+    use InteractsWithMedia;
 
     public $incrementing = false;
 
     protected $keyType = 'string';
+
+    protected $appends = [
+        'pay_slip',
+    ];
 
     protected $fillable = [
         'user_id',
@@ -46,6 +53,36 @@ class Bet extends Model
     public function betNumbers(): HasMany
     {
         return $this->hasMany(BetNumber::class);
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this
+            ->addMediaCollection('pay_slip')
+            ->singleFile();
+    }
+
+    public function getPaySlipAttribute(): array
+    {
+        $media = $this->getFirstMedia('pay_slip');
+
+        if ($media === null) {
+            return [
+                'exists' => false,
+                'download_url' => null,
+                'file_name' => null,
+                'mime_type' => null,
+                'size' => null,
+            ];
+        }
+
+        return [
+            'exists' => true,
+            'download_url' => route('bets.pay-slip', ['bet' => $this->getKey()]),
+            'file_name' => $media->file_name,
+            'mime_type' => $media->mime_type,
+            'size' => $media->size,
+        ];
     }
 
     protected static function booted(): void

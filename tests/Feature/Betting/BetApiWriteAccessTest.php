@@ -6,6 +6,7 @@ use App\Enums\BetType;
 use App\Models\Bet;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -20,7 +21,9 @@ class BetApiWriteAccessTest extends TestCase
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', [
+            ->withHeader('Accept', 'application/json')
+            ->post('/api/v1/bets', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
                 'target_opentime' => '11:00:00',
                 'amount' => 1500,

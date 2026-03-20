@@ -38,6 +38,13 @@ return [
             'report' => false,
         ],
 
+        'bet_slips' => [
+            'driver' => 'local',
+            'root' => storage_path('app/bet-slips'),
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

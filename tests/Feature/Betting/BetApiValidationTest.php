@@ -6,6 +6,7 @@ use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -21,7 +22,7 @@ class BetApiValidationTest extends TestCase
             Route::post('/api/v1/test-support/bets/validation', function (StoreBetRequest $request) {
                 return response()->json([
                     'message' => 'Validated.',
-                    'data' => $request->validated(),
+                    'data' => array_keys($request->validated()),
                     'errors' => null,
                 ], 201);
             });
@@ -42,7 +43,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => 'NOT_A_REAL_ENUM',
                 'target_opentime' => '11:00:00',
                 'amount' => 0,
@@ -64,7 +66,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
@@ -86,7 +89,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
@@ -108,7 +112,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
@@ -150,7 +155,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'target_opentime' => '10:30:00',
                 'amount' => 1000,
@@ -172,7 +178,8 @@ class BetApiValidationTest extends TestCase
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/test-support/bets/validation', [
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
@@ -209,6 +216,28 @@ class BetApiValidationTest extends TestCase
                 'message',
                 'data',
                 'errors' => ['status', 'bet_result_status', 'payout_status'],
+            ]);
+    }
+
+    public function test_store_requires_pay_slip_image_with_422_envelope(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'bet_type' => '2D',
+                'target_opentime' => '11:00:00',
+                'amount' => 1000,
+                'bet_numbers' => [12],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['pay_slip_image'],
             ]);
     }
 }

@@ -11,6 +11,7 @@ class UpdateBetRequest extends AuthFormRequest
     public function rules(): array
     {
         return [
+            'pay_slip_image' => ['prohibited'],
             'bet_type' => [
                 'sometimes',
                 'required',

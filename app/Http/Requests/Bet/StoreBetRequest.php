@@ -12,6 +12,12 @@ class StoreBetRequest extends AuthFormRequest
     public function rules(): array
     {
         return [
+            'pay_slip_image' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:10240',
+            ],
             'bet_type' => [
                 'required',
                 'string',

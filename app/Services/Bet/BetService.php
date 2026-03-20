@@ -7,9 +7,11 @@ use App\Models\Bet;
 use App\Services\Service;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class BetService extends Service
 {
@@ -25,7 +27,7 @@ class BetService extends Service
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
-            ->with('betNumbers')
+            ->with(['betNumbers', 'media'])
             ->where('user_id', $userId)
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
@@ -35,7 +37,7 @@ class BetService extends Service
     public function showForUser(int $userId, string $betId): ?Bet
     {
         return Bet::query()
-            ->with('betNumbers')
+            ->with(['betNumbers', 'media'])
             ->where('user_id', $userId)
             ->whereKey($betId)
             ->first();
@@ -43,6 +45,15 @@ class BetService extends Service
 
     public function createForUser(int $userId, array $attributes): Bet
     {
+        $paySlipImage = $attributes['pay_slip_image'] ?? null;
+        unset($attributes['pay_slip_image']);
+
+        if (! $paySlipImage instanceof UploadedFile) {
+            throw ValidationException::withMessages([
+                'pay_slip_image' => ['The pay_slip_image field is required.'],
+            ]);
+        }
+
         $numbers = $attributes['bet_numbers'] ?? [];
         unset($attributes['bet_numbers']);
 
@@ -54,15 +65,27 @@ class BetService extends Service
 
         $this->validateCreateBetNumbersForType((string) ($attributes['bet_type'] ?? ''), $numbers);
 
-        return DB::transaction(function () use ($userId, $attributes, $numbers): Bet {
+        $bet = DB::transaction(function () use ($userId, $attributes, $numbers): Bet {
             $bet = Bet::query()->create(array_merge($attributes, [
                 'user_id' => $userId,
             ]));
 
             $this->replaceBetNumbers($bet, $numbers);
 
-            return $bet->fresh(['betNumbers']);
+            return $bet->fresh(['betNumbers', 'media']);
         });
+
+        try {
+            $bet->addMedia($paySlipImage)->toMediaCollection('pay_slip');
+        } catch (Throwable $throwable) {
+            $bet->delete();
+
+            throw ValidationException::withMessages([
+                'pay_slip_image' => ['The pay slip image could not be saved.'],
+            ]);
+        }
+
+        return $bet->fresh(['betNumbers', 'media']);
     }
 
     public function updateForUser(int $userId, string $betId, array $attributes): ?Bet

@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Bet\BetService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -26,6 +27,7 @@ class BetApiTransactionTest extends TestCase
 
         try {
             $service->createForUser($user->id, [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'amount' => 1000,
                 'bet_numbers' => [55, 55],
@@ -59,11 +61,13 @@ class BetApiTransactionTest extends TestCase
 
         $invalidPayloads = [
             [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'amount' => 1000,
                 'bet_numbers' => [9],
             ],
             [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
                 'amount' => 1000,
                 'bet_numbers' => [99],
