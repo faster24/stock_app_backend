@@ -26,6 +26,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
             Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
+            Route::get('/{bet}/payout-proof', 'downloadPayoutProof')->name('bets.payout-proof');
             Route::get('/{bet}', 'show');
             Route::post('/', 'store');
             Route::put('/{bet}', 'update');
@@ -42,6 +43,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/odd-settings', [OddSettingController::class, 'store']);
                 Route::put('/odd-settings/{oddSetting}', [OddSettingController::class, 'update']);
                 Route::delete('/odd-settings/{oddSetting}', [OddSettingController::class, 'destroy']);
+                Route::post('/bets/{bet}/payout', [BetController::class, 'payout']);
             });
     });
 });

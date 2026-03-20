@@ -3,17 +3,20 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bet\AdminPayoutBetRequest;
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
 use App\Models\Bet;
+use App\Services\Bet\BetPayoutService;
 use App\Services\Bet\BetService;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BetController extends Controller
 {
-    public function __construct(private BetService $betService) {}
+    public function __construct(private BetService $betService, private BetPayoutService $betPayoutService) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -122,6 +125,73 @@ class BetController extends Controller
                 'Content-Type' => $media->mime_type,
             ])
         );
+    }
+
+    public function downloadPayoutProof(Request $request, string $bet): BinaryFileResponse|JsonResponse
+    {
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        $resolvedBet = Bet::query()->with('media')->whereKey($bet)->first();
+
+        if ($resolvedBet === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        if (! $user->hasRole('admin') && (int) $resolvedBet->user_id !== $userId) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        $media = $resolvedBet->getFirstMedia('payout_proof');
+
+        if ($media === null) {
+            return $this->respond('Payout proof not found.', null, 404, [
+                'payout_proof_image' => ['No payout proof is attached to this bet.'],
+            ]);
+        }
+
+        return response()->download(
+            $media->getPath(),
+            $media->file_name,
+            array_filter([
+                'Content-Type' => $media->mime_type,
+            ])
+        );
+    }
+
+    public function payout(AdminPayoutBetRequest $request, string $bet): JsonResponse
+    {
+        $adminUserId = (int) $request->user()->id;
+        /** @var \Illuminate\Http\UploadedFile $payoutProof */
+        $payoutProof = $request->file('payout_proof_image');
+
+        try {
+            $updatedBet = $this->betPayoutService->payoutWinningBet(
+                $bet,
+                $adminUserId,
+                $payoutProof,
+                $request->input('payout_reference'),
+                $request->input('payout_note')
+            );
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'payout_status' => [$exception->getMessage()],
+            ]);
+        }
+
+        if ($updatedBet === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        return $this->respond('Bet paid out successfully.', [
+            'bet' => $updatedBet,
+        ]);
     }
 
     private function respond(string $message, ?array $data, int $status = 200, ?array $errors = null): JsonResponse

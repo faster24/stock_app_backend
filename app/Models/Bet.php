@@ -27,6 +27,7 @@ class Bet extends Model implements HasMedia
 
     protected $appends = [
         'pay_slip',
+        'payout_proof',
     ];
 
     protected $fillable = [
@@ -64,6 +65,10 @@ class Bet extends Model implements HasMedia
         $this
             ->addMediaCollection('pay_slip')
             ->singleFile();
+
+        $this
+            ->addMediaCollection('payout_proof')
+            ->singleFile();
     }
 
     public function getPaySlipAttribute(): array
@@ -83,6 +88,29 @@ class Bet extends Model implements HasMedia
         return [
             'exists' => true,
             'download_url' => route('bets.pay-slip', ['bet' => $this->getKey()]),
+            'file_name' => $media->file_name,
+            'mime_type' => $media->mime_type,
+            'size' => $media->size,
+        ];
+    }
+
+    public function getPayoutProofAttribute(): array
+    {
+        $media = $this->getFirstMedia('payout_proof');
+
+        if ($media === null) {
+            return [
+                'exists' => false,
+                'download_url' => null,
+                'file_name' => null,
+                'mime_type' => null,
+                'size' => null,
+            ];
+        }
+
+        return [
+            'exists' => true,
+            'download_url' => route('bets.payout-proof', ['bet' => $this->getKey()]),
             'file_name' => $media->file_name,
             'mime_type' => $media->mime_type,
             'size' => $media->size,

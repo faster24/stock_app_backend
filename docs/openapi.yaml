@@ -318,6 +318,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /bets/{bet}/payout-proof:
+    get:
+      tags: [Bet]
+      summary: Download payout proof image (authenticated, owner or admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      responses:
+        '200':
+          description: Payout proof image
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Bet or payout proof not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /announcements:
     get:
       tags: [Announcement]
@@ -559,6 +584,42 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /admin/bets/{bet}/payout:
+    post:
+      tags: [Bet]
+      summary: Mark winning bet as paid out with payout proof (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BetPayoutRequest'
+      responses:
+        '200':
+          description: Bet paid out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+        '409':
+          description: Bet payout conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
 
 components:
@@ -1031,6 +1092,19 @@ components:
         payout_status:
           type: string
           enum: [PENDING, PAID_OUT]
+        paid_out_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_out_by_user_id:
+          type: integer
+          nullable: true
+        payout_reference:
+          type: string
+          nullable: true
+        payout_note:
+          type: string
+          nullable: true
         placed_at:
           type: string
           format: date-time
@@ -1047,6 +1121,23 @@ components:
           items:
             $ref: '#/components/schemas/BetNumber'
         pay_slip:
+          type: object
+          properties:
+            exists:
+              type: boolean
+            download_url:
+              type: string
+              nullable: true
+            file_name:
+              type: string
+              nullable: true
+            mime_type:
+              type: string
+              nullable: true
+            size:
+              type: integer
+              nullable: true
+        payout_proof:
           type: object
           properties:
             exists:
@@ -1124,6 +1215,23 @@ components:
             type: integer
             minimum: 0
             maximum: 255
+
+    BetPayoutRequest:
+      type: object
+      required: [payout_proof_image]
+      properties:
+        payout_proof_image:
+          type: string
+          format: binary
+          description: Required payout proof image attachment (jpg/jpeg/png/webp; max 10MB).
+        payout_reference:
+          type: string
+          nullable: true
+          maxLength: 255
+        payout_note:
+          type: string
+          nullable: true
+          maxLength: 2000
 
     BetListResponse:
       type: object
