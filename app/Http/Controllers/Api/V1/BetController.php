@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bet\AdminPayoutBetRequest;
+use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
 use App\Models\Bet;
@@ -26,6 +27,16 @@ class BetController extends Controller
 
         return $this->respond('Bets retrieved successfully.', [
             'bets' => $this->betService->listForUser($userId, $page, $pageSize),
+        ]);
+    }
+
+    public function adminIndex(Request $request): JsonResponse
+    {
+        $page = max(1, (int) $request->query('page', 1));
+        $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
+
+        return $this->respond('Bets retrieved successfully.', [
+            'bets' => $this->betService->listForAdmin($page, $pageSize),
         ]);
     }
 
@@ -190,6 +201,27 @@ class BetController extends Controller
         }
 
         return $this->respond('Bet paid out successfully.', [
+            'bet' => $updatedBet,
+        ]);
+    }
+
+    public function updateReviewStatus(AdminUpdateBetStatusRequest $request, string $bet): JsonResponse
+    {
+        try {
+            $updatedBet = $this->betService->updateReviewStatusForAdmin($bet, (string) $request->validated()['status']);
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'status' => [$exception->getMessage()],
+            ]);
+        }
+
+        if ($updatedBet === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        return $this->respond('Bet status updated successfully.', [
             'bet' => $updatedBet,
         ]);
     }

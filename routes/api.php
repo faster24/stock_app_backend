@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminDashboardController;
+use App\Http\Controllers\Api\V1\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
@@ -43,6 +44,16 @@ Route::prefix('v1')->group(function () {
                 Route::post('/odd-settings', [OddSettingController::class, 'store']);
                 Route::put('/odd-settings/{oddSetting}', [OddSettingController::class, 'update']);
                 Route::delete('/odd-settings/{oddSetting}', [OddSettingController::class, 'destroy']);
+                Route::prefix('analytics')->controller(AdminAnalyticsController::class)->group(function () {
+                    Route::get('/kpis', 'kpis');
+                    Route::get('/trends/daily', 'dailyTrends');
+                    Route::get('/status-distribution', 'statusDistribution');
+                    Route::get('/payouts', 'payouts');
+                    Route::get('/top-numbers', 'topNumbers');
+                    Route::get('/settlement-runs', 'settlementRuns');
+                });
+                Route::get('/bets', [BetController::class, 'adminIndex']);
+                Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
                 Route::post('/bets/{bet}/payout', [BetController::class, 'payout']);
             });
     });

@@ -2,9 +2,12 @@
 
 namespace App\Services\Bet;
 
+use App\Enums\BetPayoutStatus;
+use App\Enums\BetStatus;
 use App\Enums\BetType;
 use App\Models\Bet;
 use App\Services\Service;
+use DomainException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -29,6 +32,18 @@ class BetService extends Service
         return Bet::query()
             ->with(['betNumbers', 'media'])
             ->where('user_id', $userId)
+            ->latest()
+            ->forPage($resolvedPage, $resolvedPageSize)
+            ->get();
+    }
+
+    public function listForAdmin(int $page = 1, int $pageSize = 10): Collection
+    {
+        $resolvedPage = max(1, $page);
+        $resolvedPageSize = min(100, max(1, $pageSize));
+
+        return Bet::query()
+            ->with(['betNumbers', 'media'])
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
             ->get();
@@ -144,6 +159,35 @@ class BetService extends Service
         }
 
         return self::DELETE_RESULT_DELETED;
+    }
+
+    public function updateReviewStatusForAdmin(string $betId, string $targetStatus): ?Bet
+    {
+        $bet = Bet::query()
+            ->with(['betNumbers', 'media'])
+            ->whereKey($betId)
+            ->first();
+
+        if ($bet === null) {
+            return null;
+        }
+
+        $resolvedTarget = BetStatus::from($targetStatus);
+
+        if ($resolvedTarget === BetStatus::REFUNDED) {
+            if ($bet->payout_status === BetPayoutStatus::PAID_OUT) {
+                throw new DomainException('Paid out bets cannot be refunded.');
+            }
+        } else {
+            $policy = app(BetStatusTransitionPolicy::class);
+            $policy->assertReviewTransitionAllowed($bet->status, $resolvedTarget);
+        }
+
+        $bet->update([
+            'status' => $resolvedTarget,
+        ]);
+
+        return $bet->fresh(['betNumbers', 'media']);
     }
 
     private function isDeleteRestrictionConflict(QueryException $exception): bool

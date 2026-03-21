@@ -433,6 +433,162 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/analytics/kpis:
+    get:
+      tags: [Admin]
+      summary: KPI snapshot for bets (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/TargetOpenTime'
+      responses:
+        '200':
+          description: Analytics KPI data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsKpisResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/analytics/trends/daily:
+    get:
+      tags: [Admin]
+      summary: Daily trends for bets (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/TargetOpenTime'
+        - $ref: '#/components/parameters/BetType'
+      responses:
+        '200':
+          description: Daily trends
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsDailyTrendsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/analytics/status-distribution:
+    get:
+      tags: [Admin]
+      summary: Distribution of review, result, and payout states (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/TargetOpenTime'
+      responses:
+        '200':
+          description: Status distribution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsStatusDistributionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/analytics/payouts:
+    get:
+      tags: [Admin]
+      summary: Payout analytics and admin breakdown (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - name: admin_user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Payout analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsPayoutsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/analytics/top-numbers:
+    get:
+      tags: [Admin]
+      summary: Most frequent bet numbers (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/BetType'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Top number analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsTopNumbersResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/analytics/settlement-runs:
+    get:
+      tags: [Admin]
+      summary: Settlement run analytics (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+      responses:
+        '200':
+          description: Settlement run analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsSettlementRunsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/announcements:
     post:
       tags: [Announcement]
@@ -585,6 +741,77 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/bets:
+    get:
+      tags: [Bet]
+      summary: List all bets (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Bets list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/bets/{bet}/status:
+    patch:
+      tags: [Bet]
+      summary: Update bet review status (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BetAdminStatusUpdateRequest'
+      responses:
+        '200':
+          description: Bet status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+        '409':
+          description: Status update conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/bets/{bet}/payout:
     post:
       tags: [Bet]
@@ -649,6 +876,34 @@ components:
       schema:
         type: string
         format: uuid
+    DateFrom:
+      name: from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    DateTo:
+      name: to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    TargetOpenTime:
+      name: target_opentime
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+    BetType:
+      name: bet_type
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: ['2D', '3D']
 
   responses:
     Unauthenticated:
@@ -1232,6 +1487,186 @@ components:
           type: string
           nullable: true
           maxLength: 2000
+
+    BetAdminStatusUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACCEPTED, REJECTED, REFUNDED]
+          description: ACCEPTED and REJECTED are review transitions from submitted bets; REFUNDED is blocked when payout_status is PAID_OUT.
+
+    AnalyticsKpisResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            kpis:
+              type: object
+              properties:
+                total_bets: {type: integer}
+                unique_bettors: {type: integer}
+                total_turnover: {type: string}
+                accepted_count: {type: integer}
+                rejected_count: {type: integer}
+                refunded_count: {type: integer}
+                won_count: {type: integer}
+                lost_count: {type: integer}
+                void_count: {type: integer}
+                paid_out_count: {type: integer}
+        errors:
+          type: object
+          nullable: true
+
+    AnalyticsDailyTrendsResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            daily_trends:
+              type: array
+              items:
+                type: object
+                properties:
+                  date: {type: string, format: date}
+                  bet_count: {type: integer}
+                  turnover: {type: string}
+                  won_count: {type: integer}
+                  lost_count: {type: integer}
+                  refund_count: {type: integer}
+                  paid_out_count: {type: integer}
+        errors:
+          type: object
+          nullable: true
+
+    AnalyticsStatusDistributionResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            status_distribution:
+              type: object
+              properties:
+                total_bets: {type: integer}
+                status: {$ref: '#/components/schemas/AnalyticsBucketList'}
+                bet_result_status: {$ref: '#/components/schemas/AnalyticsBucketList'}
+                payout_status: {$ref: '#/components/schemas/AnalyticsBucketList'}
+        errors:
+          type: object
+          nullable: true
+
+    AnalyticsBucketList:
+      type: array
+      items:
+        type: object
+        properties:
+          value: {type: string}
+          count: {type: integer}
+          percentage: {type: number, format: float}
+
+    AnalyticsPayoutsResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            payouts:
+              type: object
+              properties:
+                payout_count: {type: integer}
+                paid_out_total_amount: {type: string}
+                avg_payout_per_bet: {type: string}
+                by_admin:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      admin_user_id: {type: integer, nullable: true}
+                      admin_name: {type: string, nullable: true}
+                      payout_count: {type: integer}
+                      paid_out_total_amount: {type: string}
+                daily_timeline:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      date: {type: string, format: date}
+                      payout_count: {type: integer}
+                      paid_out_total_amount: {type: string}
+        errors:
+          type: object
+          nullable: true
+
+    AnalyticsTopNumbersResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            top_numbers:
+              type: array
+              items:
+                type: object
+                properties:
+                  number: {type: integer}
+                  bet_frequency: {type: integer}
+                  distinct_user_count: {type: integer}
+                  total_stake: {type: string}
+        errors:
+          type: object
+          nullable: true
+
+    AnalyticsSettlementRunsResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            settlement_runs:
+              type: object
+              properties:
+                total_runs: {type: integer}
+                completed_runs: {type: integer}
+                pending_runs: {type: integer}
+                summary_totals:
+                  type: object
+                  properties:
+                    processed: {type: integer}
+                    won: {type: integer}
+                    lost: {type: integer}
+                runs:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      history_id: {type: string}
+                      stock_date: {type: string, format: date, nullable: true}
+                      open_time: {type: string, nullable: true}
+                      twod: {type: string, nullable: true}
+                      settled_at: {type: string, format: date-time, nullable: true}
+                      created_at: {type: string, format: date-time}
+                      summary:
+                        type: object
+                        additionalProperties: true
+        errors:
+          type: object
+          nullable: true
 
     BetListResponse:
       type: object
