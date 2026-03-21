@@ -7,6 +7,7 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use App\Services\Auth\AuthService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,10 @@ class AuthController extends Controller
                 $request->string('email')->toString(),
                 $request->string('password')->toString(),
             );
+        } catch (AuthorizationException $exception) {
+            return $this->respond('Forbidden.', null, 403, [
+                'authorization' => [$exception->getMessage()],
+            ]);
         } catch (AuthenticationException $exception) {
             return $this->respond($exception->getMessage(), null, 401, [
                 'credentials' => ['The provided credentials are incorrect.'],

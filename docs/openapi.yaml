@@ -741,6 +741,149 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List active users (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Active users list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{user}:
+    get:
+      tags: [Admin]
+      summary: Get user detail with bank info (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Admin]
+      summary: Soft delete user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/users/{user}/ban:
+    post:
+      tags: [Admin]
+      summary: Ban user and revoke all active tokens (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User banned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/users/{user}/unban:
+    post:
+      tags: [Admin]
+      summary: Unban user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User unbanned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/bets:
     get:
       tags: [Bet]
@@ -848,6 +991,42 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/bets/{bet}/refund:
+    post:
+      tags: [Bet]
+      summary: Refund bet with payout proof (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BetId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BetPayoutRequest'
+      responses:
+        '200':
+          description: Bet refunded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BetItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/BetNotFound'
+        '409':
+          description: Bet refund conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
 
 components:
   securitySchemes:
@@ -876,6 +1055,12 @@ components:
       schema:
         type: string
         format: uuid
+    UserId:
+      name: user
+      in: path
+      required: true
+      schema:
+        type: integer
     DateFrom:
       name: from
       in: query
@@ -997,12 +1182,26 @@ components:
         email:
           type: string
           format: email
+        is_banned:
+          type: boolean
+        banned_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+
+    AdminUser:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            bank_info:
+              $ref: '#/components/schemas/WalletBankInfo'
 
     Announcement:
       type: object
@@ -1253,6 +1452,36 @@ components:
           type: object
           nullable: true
 
+    AdminUserListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            users:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+        errors:
+          type: object
+          nullable: true
+
+    AdminUserDetailResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/AdminUser'
+        errors:
+          type: object
+          nullable: true
+
     SuccessNoDataResponse:
       type: object
       properties:
@@ -1346,7 +1575,7 @@ components:
           enum: [OPEN, WON, LOST, VOID]
         payout_status:
           type: string
-          enum: [PENDING, PAID_OUT]
+          enum: [PENDING, PAID_OUT, REFUNDED]
         paid_out_at:
           type: string
           format: date-time

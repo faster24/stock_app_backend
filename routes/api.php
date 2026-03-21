@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
+use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
@@ -13,7 +14,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me/bank-info', [WalletBankInfoController::class, 'show']);
@@ -55,6 +56,14 @@ Route::prefix('v1')->group(function () {
                 Route::get('/bets', [BetController::class, 'adminIndex']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
                 Route::post('/bets/{bet}/payout', [BetController::class, 'payout']);
+                Route::post('/bets/{bet}/refund', [BetController::class, 'refund']);
+                Route::prefix('users')->controller(AdminUserController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{user}', 'show');
+                    Route::post('/{user}/ban', 'ban');
+                    Route::post('/{user}/unban', 'unban');
+                    Route::delete('/{user}', 'destroy');
+                });
             });
     });
 });

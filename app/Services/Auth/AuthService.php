@@ -4,6 +4,7 @@ namespace App\Services\Auth;
 
 use App\Models\User;
 use App\Services\Service;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -36,6 +37,10 @@ class AuthService extends Service
 
         if (! $user instanceof User || ! Hash::check($password, $user->password)) {
             throw new AuthenticationException('Invalid credentials.');
+        }
+
+        if ($user->is_banned) {
+            throw new AuthorizationException('Your account is banned.');
         }
 
         return [

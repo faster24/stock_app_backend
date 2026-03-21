@@ -34,12 +34,19 @@ class OpenApiDocsTest extends TestCase
             ->assertSee('/admin/analytics/top-numbers:')
             ->assertSee('/admin/analytics/settlement-runs:')
             ->assertSee('/admin/bets/{bet}/status:')
+            ->assertSee('/admin/bets/{bet}/refund:')
+            ->assertSee('/admin/users:')
+            ->assertSee('/admin/users/{user}:')
+            ->assertSee('/admin/users/{user}/ban:')
+            ->assertSee('/admin/users/{user}/unban:')
             ->assertSee('BetAdminStatusUpdateRequest:')
+            ->assertSee('AdminUserListResponse:')
+            ->assertSee('AdminUserDetailResponse:')
             ->assertSee('enum: [ACCEPTED, REJECTED, REFUNDED]')
             ->assertSee('bet_result_status:')
             ->assertSee('enum: [OPEN, WON, LOST, VOID]')
             ->assertSee('payout_status:')
-            ->assertSee('enum: [PENDING, PAID_OUT]')
+            ->assertSee('enum: [PENDING, PAID_OUT, REFUNDED]')
             ->assertSee('Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied.');
     }
 }

@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => 'Spatie\\Permission\\Middleware\\RoleMiddleware',
             'permission' => 'Spatie\\Permission\\Middleware\\PermissionMiddleware',
             'role_or_permission' => 'Spatie\\Permission\\Middleware\\RoleOrPermissionMiddleware',
+            'not_banned' => 'App\\Http\\Middleware\\EnsureUserIsNotBanned',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
