@@ -31,7 +31,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/{bet}/payout-proof', 'downloadPayoutProof')->name('bets.payout-proof');
             Route::get('/{bet}', 'show');
             Route::post('/', 'store');
-            Route::put('/{bet}', 'update');
             Route::delete('/{bet}', 'destroy');
         });
 

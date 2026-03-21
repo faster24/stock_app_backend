@@ -246,32 +246,6 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '404':
           $ref: '#/components/responses/BetNotFound'
-    put:
-      tags: [Bet]
-      summary: Update bet by id (authenticated, owner-scoped)
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/BetId'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BetUpdateRequest'
-      responses:
-        '200':
-          description: Bet updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BetItemResponse'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '404':
-          $ref: '#/components/responses/BetNotFound'
-        '422':
-          $ref: '#/components/responses/ValidationError'
     delete:
       tags: [Bet]
       summary: Delete bet by id (authenticated, owner-scoped)
