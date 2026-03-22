@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
+use App\Http\Controllers\Api\V1\AdminHealthController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
 use App\Http\Controllers\Api\V1\OddSettingController;
+use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,6 +27,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
         Route::get('/odd-settings', [OddSettingController::class, 'index']);
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
+        Route::get('/two-d-results', [TwoDResultController::class, 'index']);
+        Route::get('/two-d-results/latest', [TwoDResultController::class, 'latest']);
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
             Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
@@ -38,6 +42,7 @@ Route::prefix('v1')->group(function () {
             ->middleware('role:admin,sanctum')
             ->group(function () {
                 Route::get('/dashboard', AdminDashboardController::class);
+                Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
                 Route::post('/announcements', [AnnouncementController::class, 'store']);
                 Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update']);
                 Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);

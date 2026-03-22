@@ -223,6 +223,25 @@ class BetAdminReviewTest extends TestCase
         ]);
     }
 
+    public function test_admin_refund_returns_conflict_when_bet_is_already_refunded(): void
+    {
+        $bet = Bet::factory()->create([
+            'status' => BetStatus::PENDING,
+            'payout_status' => BetPayoutStatus::REFUNDED,
+        ]);
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->patchJson('/api/v1/admin/bets/'.$bet->id.'/status', [
+                'status' => BetStatus::REFUNDED->value,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Paid out bets cannot be refunded.')
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.status.0', 'Paid out bets cannot be refunded.');
+    }
+
     public function test_admin_accept_returns_conflict_for_rejected_bet(): void
     {
         $bet = Bet::factory()->create([

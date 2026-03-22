@@ -52,7 +52,7 @@ class BetService extends Service
     public function showForUser(int $userId, string $betId): ?Bet
     {
         return Bet::query()
-            ->with(['betNumbers', 'media'])
+            ->with(['betNumbers', 'media', 'user.wallet'])
             ->where('user_id', $userId)
             ->whereKey($betId)
             ->first();
@@ -175,7 +175,7 @@ class BetService extends Service
         $resolvedTarget = BetStatus::from($targetStatus);
 
         if ($resolvedTarget === BetStatus::REFUNDED) {
-            if ($bet->payout_status === BetPayoutStatus::PAID_OUT) {
+            if ($bet->payout_status !== BetPayoutStatus::PENDING) {
                 throw new DomainException('Paid out bets cannot be refunded.');
             }
         } else {

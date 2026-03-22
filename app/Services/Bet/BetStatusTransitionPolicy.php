@@ -88,8 +88,12 @@ class BetStatusTransitionPolicy
         }
 
         $allowedTransitions = [
-            BetPayoutStatus::PENDING->value => [BetPayoutStatus::PAID_OUT->value],
+            BetPayoutStatus::PENDING->value => [
+                BetPayoutStatus::PAID_OUT->value,
+                BetPayoutStatus::REFUNDED->value,
+            ],
             BetPayoutStatus::PAID_OUT->value => [],
+            BetPayoutStatus::REFUNDED->value => [],
         ];
 
         if (! in_array($toStatus->value, $allowedTransitions[$fromStatus->value], true)) {

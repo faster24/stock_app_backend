@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Betting;
 
+use App\Enums\BankName;
 use App\Models\Bet;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -30,6 +32,12 @@ class BetApiReadAccessTest extends TestCase
     {
         $owner = User::factory()->normalUser()->create();
         $otherUser = User::factory()->normalUser()->create();
+        Wallet::query()->create([
+            'user_id' => $owner->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Owner Name',
+            'account_number' => '99887766',
+        ]);
         $ownerBet = Bet::factory()->for($owner)->create();
         Bet::factory()->for($otherUser)->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
@@ -56,6 +64,11 @@ class BetApiReadAccessTest extends TestCase
             ->assertJsonPath('message', 'Bet retrieved successfully.')
             ->assertJsonPath('data.bet.id', $ownerBet->id)
             ->assertJsonPath('data.bet.user_id', $owner->id)
+            ->assertJsonPath('data.bet.user.id', $owner->id)
+            ->assertJsonPath('data.bet.user.email', $owner->email)
+            ->assertJsonPath('data.bet.user.wallet.bank_name', BankName::KBZ->value)
+            ->assertJsonPath('data.bet.user.wallet.account_name', 'Owner Name')
+            ->assertJsonPath('data.bet.user.wallet.account_number', '99887766')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',

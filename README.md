@@ -83,6 +83,14 @@ Authorization: Bearer <token>
 - Authenticated read endpoints are available to both roles.
 - Write endpoints for announcements and odd settings are under `/api/v1/admin/*` and require `admin` role.
 
+## 2D Result Read APIs
+
+Authenticated users (`user` or `admin`) can read persisted 2D results:
+
+- `GET /api/v1/two-d-results`
+  - Query params: `page`, `page_size`, `stock_date`, `open_time`, `history_id`
+- `GET /api/v1/two-d-results/latest`
+
 ## Background Scheduler (Thai 2D)
 
 Command:
@@ -114,6 +122,28 @@ php artisan migrate:fresh --seed --force
 php artisan test
 php artisan schedule:list
 ```
+
+## Bet Settlement Testing Seeder
+
+Seed deterministic bet/result data for manual settlement verification:
+
+```bash
+php artisan db:seed --class=Database\\Seeders\\BetSettlementTestingSeeder
+```
+
+Then run settlement against the seeded history IDs:
+
+```bash
+php artisan bets:settle-2d settlement-test-2026-03-19-11-00
+php artisan bets:settle-2d settlement-test-2026-03-19-12-01
+```
+
+Expected summaries on the first run:
+
+- `settlement-test-2026-03-19-11-00` => Settled: `2`, Won: `1`, Lost: `1`, Skipped: `3`
+- `settlement-test-2026-03-19-12-01` => Settled: `3`, Won: `1`, Lost: `2`, Skipped: `0`
+
+On duplicate runs for the same `history_id`, summary should be all `0` due to idempotency.
 
 ## Test Notes
 

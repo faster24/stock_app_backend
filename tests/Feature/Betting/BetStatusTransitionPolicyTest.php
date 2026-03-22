@@ -97,6 +97,19 @@ class BetStatusTransitionPolicyTest extends TestCase
         $this->assertTrue(true);
     }
 
+    public function test_payout_transitions_allow_pending_to_refunded_for_any_result(): void
+    {
+        $policy = new BetStatusTransitionPolicy;
+
+        $policy->assertPayoutTransitionAllowed(
+            BetPayoutStatus::PENDING,
+            BetPayoutStatus::REFUNDED,
+            BetResultStatus::LOST
+        );
+
+        $this->assertTrue(true);
+    }
+
     public function test_payout_transitions_reject_paid_out_to_other_states_with_exact_message(): void
     {
         $policy = new BetStatusTransitionPolicy;
@@ -124,5 +137,15 @@ class BetStatusTransitionPolicyTest extends TestCase
         } catch (DomainException $exception) {
             $this->assertSame('Payout status PAID_OUT requires result status WON.', $exception->getMessage());
         }
+    }
+
+    public function test_payout_transitions_reject_refunded_to_other_states_with_exact_message(): void
+    {
+        $policy = new BetStatusTransitionPolicy;
+
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('Illegal payout status transition.');
+
+        $policy->assertPayoutTransitionAllowed(BetPayoutStatus::REFUNDED, BetPayoutStatus::PAID_OUT, BetResultStatus::WON);
     }
 }

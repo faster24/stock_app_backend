@@ -205,6 +205,37 @@ class BetController extends Controller
         ]);
     }
 
+    public function refund(AdminPayoutBetRequest $request, string $bet): JsonResponse
+    {
+        $adminUserId = (int) $request->user()->id;
+        /** @var \Illuminate\Http\UploadedFile $payoutProof */
+        $payoutProof = $request->file('payout_proof_image');
+
+        try {
+            $updatedBet = $this->betPayoutService->refundBet(
+                $bet,
+                $adminUserId,
+                $payoutProof,
+                $request->input('payout_reference'),
+                $request->input('payout_note')
+            );
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'payout_status' => [$exception->getMessage()],
+            ]);
+        }
+
+        if ($updatedBet === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        return $this->respond('Bet refunded successfully.', [
+            'bet' => $updatedBet,
+        ]);
+    }
+
     public function updateReviewStatus(AdminUpdateBetStatusRequest $request, string $bet): JsonResponse
     {
         try {
