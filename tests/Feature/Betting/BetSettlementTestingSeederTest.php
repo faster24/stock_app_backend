@@ -33,6 +33,7 @@ class BetSettlementTestingSeederTest extends TestCase
         $this->assertSame(2, Bet::query()->where('status', BetStatus::ACCEPTED->value)->count());
         $this->assertSame(1, Bet::query()->where('status', BetStatus::REJECTED->value)->count());
         $this->assertSame(1, Bet::query()->where('status', BetStatus::REFUNDED->value)->count());
+        $this->assertSame(2, Bet::query()->where('bet_result_status', BetResultStatus::INVALID->value)->count());
 
         $wonBet = Bet::query()->where('bet_result_status', BetResultStatus::WON->value)->first();
         $lostBet = Bet::query()->where('bet_result_status', BetResultStatus::LOST->value)->first();

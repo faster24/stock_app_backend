@@ -3,6 +3,7 @@
 namespace App\Services\Bet;
 
 use App\Enums\BetPayoutStatus;
+use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
 use App\Models\Bet;
@@ -186,6 +187,10 @@ class BetService extends Service
         $payload = [
             'status' => $resolvedTarget,
         ];
+
+        if (in_array($resolvedTarget, [BetStatus::REJECTED, BetStatus::REFUNDED], true)) {
+            $payload['bet_result_status'] = BetResultStatus::INVALID;
+        }
 
         if ($resolvedTarget === BetStatus::REFUNDED) {
             $payload['payout_status'] = BetPayoutStatus::REFUNDED;

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetPayoutStatus;
+use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Models\Bet;
 use App\Models\User;
@@ -88,11 +89,13 @@ class BetAdminReviewTest extends TestCase
             ->assertJsonPath('message', 'Bet status updated successfully.')
             ->assertJsonPath('data.bet.id', $bet->id)
             ->assertJsonPath('data.bet.status', BetStatus::REJECTED->value)
+            ->assertJsonPath('data.bet.bet_result_status', BetResultStatus::INVALID->value)
             ->assertJsonPath('errors', null);
 
         $this->assertDatabaseHas('bets', [
             'id' => $bet->id,
             'status' => BetStatus::REJECTED->value,
+            'bet_result_status' => BetResultStatus::INVALID->value,
         ]);
     }
 
@@ -181,6 +184,7 @@ class BetAdminReviewTest extends TestCase
                 ->assertJsonPath('message', 'Bet status updated successfully.')
                 ->assertJsonPath('data.bet.id', $bet->id)
                 ->assertJsonPath('data.bet.status', BetStatus::REFUNDED->value)
+                ->assertJsonPath('data.bet.bet_result_status', BetResultStatus::INVALID->value)
                 ->assertJsonPath('data.bet.payout_status', BetPayoutStatus::REFUNDED->value)
                 ->assertJsonPath('errors', null);
         }
@@ -188,16 +192,19 @@ class BetAdminReviewTest extends TestCase
         $this->assertDatabaseHas('bets', [
             'id' => $pendingBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'bet_result_status' => BetResultStatus::INVALID->value,
             'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
         $this->assertDatabaseHas('bets', [
             'id' => $acceptedBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'bet_result_status' => BetResultStatus::INVALID->value,
             'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
         $this->assertDatabaseHas('bets', [
             'id' => $rejectedBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'bet_result_status' => BetResultStatus::INVALID->value,
             'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
     }

@@ -105,7 +105,7 @@ class BetSettlementTestingSeeder extends Seeder
             stockDate: '2026-03-19',
             openTime: '12:01:00',
             status: BetStatus::REJECTED,
-            resultStatus: BetResultStatus::OPEN,
+            resultStatus: BetResultStatus::INVALID,
             payoutStatus: BetPayoutStatus::PENDING,
             numbers: [78],
             amount: 1000
@@ -117,7 +117,7 @@ class BetSettlementTestingSeeder extends Seeder
             stockDate: '2026-03-19',
             openTime: '12:01:00',
             status: BetStatus::REFUNDED,
-            resultStatus: BetResultStatus::OPEN,
+            resultStatus: BetResultStatus::INVALID,
             payoutStatus: BetPayoutStatus::REFUNDED,
             numbers: [88],
             amount: 1000
