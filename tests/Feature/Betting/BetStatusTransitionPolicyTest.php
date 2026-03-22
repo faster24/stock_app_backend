@@ -57,7 +57,7 @@ class BetStatusTransitionPolicyTest extends TestCase
 
         $policy->assertResultTransitionAllowed(BetResultStatus::OPEN, BetResultStatus::WON);
         $policy->assertResultTransitionAllowed(BetResultStatus::OPEN, BetResultStatus::LOST);
-        $policy->assertResultTransitionAllowed(BetResultStatus::OPEN, BetResultStatus::VOID);
+        $policy->assertResultTransitionAllowed(BetResultStatus::OPEN, BetResultStatus::INVALID);
 
         $this->assertTrue(true);
     }
@@ -74,14 +74,14 @@ class BetStatusTransitionPolicyTest extends TestCase
         }
 
         try {
-            $policy->assertResultTransitionAllowed(BetResultStatus::LOST, BetResultStatus::VOID);
+            $policy->assertResultTransitionAllowed(BetResultStatus::LOST, BetResultStatus::INVALID);
             $this->fail('Expected DomainException for disallowed result transition.');
         } catch (DomainException $exception) {
             $this->assertSame('Illegal result status transition.', $exception->getMessage());
         }
 
         try {
-            $policy->assertResultTransitionAllowed(BetResultStatus::VOID, BetResultStatus::WON);
+            $policy->assertResultTransitionAllowed(BetResultStatus::INVALID, BetResultStatus::WON);
             $this->fail('Expected DomainException for disallowed result transition.');
         } catch (DomainException $exception) {
             $this->assertSame('Illegal result status transition.', $exception->getMessage());
@@ -120,7 +120,7 @@ class BetStatusTransitionPolicyTest extends TestCase
         $policy->assertPayoutTransitionAllowed(BetPayoutStatus::PAID_OUT, BetPayoutStatus::PENDING, BetResultStatus::WON);
     }
 
-    public function test_payout_transitions_reject_pending_to_paid_out_when_result_is_lost_or_void_with_exact_message(): void
+    public function test_payout_transitions_reject_pending_to_paid_out_when_result_is_lost_or_invalid_with_exact_message(): void
     {
         $policy = new BetStatusTransitionPolicy;
 
@@ -132,7 +132,7 @@ class BetStatusTransitionPolicyTest extends TestCase
         }
 
         try {
-            $policy->assertPayoutTransitionAllowed(BetPayoutStatus::PENDING, BetPayoutStatus::PAID_OUT, BetResultStatus::VOID);
+            $policy->assertPayoutTransitionAllowed(BetPayoutStatus::PENDING, BetPayoutStatus::PAID_OUT, BetResultStatus::INVALID);
             $this->fail('Expected DomainException for non-WON payout transition.');
         } catch (DomainException $exception) {
             $this->assertSame('Payout status PAID_OUT requires result status WON.', $exception->getMessage());

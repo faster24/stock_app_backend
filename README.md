@@ -125,25 +125,20 @@ php artisan schedule:list
 
 ## Bet Settlement Testing Seeder
 
-Seed deterministic bet/result data for manual settlement verification:
+Seed deterministic full betting-flow snapshot data (2D results first, then bets):
 
 ```bash
 php artisan db:seed --class=Database\\Seeders\\BetSettlementTestingSeeder
 ```
 
-Then run settlement against the seeded history IDs:
+Seeded statuses include:
 
-```bash
-php artisan bets:settle-2d settlement-test-2026-03-19-11-00
-php artisan bets:settle-2d settlement-test-2026-03-19-12-01
-```
+- `PENDING`
+- `ACCEPTED` (with both `WON` and `LOST` outcomes based on seeded 2D results)
+- `REJECTED`
+- `REFUNDED` (with payout status `REFUNDED`)
 
-Expected summaries on the first run:
-
-- `settlement-test-2026-03-19-11-00` => Settled: `2`, Won: `1`, Lost: `1`, Skipped: `3`
-- `settlement-test-2026-03-19-12-01` => Settled: `3`, Won: `1`, Lost: `2`, Skipped: `0`
-
-On duplicate runs for the same `history_id`, summary should be all `0` due to idempotency.
+Seeder is idempotent and safe to re-run.
 
 ## Test Notes
 

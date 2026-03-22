@@ -1758,7 +1758,7 @@ components:
           enum: [PENDING, ACCEPTED, REJECTED, REFUNDED]
         bet_result_status:
           type: string
-          enum: [OPEN, WON, LOST, VOID]
+          enum: [OPEN, WON, LOST, INVALID]
         payout_status:
           type: string
           enum: [PENDING, PAID_OUT, REFUNDED]
@@ -1931,7 +1931,7 @@ components:
                 refunded_count: {type: integer}
                 won_count: {type: integer}
                 lost_count: {type: integer}
-                void_count: {type: integer}
+                invalid_count: {type: integer}
                 paid_out_count: {type: integer}
         errors:
           type: object

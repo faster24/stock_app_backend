@@ -183,9 +183,15 @@ class BetService extends Service
             $policy->assertReviewTransitionAllowed($bet->status, $resolvedTarget);
         }
 
-        $bet->update([
+        $payload = [
             'status' => $resolvedTarget,
-        ]);
+        ];
+
+        if ($resolvedTarget === BetStatus::REFUNDED) {
+            $payload['payout_status'] = BetPayoutStatus::REFUNDED;
+        }
+
+        $bet->update($payload);
 
         return $bet->fresh(['betNumbers', 'media']);
     }

@@ -52,7 +52,7 @@ class OpenApiDocsTest extends TestCase
             ->assertSee('BetUserWithWallet:')
             ->assertSee('enum: [ACCEPTED, REJECTED, REFUNDED]')
             ->assertSee('bet_result_status:')
-            ->assertSee('enum: [OPEN, WON, LOST, VOID]')
+            ->assertSee('enum: [OPEN, WON, LOST, INVALID]')
             ->assertSee('payout_status:')
             ->assertSee('enum: [PENDING, PAID_OUT, REFUNDED]')
             ->assertSee('Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied.');

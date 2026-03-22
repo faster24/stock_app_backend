@@ -62,11 +62,11 @@ class BetStatusTransitionPolicy
             BetResultStatus::OPEN->value => [
                 BetResultStatus::WON->value,
                 BetResultStatus::LOST->value,
-                BetResultStatus::VOID->value,
+                BetResultStatus::INVALID->value,
             ],
             BetResultStatus::WON->value => [],
             BetResultStatus::LOST->value => [],
-            BetResultStatus::VOID->value => [],
+            BetResultStatus::INVALID->value => [],
         ];
 
         if (! in_array($toStatus->value, $allowedTransitions[$fromStatus->value], true)) {

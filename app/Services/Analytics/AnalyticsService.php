@@ -25,7 +25,7 @@ class AnalyticsService extends Service
                 SUM(CASE WHEN status = 'REFUNDED' THEN 1 ELSE 0 END) as refunded_count,
                 SUM(CASE WHEN bet_result_status = 'WON' THEN 1 ELSE 0 END) as won_count,
                 SUM(CASE WHEN bet_result_status = 'LOST' THEN 1 ELSE 0 END) as lost_count,
-                SUM(CASE WHEN bet_result_status = 'VOID' THEN 1 ELSE 0 END) as void_count,
+                SUM(CASE WHEN bet_result_status = 'INVALID' THEN 1 ELSE 0 END) as invalid_count,
                 SUM(CASE WHEN payout_status = 'PAID_OUT' THEN 1 ELSE 0 END) as paid_out_count"
             )
             ->first();
@@ -39,7 +39,7 @@ class AnalyticsService extends Service
             'refunded_count' => (int) ($row->refunded_count ?? 0),
             'won_count' => (int) ($row->won_count ?? 0),
             'lost_count' => (int) ($row->lost_count ?? 0),
-            'void_count' => (int) ($row->void_count ?? 0),
+            'invalid_count' => (int) ($row->invalid_count ?? 0),
             'paid_out_count' => (int) ($row->paid_out_count ?? 0),
         ];
     }
@@ -302,4 +302,3 @@ class AnalyticsService extends Service
         return number_format((float) $value, 2, '.', '');
     }
 }
-

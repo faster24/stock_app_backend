@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\BetResultStatus;
+use App\Enums\BetPayoutStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
 use App\Models\Bet;
@@ -23,133 +24,102 @@ class BetSettlementTestingSeeder extends Seeder
             'password' => Hash::make('password'),
         ]);
 
-        $this->seedElevenAmScenario($user->id);
-        $this->seedNoonScenario($user->id);
+        $this->seedTwoDResults();
+        $this->seedBetFlowSnapshot($user->id);
     }
 
-    private function seedElevenAmScenario(int $userId): void
+    private function seedTwoDResults(): void
     {
-        $stockDate = '2026-03-19';
-        $openTime = '11:00:00';
-
         TwoDResult::query()->updateOrCreate([
             'history_id' => 'settlement-test-2026-03-19-11-00',
         ], [
-            'stock_date' => $stockDate,
+            'stock_date' => '2026-03-19',
             'stock_datetime' => '2026-03-19 11:00:00',
-            'open_time' => $openTime,
+            'open_time' => '11:00:00',
             'twod' => '12',
             'payload' => [
                 'seed' => 'BetSettlementTestingSeeder',
-                'label' => '11:00 winning number is 12',
+                'label' => '11:00 winning number is 12 (full-flow snapshot)',
             ],
         ]);
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000001',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::ACCEPTED,
-            resultStatus: BetResultStatus::OPEN,
-            numbers: [12, 18],
-            amount: 1000
-        );
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000002',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::ACCEPTED,
-            resultStatus: BetResultStatus::OPEN,
-            numbers: [44],
-            amount: 1000
-        );
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000003',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::PENDING,
-            resultStatus: BetResultStatus::OPEN,
-            numbers: [12],
-            amount: 1000
-        );
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000004',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::ACCEPTED,
-            resultStatus: BetResultStatus::WON,
-            numbers: [12],
-            amount: 1000
-        );
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000005',
-            stockDate: $stockDate,
-            openTime: '12:01:00',
-            status: BetStatus::ACCEPTED,
-            resultStatus: BetResultStatus::OPEN,
-            numbers: [12],
-            amount: 1000
-        );
-
-        $this->upsertBet(
-            userId: $userId,
-            betSlip: '10000000-0000-0000-0000-000000000006',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::ACCEPTED,
-            resultStatus: BetResultStatus::OPEN,
-            numbers: [123],
-            amount: 1000,
-            betType: BetType::THREE_D
-        );
-    }
-
-    private function seedNoonScenario(int $userId): void
-    {
-        $stockDate = '2026-03-19';
-        $openTime = '12:01:00';
 
         TwoDResult::query()->updateOrCreate([
             'history_id' => 'settlement-test-2026-03-19-12-01',
         ], [
-            'stock_date' => $stockDate,
+            'stock_date' => '2026-03-19',
             'stock_datetime' => '2026-03-19 12:01:00',
-            'open_time' => $openTime,
+            'open_time' => '12:01:00',
             'twod' => '78',
             'payload' => [
                 'seed' => 'BetSettlementTestingSeeder',
-                'label' => '12:01 winning number is 78',
+                'label' => '12:01 winning number is 78 (full-flow snapshot)',
             ],
         ]);
+    }
 
+    private function seedBetFlowSnapshot(int $userId): void
+    {
         $this->upsertBet(
             userId: $userId,
             betSlip: '10000000-0000-0000-0000-000000000007',
-            stockDate: $stockDate,
-            openTime: $openTime,
-            status: BetStatus::ACCEPTED,
+            stockDate: '2026-03-19',
+            openTime: '11:00:00',
+            status: BetStatus::PENDING,
             resultStatus: BetResultStatus::OPEN,
-            numbers: [78, 11],
-            amount: 2000
+            payoutStatus: BetPayoutStatus::PENDING,
+            numbers: [12, 90],
+            amount: 1000
         );
 
         $this->upsertBet(
             userId: $userId,
             betSlip: '10000000-0000-0000-0000-000000000008',
-            stockDate: $stockDate,
-            openTime: $openTime,
+            stockDate: '2026-03-19',
+            openTime: '11:00:00',
             status: BetStatus::ACCEPTED,
+            resultStatus: BetResultStatus::WON,
+            payoutStatus: BetPayoutStatus::PENDING,
+            settledAt: '2026-03-19 11:01:00',
+            settledResultHistoryId: 'settlement-test-2026-03-19-11-00',
+            numbers: [12, 45],
+            amount: 1000
+        );
+
+        $this->upsertBet(
+            userId: $userId,
+            betSlip: '10000000-0000-0000-0000-000000000009',
+            stockDate: '2026-03-19',
+            openTime: '11:00:00',
+            status: BetStatus::ACCEPTED,
+            resultStatus: BetResultStatus::LOST,
+            payoutStatus: BetPayoutStatus::PENDING,
+            settledAt: '2026-03-19 11:01:00',
+            settledResultHistoryId: 'settlement-test-2026-03-19-11-00',
+            numbers: [34, 56],
+            amount: 1000
+        );
+
+        $this->upsertBet(
+            userId: $userId,
+            betSlip: '10000000-0000-0000-0000-000000000010',
+            stockDate: '2026-03-19',
+            openTime: '12:01:00',
+            status: BetStatus::REJECTED,
             resultStatus: BetResultStatus::OPEN,
-            numbers: [55],
+            payoutStatus: BetPayoutStatus::PENDING,
+            numbers: [78],
+            amount: 1000
+        );
+
+        $this->upsertBet(
+            userId: $userId,
+            betSlip: '10000000-0000-0000-0000-000000000011',
+            stockDate: '2026-03-19',
+            openTime: '12:01:00',
+            status: BetStatus::REFUNDED,
+            resultStatus: BetResultStatus::OPEN,
+            payoutStatus: BetPayoutStatus::REFUNDED,
+            numbers: [88],
             amount: 1000
         );
     }
@@ -161,8 +131,11 @@ class BetSettlementTestingSeeder extends Seeder
         string $openTime,
         BetStatus $status,
         BetResultStatus $resultStatus,
+        BetPayoutStatus $payoutStatus,
         array $numbers,
         int $amount,
+        ?string $settledAt = null,
+        ?string $settledResultHistoryId = null,
         BetType $betType = BetType::TWO_D
     ): void {
         $uniqueNumbers = array_values(array_unique($numbers));
@@ -178,10 +151,10 @@ class BetSettlementTestingSeeder extends Seeder
             'total_amount' => $amount * count($uniqueNumbers),
             'status' => $status->value,
             'bet_result_status' => $resultStatus->value,
-            'payout_status' => 'PENDING',
+            'payout_status' => $payoutStatus->value,
             'placed_at' => $stockDate.' 09:30:00',
-            'settled_at' => null,
-            'settled_result_history_id' => null,
+            'settled_at' => $settledAt,
+            'settled_result_history_id' => $settledResultHistoryId,
         ]);
 
         $bet->betNumbers()->delete();

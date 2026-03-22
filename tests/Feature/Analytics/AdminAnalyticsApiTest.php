@@ -53,7 +53,7 @@ class AdminAnalyticsApiTest extends TestCase
             'amount' => 150,
             'total_amount' => '150.00',
             'status' => BetStatus::REFUNDED,
-            'bet_result_status' => BetResultStatus::VOID,
+            'bet_result_status' => BetResultStatus::INVALID,
             'payout_status' => BetPayoutStatus::PENDING,
         ]);
         $betD = Bet::factory()->for($userB)->create([
@@ -172,4 +172,3 @@ class AdminAnalyticsApiTest extends TestCase
             ->assertJsonPath('errors.to.0', 'The to field must be a date after or equal to from.');
     }
 }
-

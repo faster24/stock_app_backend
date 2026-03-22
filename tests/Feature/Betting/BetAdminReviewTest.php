@@ -181,20 +181,24 @@ class BetAdminReviewTest extends TestCase
                 ->assertJsonPath('message', 'Bet status updated successfully.')
                 ->assertJsonPath('data.bet.id', $bet->id)
                 ->assertJsonPath('data.bet.status', BetStatus::REFUNDED->value)
+                ->assertJsonPath('data.bet.payout_status', BetPayoutStatus::REFUNDED->value)
                 ->assertJsonPath('errors', null);
         }
 
         $this->assertDatabaseHas('bets', [
             'id' => $pendingBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
         $this->assertDatabaseHas('bets', [
             'id' => $acceptedBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
         $this->assertDatabaseHas('bets', [
             'id' => $rejectedBet->id,
             'status' => BetStatus::REFUNDED->value,
+            'payout_status' => BetPayoutStatus::REFUNDED->value,
         ]);
     }
 
