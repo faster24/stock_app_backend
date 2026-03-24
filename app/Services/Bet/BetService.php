@@ -70,23 +70,23 @@ class BetService extends Service
             ]);
         }
 
-        $numbers = $attributes['bet_numbers'] ?? [];
+        $numberEntries = $this->normalizeBetNumberEntries(
+            (string) ($attributes['bet_type'] ?? ''),
+            $attributes['bet_numbers'] ?? [],
+            array_key_exists('amount', $attributes) ? (int) $attributes['amount'] : null,
+        );
         unset($attributes['bet_numbers']);
 
-        $attributes['total_amount'] = $this->calculateTotalAmount(
-            (int) ($attributes['amount'] ?? 0),
-            count($numbers)
-        );
+        $attributes['amount'] = $this->deriveLegacyAmount($numberEntries);
+        $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
         $attributes['stock_date'] = Carbon::now()->toDateString();
 
-        $this->validateCreateBetNumbersForType((string) ($attributes['bet_type'] ?? ''), $numbers);
-
-        $bet = DB::transaction(function () use ($userId, $attributes, $numbers): Bet {
+        $bet = DB::transaction(function () use ($userId, $attributes, $numberEntries): Bet {
             $bet = Bet::query()->create(array_merge($attributes, [
                 'user_id' => $userId,
             ]));
 
-            $this->replaceBetNumbers($bet, $numbers);
+            $this->replaceBetNumbers($bet, $numberEntries);
 
             return $bet->fresh(['betNumbers', 'media']);
         });
@@ -116,22 +116,27 @@ class BetService extends Service
         }
 
         $hasBetNumbers = array_key_exists('bet_numbers', $attributes);
-        $numbers = $attributes['bet_numbers'] ?? [];
+        $numberEntries = $hasBetNumbers
+            ? $this->normalizeBetNumberEntries(
+                (string) ($attributes['bet_type'] ?? $bet->bet_type->value),
+                $attributes['bet_numbers'] ?? [],
+                array_key_exists('amount', $attributes) ? (int) $attributes['amount'] : null,
+            )
+            : [];
         unset($attributes['bet_numbers'], $attributes['user_id']);
 
-        $resolvedAmount = array_key_exists('amount', $attributes)
-            ? (int) $attributes['amount']
-            : (int) $bet->amount;
-        $resolvedBetCount = $hasBetNumbers
-            ? count($numbers)
-            : $bet->betNumbers()->count();
-        $attributes['total_amount'] = $this->calculateTotalAmount($resolvedAmount, $resolvedBetCount);
+        if ($hasBetNumbers) {
+            $attributes['amount'] = $this->deriveLegacyAmount($numberEntries);
+            $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
+        } else {
+            $attributes['total_amount'] = $this->calculateTotalAmountFromStoredBetNumbers($bet);
+        }
 
-        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numbers): Bet {
+        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries): Bet {
             $bet->update($attributes);
 
             if ($hasBetNumbers) {
-                $this->replaceBetNumbers($bet, $numbers);
+                $this->replaceBetNumbers($bet, $numberEntries);
             }
 
             return $bet->fresh(['betNumbers']);
@@ -209,45 +214,79 @@ class BetService extends Service
         return $sqlState === '23000' && $driverCode === '1451';
     }
 
-    private function replaceBetNumbers(Bet $bet, array $numbers): void
+    private function replaceBetNumbers(Bet $bet, array $numberEntries): void
     {
         $bet->betNumbers()->delete();
 
-        if ($numbers === []) {
+        if ($numberEntries === []) {
             return;
         }
 
         $rows = array_map(
-            static fn (int|string $number): array => ['number' => (int) $number],
-            array_values($numbers)
+            static fn (array $entry): array => [
+                'number' => (int) $entry['number'],
+                'amount' => (int) $entry['amount'],
+            ],
+            array_values($numberEntries)
         );
 
         $bet->betNumbers()->createMany($rows);
     }
 
-    private function validateCreateBetNumbersForType(string $betType, array $numbers): void
+    private function normalizeBetNumberEntries(string $betType, array $betNumbers, ?int $legacyAmount = null): array
     {
+        $entries = [];
         $min = null;
         $max = null;
 
         if ($betType === BetType::TWO_D->value) {
-            $min = 10;
+            $min = 1;
             $max = 99;
         }
 
         if ($betType === BetType::THREE_D->value) {
-            $min = 100;
+            $min = 1;
             $max = 999;
         }
 
         if ($min === null || $max === null) {
-            return;
+            return $entries;
         }
 
-        foreach (array_values($numbers) as $index => $number) {
-            $resolvedNumber = (int) $number;
+        foreach (array_values($betNumbers) as $index => $entry) {
+            $resolvedNumber = null;
+            $resolvedAmount = null;
+
+            if (is_array($entry)) {
+                $resolvedNumber = $this->resolveInteger($entry['number'] ?? null);
+                $resolvedAmount = $this->resolveInteger($entry['amount'] ?? null);
+            } else {
+                $resolvedNumber = $this->resolveInteger($entry);
+                $resolvedAmount = $legacyAmount;
+            }
+
+            if (! is_int($resolvedNumber)) {
+                throw ValidationException::withMessages([
+                    'bet_numbers.'.$index.'.number' => ['The bet number must be an integer.'],
+                ]);
+            }
 
             if ($resolvedNumber >= $min && $resolvedNumber <= $max) {
+                if (! is_int($resolvedAmount) || $resolvedAmount < 1) {
+                    $amountKey = is_array($entry)
+                        ? 'bet_numbers.'.$index.'.amount'
+                        : 'amount';
+
+                    throw ValidationException::withMessages([
+                        $amountKey => ['The amount field must be at least 1.'],
+                    ]);
+                }
+
+                $entries[] = [
+                    'number' => $resolvedNumber,
+                    'amount' => $resolvedAmount,
+                ];
+
                 continue;
             }
 
@@ -257,12 +296,46 @@ class BetService extends Service
                 ],
             ]);
         }
+
+        return $entries;
     }
 
-    private function calculateTotalAmount(int $amount, int $betNumberCount): string
+    private function resolveInteger(mixed $value): ?int
     {
-        $total = max(0, $amount) * max(0, $betNumberCount);
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/^\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
+    }
+
+    private function calculateTotalAmount(array $numberEntries): string
+    {
+        $total = array_sum(array_map(
+            static fn (array $entry): int => max(0, (int) $entry['amount']),
+            $numberEntries
+        ));
 
         return number_format($total, 2, '.', '');
+    }
+
+    private function calculateTotalAmountFromStoredBetNumbers(Bet $bet): string
+    {
+        $total = (int) $bet->betNumbers()->sum('amount');
+
+        return number_format($total, 2, '.', '');
+    }
+
+    private function deriveLegacyAmount(array $numberEntries): int
+    {
+        if ($numberEntries === []) {
+            return 0;
+        }
+
+        return (int) $numberEntries[0]['amount'];
     }
 }

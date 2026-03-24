@@ -12,10 +12,10 @@ class AdminSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::query()->firstOrCreate([
+        $admin = User::query()->updateOrCreate([
             'email' => 'admin@lotto.com',
         ], [
-            'name' => 'Admin User',
+            'username' => 'admin',
             'password' => Hash::make('password'),
         ]);
 

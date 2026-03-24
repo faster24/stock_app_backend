@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\UserManagement\AssignUserRoleRequest;
 use App\Models\User;
 use App\Services\User\UserManagementService;
 use DomainException;
@@ -109,13 +110,43 @@ class AdminUserController extends Controller
         return $this->respond('User deleted successfully.', null);
     }
 
+    public function assignRole(AssignUserRoleRequest $request, string $user): JsonResponse
+    {
+        $resolvedUser = $this->userManagementService->showUser((int) $user);
+
+        if (! $resolvedUser instanceof User) {
+            return $this->respond('User not found.', null, 404, [
+                'user' => ['The selected user is invalid.'],
+            ]);
+        }
+
+        try {
+            $updatedUser = $this->userManagementService->assignCustomerRole(
+                (int) $request->user()->id,
+                $resolvedUser,
+                (string) $request->validated()['role'],
+            );
+        } catch (DomainException $exception) {
+            return $this->respond('The given data was invalid.', null, 422, [
+                'user' => [$exception->getMessage()],
+            ]);
+        }
+
+        return $this->respond('User role updated successfully.', [
+            'user' => $this->userDetailPayload($updatedUser),
+        ]);
+    }
+
     private function userSummaryPayload(User $user): array
     {
+        $roleNames = $user->getRoleNames()->values()->all();
+
         return [
             'id' => $user->id,
-            'name' => $user->name,
             'username' => $user->username,
             'email' => $user->email,
+            'role' => $this->resolveCustomerRole($roleNames),
+            'roles' => $roleNames,
             'is_banned' => (bool) $user->is_banned,
             'banned_at' => $user->banned_at?->toISOString(),
             'created_at' => $user->created_at?->toISOString(),
@@ -142,5 +173,18 @@ class AdminUserController extends Controller
             'data' => $data,
             'errors' => $errors,
         ], $status);
+    }
+
+    private function resolveCustomerRole(array $roles): ?string
+    {
+        if (in_array('vip', $roles, true)) {
+            return 'vip';
+        }
+
+        if (in_array('user', $roles, true)) {
+            return 'user';
+        }
+
+        return null;
     }
 }

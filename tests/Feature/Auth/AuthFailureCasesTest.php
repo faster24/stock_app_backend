@@ -17,7 +17,7 @@ class AuthFailureCasesTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/register', [
-            'name' => 'Duplicate User',
+            'username' => 'duplicate-user',
             'email' => 'duplicate@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',

@@ -21,7 +21,7 @@ class AuthController extends Controller
     public function register(RegisterRequest $request): JsonResponse
     {
         $payload = $this->authService->register(
-            $request->string('name')->toString(),
+            $request->string('username')->toString(),
             $request->string('email')->toString(),
             $request->string('password')->toString(),
         );

@@ -83,7 +83,7 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_rejects_2d_numbers_outside_10_to_99_with_422_envelope(): void
+    public function test_store_rejects_2d_numbers_outside_1_to_99_with_422_envelope(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -94,7 +94,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
-                'bet_numbers' => [9],
+                'bet_numbers' => [0],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -106,7 +106,7 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_rejects_3d_numbers_outside_100_to_999_with_422_envelope(): void
+    public function test_store_rejects_3d_numbers_outside_1_to_999_with_422_envelope(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -117,7 +117,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '3D',
                 'target_opentime' => '11:00:00',
                 'amount' => 1000,
-                'bet_numbers' => [99],
+                'bet_numbers' => [0],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -238,6 +238,103 @@ class BetApiValidationTest extends TestCase
                 'message',
                 'data',
                 'errors' => ['pay_slip_image'],
+            ]);
+    }
+
+    public function test_store_rejects_object_bet_number_without_amount(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'target_opentime' => '11:00:00',
+                'bet_numbers' => [
+                    ['number' => 12],
+                ],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['bet_numbers.0.amount'],
+            ]);
+    }
+
+    public function test_store_legacy_integer_bet_numbers_requires_top_level_amount(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'target_opentime' => '11:00:00',
+                'bet_numbers' => [12],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['amount'],
+            ]);
+    }
+
+    public function test_store_accepts_leading_zero_string_numbers_for_2d_and_3d(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'target_opentime' => '11:00:00',
+                'amount' => 1000,
+                'bet_numbers' => ['01', '09', '99'],
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Validated.');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '3D',
+                'target_opentime' => '11:00:00',
+                'amount' => 1000,
+                'bet_numbers' => ['001', '099', '999'],
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Validated.');
+    }
+
+    public function test_store_rejects_normalized_duplicate_numbers(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'target_opentime' => '11:00:00',
+                'amount' => 1000,
+                'bet_numbers' => [1, '01'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['bet_numbers.1'],
             ]);
     }
 }

@@ -126,4 +126,58 @@ class BetSettlementServiceTest extends TestCase
             'two_d_result_id' => $result->id,
         ]);
     }
+
+    public function test_settle_two_d_result_accepts_leading_zero_winning_number(): void
+    {
+        $user = User::factory()->normalUser()->create();
+
+        $winningBet = Bet::factory()->for($user)->create([
+            'bet_type' => BetType::TWO_D,
+            'status' => BetStatus::ACCEPTED,
+            'bet_result_status' => BetResultStatus::OPEN,
+            'target_opentime' => '11:00:00',
+            'stock_date' => '2026-03-19',
+        ]);
+        $winningBet->betNumbers()->createMany([
+            ['number' => 1, 'amount' => 1000],
+        ]);
+
+        $losingBet = Bet::factory()->for($user)->create([
+            'bet_type' => BetType::TWO_D,
+            'status' => BetStatus::ACCEPTED,
+            'bet_result_status' => BetResultStatus::OPEN,
+            'target_opentime' => '11:00:00',
+            'stock_date' => '2026-03-19',
+        ]);
+        $losingBet->betNumbers()->createMany([
+            ['number' => 22, 'amount' => 1000],
+        ]);
+
+        $result = TwoDResult::query()->create([
+            'history_id' => 'history-leading-zero-2d',
+            'stock_date' => '2026-03-19',
+            'stock_datetime' => '2026-03-19 11:00:00',
+            'open_time' => '11:00:00',
+            'twod' => '01',
+            'payload' => [],
+        ]);
+
+        $summary = app(BetSettlementService::class)->settleTwoDResult($result, 100);
+
+        $this->assertSame(2, $summary['settled']);
+        $this->assertSame(1, $summary['won']);
+        $this->assertSame(1, $summary['lost']);
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $winningBet->id,
+            'bet_result_status' => BetResultStatus::WON->value,
+            'settled_result_history_id' => 'history-leading-zero-2d',
+        ]);
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $losingBet->id,
+            'bet_result_status' => BetResultStatus::LOST->value,
+            'settled_result_history_id' => 'history-leading-zero-2d',
+        ]);
+    }
 }

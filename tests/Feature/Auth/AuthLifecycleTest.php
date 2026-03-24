@@ -18,7 +18,7 @@ class AuthLifecycleTest extends TestCase
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
 
         $response = $this->postJson('/api/v1/register', [
-            'name' => 'Jane Doe',
+            'username' => 'janedoe',
             'email' => 'jane@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
@@ -28,10 +28,11 @@ class AuthLifecycleTest extends TestCase
             ->assertStatus(201)
             ->assertJsonPath('message', 'Registration successful.')
             ->assertJsonPath('data.user.email', 'jane@example.com')
+            ->assertJsonPath('data.user.username', 'janedoe')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'name', 'email'], 'token'],
+                'data' => ['user' => ['id', 'username', 'email'], 'token'],
                 'errors',
             ]);
 
@@ -63,7 +64,7 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'name', 'email'], 'token'],
+                'data' => ['user' => ['id', 'username', 'email'], 'token'],
                 'errors',
             ]);
 
@@ -89,7 +90,7 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'name', 'email']],
+                'data' => ['user' => ['id', 'username', 'email']],
                 'errors',
             ]);
     }

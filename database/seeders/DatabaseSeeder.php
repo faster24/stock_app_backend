@@ -23,15 +23,16 @@ class DatabaseSeeder extends Seeder
 
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin', $guard);
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'vip', $guard);
 
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
 
         $this->call(AdminSeeder::class);
 
-        User::query()->firstOrCreate([
+        User::query()->updateOrCreate([
             'email' => 'test@example.com',
         ], [
-            'name' => 'Test User',
+            'username' => 'testuser',
             'password' => Hash::make('password'),
         ]);
 

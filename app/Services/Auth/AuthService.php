@@ -13,10 +13,10 @@ use Spatie\Permission\Models\Role;
 
 class AuthService extends Service
 {
-    public function register(string $name, string $email, string $password): array
+    public function register(string $username, string $email, string $password): array
     {
         $user = User::query()->create([
-            'name' => $name,
+            'username' => $username,
             'email' => $email,
             'password' => Hash::make($password),
         ]);

@@ -26,8 +26,10 @@ class BetApiWriteAccessTest extends TestCase
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1500,
-                'bet_numbers' => [11, 22],
+                'bet_numbers' => [
+                    ['number' => 11, 'amount' => 1000],
+                    ['number' => 22, 'amount' => 1500],
+                ],
             ]);
 
         $createResponse->assertStatus(201)
@@ -36,6 +38,8 @@ class BetApiWriteAccessTest extends TestCase
             ->assertJsonPath('data.bet.target_opentime', '11:00:00')
             ->assertJsonPath('data.bet.stock_date', Carbon::now()->startOfDay()->utc()->format('Y-m-d\TH:i:s.000000\Z'))
             ->assertJsonPath('data.bet.bet_numbers.0.number', 11)
+            ->assertJsonPath('data.bet.bet_numbers.0.amount', 1000)
+            ->assertJsonPath('data.bet.total_amount', '2500.00')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
@@ -56,8 +60,8 @@ class BetApiWriteAccessTest extends TestCase
             'bet_type' => BetType::TWO_D->value,
             'target_opentime' => '11:00:00',
             'stock_date' => Carbon::now()->toDateString(),
-            'amount' => 1500,
-            'total_amount' => 3000.00,
+            'amount' => 1000,
+            'total_amount' => 2500.00,
         ]);
 
         $deleteResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -120,5 +124,27 @@ class BetApiWriteAccessTest extends TestCase
                 'data',
                 'errors',
             ]);
+    }
+
+    public function test_legacy_bet_numbers_integer_payload_is_still_supported(): void
+    {
+        $owner = User::factory()->normalUser()->create();
+        $token = $owner->createToken('auth_token')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->withHeader('Accept', 'application/json')
+            ->post('/api/v1/bets', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => BetType::TWO_D->value,
+                'target_opentime' => '11:00:00',
+                'amount' => 1200,
+                'bet_numbers' => [11, 22],
+            ]);
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('data.bet.bet_numbers.0.amount', 1200)
+            ->assertJsonPath('data.bet.bet_numbers.1.amount', 1200)
+            ->assertJsonPath('data.bet.total_amount', '2400.00');
     }
 }

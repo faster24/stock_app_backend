@@ -16,10 +16,9 @@ class BetSettlementTestingSeeder extends Seeder
 {
     public function run(): void
     {
-        $user = User::query()->firstOrCreate([
+        $user = User::query()->updateOrCreate([
             'email' => 'bet-tester@example.com',
         ], [
-            'name' => 'Bet Tester',
             'username' => 'bettester',
             'password' => Hash::make('password'),
         ]);
@@ -148,7 +147,7 @@ class BetSettlementTestingSeeder extends Seeder
             'target_opentime' => $openTime,
             'stock_date' => $stockDate,
             'amount' => $amount,
-            'total_amount' => $amount * count($uniqueNumbers),
+            'total_amount' => array_sum(array_fill(0, count($uniqueNumbers), $amount)),
             'status' => $status->value,
             'bet_result_status' => $resultStatus->value,
             'payout_status' => $payoutStatus->value,
@@ -162,6 +161,7 @@ class BetSettlementTestingSeeder extends Seeder
         foreach ($uniqueNumbers as $number) {
             $bet->betNumbers()->create([
                 'number' => $number,
+                'amount' => $amount,
             ]);
         }
     }

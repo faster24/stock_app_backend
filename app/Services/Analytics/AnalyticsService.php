@@ -116,16 +116,16 @@ class AnalyticsService extends Service
             ->leftJoin('users', 'users.id', '=', 'bets.paid_out_by_user_id')
             ->selectRaw(
                 'bets.paid_out_by_user_id as admin_user_id,
-                users.name as admin_name,
+                users.username as admin_username,
                 COUNT(*) as payout_count,
                 COALESCE(SUM(bets.total_amount), 0) as paid_out_total_amount'
             )
-            ->groupBy('bets.paid_out_by_user_id', 'users.name')
+            ->groupBy('bets.paid_out_by_user_id', 'users.username')
             ->orderByDesc('payout_count')
             ->get()
             ->map(fn ($row): array => [
                 'admin_user_id' => $row->admin_user_id === null ? null : (int) $row->admin_user_id,
-                'admin_name' => $row->admin_name,
+                'admin_username' => $row->admin_username,
                 'payout_count' => (int) $row->payout_count,
                 'paid_out_total_amount' => $this->toMoney($row->paid_out_total_amount),
             ])
@@ -197,16 +197,19 @@ class AnalyticsService extends Service
     {
         $rows = DB::table('bet_settlement_runs')
             ->leftJoin('two_d_results', 'two_d_results.id', '=', 'bet_settlement_runs.two_d_result_id')
+            ->leftJoin('three_d_results', 'three_d_results.id', '=', 'bet_settlement_runs.three_d_result_id')
             ->whereDate(DB::raw('COALESCE(bet_settlement_runs.settled_at, bet_settlement_runs.created_at)'), '>=', (string) $filters['from'])
             ->whereDate(DB::raw('COALESCE(bet_settlement_runs.settled_at, bet_settlement_runs.created_at)'), '<=', (string) $filters['to'])
             ->select([
                 'bet_settlement_runs.history_id',
+                'bet_settlement_runs.bet_type',
                 'bet_settlement_runs.settled_at',
                 'bet_settlement_runs.summary',
                 'bet_settlement_runs.created_at',
-                'two_d_results.stock_date',
+                DB::raw('COALESCE(two_d_results.stock_date, three_d_results.stock_date) as stock_date'),
                 'two_d_results.open_time',
                 'two_d_results.twod',
+                'three_d_results.threed',
             ])
             ->orderByDesc('bet_settlement_runs.created_at')
             ->get();
@@ -226,9 +229,11 @@ class AnalyticsService extends Service
 
             $runs[] = [
                 'history_id' => (string) $row->history_id,
+                'bet_type' => $row->bet_type,
                 'stock_date' => $row->stock_date,
                 'open_time' => $row->open_time,
                 'twod' => $row->twod,
+                'threed' => $row->threed,
                 'settled_at' => $row->settled_at,
                 'created_at' => $row->created_at,
                 'summary' => $summary,

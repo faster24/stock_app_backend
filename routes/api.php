@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
 use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
+use App\Http\Controllers\Api\V1\ThreeDResultController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
         Route::get('/two-d-results', [TwoDResultController::class, 'index']);
         Route::get('/two-d-results/latest', [TwoDResultController::class, 'latest']);
+        Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
+        Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
             Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
@@ -49,6 +52,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('/odd-settings', [OddSettingController::class, 'store']);
                 Route::put('/odd-settings/{oddSetting}', [OddSettingController::class, 'update']);
                 Route::delete('/odd-settings/{oddSetting}', [OddSettingController::class, 'destroy']);
+                Route::post('/three-d-results', [ThreeDResultController::class, 'store']);
+                Route::put('/three-d-results/{threeDResult}', [ThreeDResultController::class, 'update']);
+                Route::delete('/three-d-results/{threeDResult}', [ThreeDResultController::class, 'destroy']);
                 Route::prefix('analytics')->controller(AdminAnalyticsController::class)->group(function () {
                     Route::get('/kpis', 'kpis');
                     Route::get('/trends/daily', 'dailyTrends');
@@ -64,6 +70,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('users')->controller(AdminUserController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{user}', 'show');
+                    Route::patch('/{user}/role', 'assignRole');
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');
                     Route::delete('/{user}', 'destroy');

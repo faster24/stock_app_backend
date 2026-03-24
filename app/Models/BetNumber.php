@@ -19,6 +19,7 @@ class BetNumber extends Model
     protected $fillable = [
         'bet_id',
         'number',
+        'amount',
     ];
 
     public function bet(): BelongsTo
@@ -30,6 +31,7 @@ class BetNumber extends Model
     {
         return [
             'number' => 'integer',
+            'amount' => 'integer',
         ];
     }
 }

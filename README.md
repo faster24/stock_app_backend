@@ -71,6 +71,8 @@ You can import this file into Swagger UI, Postman, Insomnia, or any OpenAPI-comp
 - Public routes:
   - `POST /api/v1/register`
   - `POST /api/v1/login`
+- Register payload requires `username`, `email`, `password`, and `password_confirmation`.
+- Bet create payload supports per-number stake via `bet_numbers: [{ number, amount }]`; `total_amount` is computed as the sum of all number amounts. Leading-zero numbers like `01` (2D) and `001` (3D) are accepted and normalized numerically.
 - Authenticated routes require:
 
 ```http
@@ -79,9 +81,10 @@ Authorization: Bearer <token>
 
 ## Roles and Access
 
-- `user` and `admin` roles are managed by Spatie Permission.
+- `user`, `vip`, and `admin` roles are managed by Spatie Permission.
 - Authenticated read endpoints are available to both roles.
 - Write endpoints for announcements and odd settings are under `/api/v1/admin/*` and require `admin` role.
+- Admin can switch customer users between `user` and `vip` via `PATCH /api/v1/admin/users/{user}/role` with payload `{ "role": "user" | "vip" }`.
 
 ## 2D Result Read APIs
 

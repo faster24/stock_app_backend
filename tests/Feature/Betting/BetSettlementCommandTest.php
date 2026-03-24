@@ -34,7 +34,7 @@ class BetSettlementCommandTest extends TestCase
             'stock_date' => '2026-03-19',
         ]);
         $bet->betNumbers()->createMany([
-            ['number' => 12],
+            ['number' => 1, 'amount' => 1000],
         ]);
 
         TwoDResult::query()->create([
@@ -42,7 +42,7 @@ class BetSettlementCommandTest extends TestCase
             'stock_date' => '2026-03-19',
             'stock_datetime' => '2026-03-19 11:00:00',
             'open_time' => '11:00:00',
-            'twod' => '12',
+            'twod' => '01',
             'payload' => [],
         ]);
 

@@ -26,7 +26,7 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
+            'username' => fake()->unique()->userName(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
@@ -61,6 +61,16 @@ class UserFactory extends Factory
             call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', Guard::getDefaultName($user));
 
             $user->syncRoles(['user']);
+        });
+    }
+
+    public function vip(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'vip', Guard::getDefaultName($user));
+
+            $user->syncRoles(['vip']);
         });
     }
 }

@@ -4,7 +4,7 @@ namespace App\Http\Requests\Bet;
 
 use App\Enums\BetType;
 use App\Http\Requests\Auth\AuthFormRequest;
-use Closure;
+use Illuminate\Validation\Validator;
 use Illuminate\Validation\Rule;
 
 class StoreBetRequest extends AuthFormRequest
@@ -28,29 +28,78 @@ class StoreBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
             ],
-            'amount' => ['required', 'integer', 'min:1'],
+            'amount' => ['sometimes', 'required', 'integer', 'min:1'],
             'bet_numbers' => ['required', 'array'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],
             'payout_status' => ['prohibited'],
-            'bet_numbers.*' => [
-                'integer',
-                'distinct',
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    $number = (int) $value;
-                    $betType = $this->input('bet_type');
-
-                    if ($betType === BetType::TWO_D->value && ($number < 10 || $number > 99)) {
-                        $fail('The '.$attribute.' field must be between 10 and 99 when bet type is 2D.');
-
-                        return;
-                    }
-
-                    if ($betType === BetType::THREE_D->value && ($number < 100 || $number > 999)) {
-                        $fail('The '.$attribute.' field must be between 100 and 999 when bet type is 3D.');
-                    }
-                },
-            ],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $betNumbers = $this->input('bet_numbers');
+
+            if (! is_array($betNumbers)) {
+                return;
+            }
+
+            $seenNumbers = [];
+
+            foreach (array_values($betNumbers) as $index => $entry) {
+                if (is_array($entry)) {
+                    $number = $this->resolveInteger($entry['number'] ?? null);
+                    $amount = $this->resolveInteger($entry['amount'] ?? null);
+
+                    if ($number === null) {
+                        $validator->errors()->add('bet_numbers.'.$index.'.number', 'The bet_numbers.'.$index.'.number field must be an integer.');
+                        continue;
+                    }
+
+                    if ($amount === null || $amount < 1) {
+                        $validator->errors()->add('bet_numbers.'.$index.'.amount', 'The bet_numbers.'.$index.'.amount field must be at least 1.');
+                    }
+                } else {
+                    $number = $this->resolveInteger($entry);
+
+                    if ($number === null) {
+                        $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be either an integer or an object with number and amount.');
+                        continue;
+                    }
+
+                    if (! $this->filled('amount')) {
+                        $validator->errors()->add('amount', 'The amount field is required when bet_numbers is a list of integers.');
+                    }
+                }
+
+                if (in_array($number, $seenNumbers, true)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field has a duplicate number.');
+                } else {
+                    $seenNumbers[] = $number;
+                }
+
+                if ($this->input('bet_type') === BetType::TWO_D->value && ($number < 1 || $number > 99)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 1 and 99 when bet type is 2D.');
+                }
+
+                if ($this->input('bet_type') === BetType::THREE_D->value && ($number < 1 || $number > 999)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 1 and 999 when bet type is 3D.');
+                }
+            }
+        });
+    }
+
+    private function resolveInteger(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/^\d+$/', $value) === 1) {
+            return (int) $value;
+        }
+
+        return null;
     }
 }

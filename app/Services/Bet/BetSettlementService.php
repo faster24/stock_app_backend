@@ -6,6 +6,7 @@ use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
 use App\Models\Bet;
+use App\Models\ThreeDResult;
 use App\Models\TwoDResult;
 use App\Services\Service;
 use DomainException;
@@ -38,7 +39,7 @@ class BetSettlementService extends Service
             return self::NOOP_SUMMARY;
         }
 
-        if (! $this->beginSettlementRun($historyId, $result)) {
+        if (! $this->beginSettlementRun($historyId, BetType::TWO_D, (int) $result->getKey(), null)) {
             return self::NOOP_SUMMARY;
         }
 
@@ -54,15 +55,76 @@ class BetSettlementService extends Service
             ->where('status', BetStatus::ACCEPTED->value)
             ->where('bet_result_status', BetResultStatus::OPEN->value);
 
-        $summary = self::NOOP_SUMMARY;
+        return $this->settleEligibleBets(
+            $historyId,
+            BetType::TWO_D,
+            (int) $result->getKey(),
+            null,
+            $resolvedChunkSize,
+            $eligibleBaseQuery,
+            (clone $scopeQuery)->count(),
+            $winningNumber,
+            $settledAt
+        );
+    }
 
-        $totalInScope = (clone $scopeQuery)->count();
+    public function settleThreeDResult(ThreeDResult $result, int $chunkSize = 500): array
+    {
+        $resolvedStockDate = $this->resolveStockDate($result->stock_date);
+        $winningNumber = $this->resolveWinningNumber($result->threed);
+
+        if ($resolvedStockDate === null || $winningNumber === null) {
+            return self::NOOP_SUMMARY;
+        }
+
+        $historyId = '3d-result-'.$resolvedStockDate;
+
+        if (! $this->beginSettlementRun($historyId, BetType::THREE_D, null, (int) $result->getKey())) {
+            return self::NOOP_SUMMARY;
+        }
+
+        $resolvedChunkSize = max(1, min(2000, $chunkSize));
+        $settledAt = Carbon::now();
+
+        $scopeQuery = Bet::query()
+            ->where('bet_type', BetType::THREE_D->value)
+            ->whereDate('stock_date', $resolvedStockDate);
+
+        $eligibleBaseQuery = (clone $scopeQuery)
+            ->where('status', BetStatus::ACCEPTED->value)
+            ->where('bet_result_status', BetResultStatus::OPEN->value);
+
+        return $this->settleEligibleBets(
+            $historyId,
+            BetType::THREE_D,
+            null,
+            (int) $result->getKey(),
+            $resolvedChunkSize,
+            $eligibleBaseQuery,
+            (clone $scopeQuery)->count(),
+            $winningNumber,
+            $settledAt
+        );
+    }
+
+    private function settleEligibleBets(
+        string $historyId,
+        BetType $betType,
+        ?int $twoDResultId,
+        ?int $threeDResultId,
+        int $chunkSize,
+        $eligibleBaseQuery,
+        int $totalInScope,
+        int $winningNumber,
+        Carbon $settledAt
+    ): array {
+        $summary = self::NOOP_SUMMARY;
 
         try {
             (clone $eligibleBaseQuery)
                 ->select('id')
                 ->orderBy('id')
-                ->chunkById($resolvedChunkSize, function ($bets) use (
+                ->chunkById($chunkSize, function ($bets) use (
                     &$summary,
                     $winningNumber,
                     $historyId,
@@ -118,7 +180,7 @@ class BetSettlementService extends Service
 
             $summary['skipped'] = max(0, $totalInScope - $summary['settled']);
 
-            $this->completeSettlementRun($historyId, $result, $summary, $settledAt);
+            $this->completeSettlementRun($historyId, $betType, $twoDResultId, $threeDResultId, $summary, $settledAt);
 
             return $summary;
         } catch (Throwable $throwable) {
@@ -128,12 +190,18 @@ class BetSettlementService extends Service
         }
     }
 
-    private function beginSettlementRun(string $historyId, TwoDResult $result): bool
-    {
+    private function beginSettlementRun(
+        string $historyId,
+        BetType $betType,
+        ?int $twoDResultId,
+        ?int $threeDResultId
+    ): bool {
         try {
             DB::table('bet_settlement_runs')->insert([
                 'history_id' => $historyId,
-                'two_d_result_id' => $result->getKey(),
+                'bet_type' => $betType->value,
+                'two_d_result_id' => $twoDResultId,
+                'three_d_result_id' => $threeDResultId,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -151,12 +219,20 @@ class BetSettlementService extends Service
         }
     }
 
-    private function completeSettlementRun(string $historyId, TwoDResult $result, array $summary, Carbon $settledAt): void
-    {
+    private function completeSettlementRun(
+        string $historyId,
+        BetType $betType,
+        ?int $twoDResultId,
+        ?int $threeDResultId,
+        array $summary,
+        Carbon $settledAt
+    ): void {
         DB::table('bet_settlement_runs')
             ->where('history_id', $historyId)
             ->update([
-                'two_d_result_id' => $result->getKey(),
+                'bet_type' => $betType->value,
+                'two_d_result_id' => $twoDResultId,
+                'three_d_result_id' => $threeDResultId,
                 'settled_at' => $settledAt,
                 'summary' => json_encode($summary, JSON_THROW_ON_ERROR),
                 'updated_at' => $settledAt,
@@ -242,12 +318,24 @@ class BetSettlementService extends Service
         return $trimmed;
     }
 
-    private function resolveWinningNumber(mixed $twoD): ?int
+    private function resolveWinningNumber(mixed $value): ?int
     {
-        if (! is_numeric($twoD)) {
+        if (is_int($value)) {
+            return $value >= 1 && $value <= 999 ? $value : null;
+        }
+
+        if (! is_string($value)) {
             return null;
         }
 
-        return (int) $twoD;
+        $trimmed = trim($value);
+
+        if ($trimmed === '' || preg_match('/^\d+$/', $trimmed) !== 1) {
+            return null;
+        }
+
+        $resolved = (int) $trimmed;
+
+        return $resolved >= 1 && $resolved <= 999 ? $resolved : null;
     }
 }

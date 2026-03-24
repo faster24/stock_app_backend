@@ -64,13 +64,13 @@ class BetApiTransactionTest extends TestCase
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
                 'amount' => 1000,
-                'bet_numbers' => [9],
+                'bet_numbers' => [0],
             ],
             [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
                 'amount' => 1000,
-                'bet_numbers' => [99],
+                'bet_numbers' => [0],
             ],
         ];
 

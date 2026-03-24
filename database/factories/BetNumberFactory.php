@@ -12,13 +12,15 @@ class BetNumberFactory extends Factory
         return [
             'bet_id' => Bet::factory(),
             'number' => 12,
+            'amount' => 1_000,
         ];
     }
 
-    public function forBetWithNumber(Bet $bet, int $number): static
+    public function forBetWithNumber(Bet $bet, int $number, ?int $amount = null): static
     {
         return $this->for($bet)->state([
             'number' => $number,
+            'amount' => $amount ?? 1_000,
         ]);
     }
 }

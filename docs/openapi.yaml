@@ -16,6 +16,7 @@ tags:
   - name: Announcement
   - name: OddSetting
   - name: TwoDResult
+  - name: ThreeDResult
   - name: Admin
 
 paths:
@@ -457,6 +458,61 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
+  /three-d-results:
+    get:
+      tags: [ThreeDResult]
+      summary: List 3D results (authenticated)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 20.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: stock_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 3D results list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreeDResultListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /three-d-results/latest:
+    get:
+      tags: [ThreeDResult]
+      summary: Get latest 3D result (authenticated)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Latest 3D result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreeDResultItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /admin/dashboard:
     get:
       tags: [Admin]
@@ -807,6 +863,89 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/three-d-results:
+    post:
+      tags: [ThreeDResult]
+      summary: Save 3D result by stock date (admin)
+      description: Creates a new 3D result or updates existing date-matched record.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreeDResultWriteRequest'
+      responses:
+        '200':
+          description: 3D result updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreeDResultItemResponse'
+        '201':
+          description: 3D result created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreeDResultItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/three-d-results/{threeDResult}:
+    put:
+      tags: [ThreeDResult]
+      summary: Update 3D result (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ThreeDResultId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ThreeDResultWriteRequest'
+      responses:
+        '200':
+          description: 3D result updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreeDResultItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [ThreeDResult]
+      summary: Delete 3D result (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ThreeDResultId'
+      responses:
+        '200':
+          description: 3D result deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/users:
     get:
       tags: [Admin]
@@ -881,6 +1020,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessNoDataResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/users/{user}/role:
+    patch:
+      tags: [Admin]
+      summary: Assign customer role (user or vip) to user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminAssignUserRoleRequest'
+      responses:
+        '200':
+          description: User role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -1121,6 +1294,12 @@ components:
       schema:
         type: string
         format: uuid
+    ThreeDResultId:
+      name: threeDResult
+      in: path
+      required: true
+      schema:
+        type: integer
     UserId:
       name: user
       in: path
@@ -1210,9 +1389,9 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [name, email, password, password_confirmation]
+      required: [username, email, password, password_confirmation]
       properties:
-        name:
+        username:
           type: string
           maxLength: 255
         email:
@@ -1235,19 +1414,33 @@ components:
         password:
           type: string
 
+    AdminAssignUserRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [user, vip]
+
     User:
       type: object
       properties:
         id:
           type: integer
-        name:
-          type: string
         username:
           type: string
           nullable: true
         email:
           type: string
           format: email
+        role:
+          type: string
+          nullable: true
+          enum: [user, vip]
+        roles:
+          type: array
+          items:
+            type: string
         is_banned:
           type: boolean
         banned_at:
@@ -1351,6 +1544,24 @@ components:
         payload:
           type: object
           additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ThreeDResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        stock_date:
+          type: string
+          format: date
+        threed:
+          type: string
+          example: '123'
         created_at:
           type: string
           format: date-time
@@ -1489,6 +1700,17 @@ components:
         is_active:
           type: boolean
 
+    ThreeDResultWriteRequest:
+      type: object
+      required: [stock_date, threed]
+      properties:
+        stock_date:
+          type: string
+          format: date
+        threed:
+          type: string
+          pattern: '^\d{3}$'
+
     AnnouncementListResponse:
       type: object
       properties:
@@ -1576,6 +1798,38 @@ components:
             two_d_result:
               allOf:
                 - $ref: '#/components/schemas/TwoDResult'
+              nullable: true
+        errors:
+          type: object
+          nullable: true
+
+    ThreeDResultListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            three_d_results:
+              type: array
+              items:
+                $ref: '#/components/schemas/ThreeDResult'
+        errors:
+          type: object
+          nullable: true
+
+    ThreeDResultItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            three_d_result:
+              allOf:
+                - $ref: '#/components/schemas/ThreeDResult'
               nullable: true
         errors:
           type: object
@@ -1714,8 +1968,11 @@ components:
           format: uuid
         number:
           type: integer
-          minimum: 0
-          maximum: 255
+          minimum: 1
+          maximum: 999
+        amount:
+          type: integer
+          minimum: 1
         created_at:
           type: string
           format: date-time
@@ -1833,8 +2090,8 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [pay_slip_image, bet_type, target_opentime, amount, bet_numbers]
-      description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied.
+      required: [pay_slip_image, bet_type, target_opentime, bet_numbers]
+      description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied. Canonical shape is bet_numbers objects with per-number amount.
       properties:
         pay_slip_image:
           type: string
@@ -1851,19 +2108,35 @@ components:
         amount:
           type: integer
           minimum: 1
-          description: Stake amount. Must be at least 1.
+          nullable: true
+          description: Legacy fallback amount used only when bet_numbers is sent as integer list.
         bet_numbers:
           type: array
-          uniqueItems: true
-          description: Unique list of numbers for this bet.
+          description: Canonical shape is array of objects {number, amount}. Legacy integer list is still accepted for backward compatibility. Leading-zero strings like 01/001 are accepted and normalized numerically.
           items:
-            type: integer
-            minimum: 0
-            maximum: 255
+            oneOf:
+              - type: integer
+                minimum: 1
+                maximum: 999
+              - type: string
+                pattern: '^\d{1,3}$'
+              - type: object
+                required: [number, amount]
+                properties:
+                  number:
+                    oneOf:
+                      - type: integer
+                        minimum: 1
+                        maximum: 999
+                      - type: string
+                        pattern: '^\d{1,3}$'
+                  amount:
+                    type: integer
+                    minimum: 1
 
     BetUpdateRequest:
       type: object
-      description: Partial update payload. Send only client-writable fields that should be changed. Review/result/payout statuses are server-managed and rejected if supplied.
+      description: Partial update payload. Send only client-writable fields that should be changed. Review/result/payout statuses are server-managed and rejected if supplied. If bet_numbers is provided, it replaces the full existing list.
       properties:
         bet_type:
           type: string
@@ -1876,15 +2149,31 @@ components:
         amount:
           type: integer
           minimum: 1
-          description: Stake amount. Must be at least 1.
+          nullable: true
+          description: Legacy fallback amount used only when bet_numbers is sent as integer list.
         bet_numbers:
           type: array
-          uniqueItems: true
-          description: Replaces existing bet numbers when provided.
+          description: Replaces existing bet numbers when provided. Canonical shape is array of objects {number, amount}; legacy integer list is still accepted. Leading-zero strings like 01/001 are accepted and normalized numerically.
           items:
-            type: integer
-            minimum: 0
-            maximum: 255
+            oneOf:
+              - type: integer
+                minimum: 1
+                maximum: 999
+              - type: string
+                pattern: '^\d{1,3}$'
+              - type: object
+                required: [number, amount]
+                properties:
+                  number:
+                    oneOf:
+                      - type: integer
+                        minimum: 1
+                        maximum: 999
+                      - type: string
+                        pattern: '^\d{1,3}$'
+                  amount:
+                    type: integer
+                    minimum: 1
 
     BetPayoutRequest:
       type: object
@@ -2009,7 +2298,7 @@ components:
                     type: object
                     properties:
                       admin_user_id: {type: integer, nullable: true}
-                      admin_name: {type: string, nullable: true}
+                      admin_username: {type: string, nullable: true}
                       payout_count: {type: integer}
                       paid_out_total_amount: {type: string}
                 daily_timeline:
@@ -2071,9 +2360,11 @@ components:
                     type: object
                     properties:
                       history_id: {type: string}
+                      bet_type: {type: string, nullable: true, enum: ['2D', '3D']}
                       stock_date: {type: string, format: date, nullable: true}
                       open_time: {type: string, nullable: true}
                       twod: {type: string, nullable: true}
+                      threed: {type: string, nullable: true}
                       settled_at: {type: string, format: date-time, nullable: true}
                       created_at: {type: string, format: date-time}
                       summary:
