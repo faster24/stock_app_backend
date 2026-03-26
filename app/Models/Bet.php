@@ -6,6 +6,7 @@ use App\Enums\BetPayoutStatus;
 use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
+use App\Enums\Currency;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -34,9 +35,9 @@ class Bet extends Model implements HasMedia
         'user_id',
         'bet_slip',
         'bet_type',
+        'currency',
         'target_opentime',
         'stock_date',
-        'amount',
         'total_amount',
         'status',
         'bet_result_status',
@@ -130,9 +131,9 @@ class Bet extends Model implements HasMedia
     {
         return [
             'bet_type' => BetType::class,
+            'currency' => Currency::class,
             'target_opentime' => 'string',
             'stock_date' => 'date',
-            'amount' => 'integer',
             'total_amount' => 'decimal:2',
             'status' => BetStatus::class,
             'bet_result_status' => BetResultStatus::class,

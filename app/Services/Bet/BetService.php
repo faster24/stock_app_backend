@@ -6,7 +6,10 @@ use App\Enums\BetPayoutStatus;
 use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
+use App\Enums\OddSettingUserType;
 use App\Models\Bet;
+use App\Models\OddSetting;
+use App\Models\User;
 use App\Services\Service;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection;
@@ -73,11 +76,16 @@ class BetService extends Service
         $numberEntries = $this->normalizeBetNumberEntries(
             (string) ($attributes['bet_type'] ?? ''),
             $attributes['bet_numbers'] ?? [],
-            array_key_exists('amount', $attributes) ? (int) $attributes['amount'] : null,
         );
         unset($attributes['bet_numbers']);
 
-        $attributes['amount'] = $this->deriveLegacyAmount($numberEntries);
+        $odd = $this->resolveOddValueForBet(
+            $userId,
+            (string) ($attributes['bet_type'] ?? ''),
+            (string) ($attributes['currency'] ?? ''),
+        );
+        $numberEntries = $this->attachPotentialWinnings($numberEntries, $odd);
+
         $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
         $attributes['stock_date'] = Carbon::now()->toDateString();
 
@@ -116,27 +124,36 @@ class BetService extends Service
         }
 
         $hasBetNumbers = array_key_exists('bet_numbers', $attributes);
+        $resolvedBetType = (string) ($attributes['bet_type'] ?? $bet->bet_type->value);
+        $resolvedCurrency = (string) ($attributes['currency'] ?? $bet->currency?->value ?? '');
+        $hasOddContextChange = array_key_exists('bet_type', $attributes) || array_key_exists('currency', $attributes);
+
         $numberEntries = $hasBetNumbers
             ? $this->normalizeBetNumberEntries(
-                (string) ($attributes['bet_type'] ?? $bet->bet_type->value),
+                $resolvedBetType,
                 $attributes['bet_numbers'] ?? [],
-                array_key_exists('amount', $attributes) ? (int) $attributes['amount'] : null,
             )
             : [];
         unset($attributes['bet_numbers'], $attributes['user_id']);
 
+        $odd = $this->resolveOddValueForBet($userId, $resolvedBetType, $resolvedCurrency);
         if ($hasBetNumbers) {
-            $attributes['amount'] = $this->deriveLegacyAmount($numberEntries);
+            $numberEntries = $this->attachPotentialWinnings($numberEntries, $odd);
+        }
+
+        if ($hasBetNumbers) {
             $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
         } else {
             $attributes['total_amount'] = $this->calculateTotalAmountFromStoredBetNumbers($bet);
         }
 
-        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries): Bet {
+        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd): Bet {
             $bet->update($attributes);
 
             if ($hasBetNumbers) {
                 $this->replaceBetNumbers($bet, $numberEntries);
+            } elseif ($hasOddContextChange) {
+                $this->refreshStoredBetNumberPotentialWinnings($bet, $odd);
             }
 
             return $bet->fresh(['betNumbers']);
@@ -226,6 +243,7 @@ class BetService extends Service
             static fn (array $entry): array => [
                 'number' => (int) $entry['number'],
                 'amount' => (int) $entry['amount'],
+                'potential_winning' => (string) $entry['potential_winning'],
             ],
             array_values($numberEntries)
         );
@@ -233,7 +251,7 @@ class BetService extends Service
         $bet->betNumbers()->createMany($rows);
     }
 
-    private function normalizeBetNumberEntries(string $betType, array $betNumbers, ?int $legacyAmount = null): array
+    private function normalizeBetNumberEntries(string $betType, array $betNumbers): array
     {
         $entries = [];
         $min = null;
@@ -261,8 +279,9 @@ class BetService extends Service
                 $resolvedNumber = $this->resolveInteger($entry['number'] ?? null);
                 $resolvedAmount = $this->resolveInteger($entry['amount'] ?? null);
             } else {
-                $resolvedNumber = $this->resolveInteger($entry);
-                $resolvedAmount = $legacyAmount;
+                throw ValidationException::withMessages([
+                    'bet_numbers.'.$index => ['Each bet number must be an object with number and amount.'],
+                ]);
             }
 
             if (! is_int($resolvedNumber)) {
@@ -273,12 +292,8 @@ class BetService extends Service
 
             if ($resolvedNumber >= $min && $resolvedNumber <= $max) {
                 if (! is_int($resolvedAmount) || $resolvedAmount < 1) {
-                    $amountKey = is_array($entry)
-                        ? 'bet_numbers.'.$index.'.amount'
-                        : 'amount';
-
                     throw ValidationException::withMessages([
-                        $amountKey => ['The amount field must be at least 1.'],
+                        'bet_numbers.'.$index.'.amount' => ['The amount field must be at least 1.'],
                     ]);
                 }
 
@@ -330,12 +345,55 @@ class BetService extends Service
         return number_format($total, 2, '.', '');
     }
 
-    private function deriveLegacyAmount(array $numberEntries): int
+    private function resolveOddValueForBet(int $userId, string $betType, string $currency): string
     {
-        if ($numberEntries === []) {
-            return 0;
+        $user = User::query()->find($userId);
+
+        if ($user === null) {
+            throw ValidationException::withMessages([
+                'user_id' => ['The selected user is invalid.'],
+            ]);
         }
 
-        return (int) $numberEntries[0]['amount'];
+        $userType = $user->hasRole('vip') ? OddSettingUserType::VIP : OddSettingUserType::USER;
+
+        $oddValue = OddSetting::query()
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
+            ->where('user_type', $userType->value)
+            ->where('is_active', true)
+            ->value('odd');
+
+        if ($oddValue === null) {
+            throw ValidationException::withMessages([
+                'odd_setting' => ['No active odd setting found for the selected bet type, currency, and user type.'],
+            ]);
+        }
+
+        return number_format((float) $oddValue, 2, '.', '');
     }
+
+    private function attachPotentialWinnings(array $numberEntries, string $odd): array
+    {
+        return array_map(function (array $entry) use ($odd): array {
+            $amount = max(0, (int) $entry['amount']);
+
+            return [
+                'number' => (int) $entry['number'],
+                'amount' => $amount,
+                'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
+            ];
+        }, array_values($numberEntries));
+    }
+
+    private function refreshStoredBetNumberPotentialWinnings(Bet $bet, string $odd): void
+    {
+        $bet->betNumbers()->get()->each(function ($betNumber) use ($odd): void {
+            $amount = (int) $betNumber->amount;
+            $betNumber->update([
+                'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
+            ]);
+        });
+    }
+
 }

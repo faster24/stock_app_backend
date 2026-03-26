@@ -55,7 +55,6 @@ class BettingSchemaIntegrityTest extends TestCase
             'user_id' => 999_999,
             'bet_slip' => (string) Str::uuid(),
             'bet_type' => BetType::TWO_D,
-            'amount' => 1_000,
             'status' => BetStatus::PENDING,
             'placed_at' => now(),
         ]);
@@ -72,7 +71,6 @@ class BettingSchemaIntegrityTest extends TestCase
             'user_id' => $user->id,
             'bet_slip' => (string) Str::uuid(),
             'bet_type' => 'INVALID',
-            'amount' => 1_000,
             'status' => BetStatus::PENDING->value,
             'placed_at' => now(),
             'created_at' => now(),
@@ -91,7 +89,6 @@ class BettingSchemaIntegrityTest extends TestCase
             'user_id' => $user->id,
             'bet_slip' => (string) Str::uuid(),
             'bet_type' => BetType::TWO_D->value,
-            'amount' => 1_000,
             'status' => BetStatus::PENDING->value,
             'bet_result_status' => 'NOT_A_REAL_RESULT',
             'payout_status' => 'NOT_A_REAL_PAYOUT',

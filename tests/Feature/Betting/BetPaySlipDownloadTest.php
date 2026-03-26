@@ -3,6 +3,9 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
+use App\Models\OddSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -18,6 +21,7 @@ class BetPaySlipDownloadTest extends TestCase
     {
         Storage::fake('bet_slips');
         config(['media-library.disk_name' => 'bet_slips']);
+        $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
@@ -27,9 +31,12 @@ class BetPaySlipDownloadTest extends TestCase
             ->post('/api/v1/bets', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1500,
-                'bet_numbers' => [11, 22],
+                'bet_numbers' => [
+                    ['number' => 11, 'amount' => 1500],
+                    ['number' => 22, 'amount' => 1500],
+                ],
             ])
             ->assertStatus(201);
 
@@ -45,6 +52,7 @@ class BetPaySlipDownloadTest extends TestCase
     {
         Storage::fake('bet_slips');
         config(['media-library.disk_name' => 'bet_slips']);
+        $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
         $ownerToken = $owner->createToken('auth_token')->plainTextToken;
@@ -54,9 +62,12 @@ class BetPaySlipDownloadTest extends TestCase
             ->post('/api/v1/bets', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1500,
-                'bet_numbers' => [11, 22],
+                'bet_numbers' => [
+                    ['number' => 11, 'amount' => 1500],
+                    ['number' => 22, 'amount' => 1500],
+                ],
             ])
             ->assertStatus(201);
 
@@ -76,6 +87,7 @@ class BetPaySlipDownloadTest extends TestCase
     {
         Storage::fake('bet_slips');
         config(['media-library.disk_name' => 'bet_slips']);
+        $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
         $ownerToken = $owner->createToken('auth_token')->plainTextToken;
@@ -85,9 +97,12 @@ class BetPaySlipDownloadTest extends TestCase
             ->post('/api/v1/bets', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1500,
-                'bet_numbers' => [11, 22],
+                'bet_numbers' => [
+                    ['number' => 11, 'amount' => 1500],
+                    ['number' => 22, 'amount' => 1500],
+                ],
             ])
             ->assertStatus(201);
 
@@ -100,5 +115,17 @@ class BetPaySlipDownloadTest extends TestCase
             ->get('/api/v1/bets/'.$betId.'/pay-slip')
             ->assertOk()
             ->assertHeader('content-type', 'image/jpeg');
+    }
+
+    private function seedDefaultTwoDOdd(): void
+    {
+        OddSetting::query()->updateOrCreate([
+            'bet_type' => BetType::TWO_D,
+            'currency' => Currency::MMK,
+            'user_type' => OddSettingUserType::USER,
+        ], [
+            'odd' => '80.00',
+            'is_active' => true,
+        ]);
     }
 }

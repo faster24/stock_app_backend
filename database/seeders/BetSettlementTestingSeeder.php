@@ -67,7 +67,7 @@ class BetSettlementTestingSeeder extends Seeder
             resultStatus: BetResultStatus::OPEN,
             payoutStatus: BetPayoutStatus::PENDING,
             numbers: [12, 90],
-            amount: 1000
+            perNumberAmount: 1000
         );
 
         $this->upsertBet(
@@ -81,7 +81,7 @@ class BetSettlementTestingSeeder extends Seeder
             settledAt: '2026-03-19 11:01:00',
             settledResultHistoryId: 'settlement-test-2026-03-19-11-00',
             numbers: [12, 45],
-            amount: 1000
+            perNumberAmount: 1000
         );
 
         $this->upsertBet(
@@ -95,7 +95,7 @@ class BetSettlementTestingSeeder extends Seeder
             settledAt: '2026-03-19 11:01:00',
             settledResultHistoryId: 'settlement-test-2026-03-19-11-00',
             numbers: [34, 56],
-            amount: 1000
+            perNumberAmount: 1000
         );
 
         $this->upsertBet(
@@ -107,7 +107,7 @@ class BetSettlementTestingSeeder extends Seeder
             resultStatus: BetResultStatus::INVALID,
             payoutStatus: BetPayoutStatus::PENDING,
             numbers: [78],
-            amount: 1000
+            perNumberAmount: 1000
         );
 
         $this->upsertBet(
@@ -119,7 +119,7 @@ class BetSettlementTestingSeeder extends Seeder
             resultStatus: BetResultStatus::INVALID,
             payoutStatus: BetPayoutStatus::REFUNDED,
             numbers: [88],
-            amount: 1000
+            perNumberAmount: 1000
         );
     }
 
@@ -132,7 +132,7 @@ class BetSettlementTestingSeeder extends Seeder
         BetResultStatus $resultStatus,
         BetPayoutStatus $payoutStatus,
         array $numbers,
-        int $amount,
+        int $perNumberAmount,
         ?string $settledAt = null,
         ?string $settledResultHistoryId = null,
         BetType $betType = BetType::TWO_D
@@ -146,8 +146,7 @@ class BetSettlementTestingSeeder extends Seeder
             'bet_type' => $betType->value,
             'target_opentime' => $openTime,
             'stock_date' => $stockDate,
-            'amount' => $amount,
-            'total_amount' => array_sum(array_fill(0, count($uniqueNumbers), $amount)),
+            'total_amount' => array_sum(array_fill(0, count($uniqueNumbers), $perNumberAmount)),
             'status' => $status->value,
             'bet_result_status' => $resultStatus->value,
             'payout_status' => $payoutStatus->value,
@@ -161,7 +160,7 @@ class BetSettlementTestingSeeder extends Seeder
         foreach ($uniqueNumbers as $number) {
             $bet->betNumbers()->create([
                 'number' => $number,
-                'amount' => $amount,
+                'amount' => $perNumberAmount,
             ]);
         }
     }

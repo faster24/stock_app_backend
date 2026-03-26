@@ -20,6 +20,7 @@ class BetNumber extends Model
         'bet_id',
         'number',
         'amount',
+        'potential_winning',
     ];
 
     public function bet(): BelongsTo
@@ -32,6 +33,7 @@ class BetNumber extends Model
         return [
             'number' => 'integer',
             'amount' => 'integer',
+            'potential_winning' => 'decimal:2',
         ];
     }
 }

@@ -3,7 +3,10 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use App\Models\Bet;
+use App\Models\OddSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -17,6 +20,8 @@ class BetApiWriteAccessTest extends TestCase
 
     public function test_owner_can_store_and_delete_own_bet(): void
     {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
         $owner = User::factory()->normalUser()->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
 
@@ -25,6 +30,7 @@ class BetApiWriteAccessTest extends TestCase
             ->post('/api/v1/bets', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1000],
@@ -37,8 +43,10 @@ class BetApiWriteAccessTest extends TestCase
             ->assertJsonPath('data.bet.user_id', $owner->id)
             ->assertJsonPath('data.bet.target_opentime', '11:00:00')
             ->assertJsonPath('data.bet.stock_date', Carbon::now()->startOfDay()->utc()->format('Y-m-d\TH:i:s.000000\Z'))
+            ->assertJsonPath('data.bet.currency', Currency::MMK->value)
             ->assertJsonPath('data.bet.bet_numbers.0.number', 11)
             ->assertJsonPath('data.bet.bet_numbers.0.amount', 1000)
+            ->assertJsonPath('data.bet.bet_numbers.0.potential_winning', '80000.00')
             ->assertJsonPath('data.bet.total_amount', '2500.00')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
@@ -58,10 +66,16 @@ class BetApiWriteAccessTest extends TestCase
             'user_id' => $owner->id,
             'bet_slip' => $betSlip,
             'bet_type' => BetType::TWO_D->value,
+            'currency' => Currency::MMK->value,
             'target_opentime' => '11:00:00',
             'stock_date' => Carbon::now()->toDateString(),
-            'amount' => 1000,
             'total_amount' => 2500.00,
+        ]);
+        $this->assertDatabaseHas('bet_numbers', [
+            'bet_id' => $betId,
+            'number' => 11,
+            'amount' => 1000,
+            'potential_winning' => 80000.00,
         ]);
 
         $deleteResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -94,15 +108,15 @@ class BetApiWriteAccessTest extends TestCase
         $adminToken = $admin->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$ownerToken)
-            ->putJson('/api/v1/bets/'.$bet->id, ['amount' => 3000])
+            ->putJson('/api/v1/bets/'.$bet->id, ['target_opentime' => '12:01:00'])
             ->assertStatus(405);
 
         $this->withHeader('Authorization', 'Bearer '.$otherUserToken)
-            ->putJson('/api/v1/bets/'.$bet->id, ['amount' => 3000])
+            ->putJson('/api/v1/bets/'.$bet->id, ['target_opentime' => '12:01:00'])
             ->assertStatus(405);
 
         $this->withHeader('Authorization', 'Bearer '.$adminToken)
-            ->putJson('/api/v1/bets/'.$bet->id, ['amount' => 3000])
+            ->putJson('/api/v1/bets/'.$bet->id, ['target_opentime' => '12:01:00'])
             ->assertStatus(405);
     }
 
@@ -126,8 +140,10 @@ class BetApiWriteAccessTest extends TestCase
             ]);
     }
 
-    public function test_legacy_bet_numbers_integer_payload_is_still_supported(): void
+    public function test_legacy_bet_numbers_integer_payload_is_rejected(): void
     {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
         $owner = User::factory()->normalUser()->create();
         $token = $owner->createToken('auth_token')->plainTextToken;
 
@@ -136,15 +152,30 @@ class BetApiWriteAccessTest extends TestCase
             ->post('/api/v1/bets', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1200,
                 'bet_numbers' => [11, 22],
             ]);
 
         $response
-            ->assertStatus(201)
-            ->assertJsonPath('data.bet.bet_numbers.0.amount', 1200)
-            ->assertJsonPath('data.bet.bet_numbers.1.amount', 1200)
-            ->assertJsonPath('data.bet.total_amount', '2400.00');
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['bet_numbers.0', 'bet_numbers.1'],
+            ]);
+    }
+
+    private function seedOddSetting(BetType $betType, Currency $currency, OddSettingUserType $userType, string $odd): void
+    {
+        OddSetting::query()->updateOrCreate([
+            'bet_type' => $betType,
+            'currency' => $currency,
+            'user_type' => $userType,
+        ], [
+            'odd' => $odd,
+            'is_active' => true,
+        ]);
     }
 }

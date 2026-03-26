@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Bet;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
 use App\Http\Requests\Auth\AuthFormRequest;
 use Illuminate\Validation\Validator;
 use Illuminate\Validation\Rule;
@@ -23,12 +24,16 @@ class StoreBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(array_column(BetType::cases(), 'value')),
             ],
+            'currency' => [
+                'required',
+                'string',
+                Rule::in(array_column(Currency::cases(), 'value')),
+            ],
             'target_opentime' => [
                 'required',
                 'string',
                 Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
             ],
-            'amount' => ['sometimes', 'required', 'integer', 'min:1'],
             'bet_numbers' => ['required', 'array'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],
@@ -48,29 +53,21 @@ class StoreBetRequest extends AuthFormRequest
             $seenNumbers = [];
 
             foreach (array_values($betNumbers) as $index => $entry) {
-                if (is_array($entry)) {
-                    $number = $this->resolveInteger($entry['number'] ?? null);
-                    $amount = $this->resolveInteger($entry['amount'] ?? null);
+                if (! is_array($entry)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be an object with number and amount.');
+                    continue;
+                }
 
-                    if ($number === null) {
-                        $validator->errors()->add('bet_numbers.'.$index.'.number', 'The bet_numbers.'.$index.'.number field must be an integer.');
-                        continue;
-                    }
+                $number = $this->resolveInteger($entry['number'] ?? null);
+                $amount = $this->resolveInteger($entry['amount'] ?? null);
 
-                    if ($amount === null || $amount < 1) {
-                        $validator->errors()->add('bet_numbers.'.$index.'.amount', 'The bet_numbers.'.$index.'.amount field must be at least 1.');
-                    }
-                } else {
-                    $number = $this->resolveInteger($entry);
+                if ($number === null) {
+                    $validator->errors()->add('bet_numbers.'.$index.'.number', 'The bet_numbers.'.$index.'.number field must be an integer.');
+                    continue;
+                }
 
-                    if ($number === null) {
-                        $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be either an integer or an object with number and amount.');
-                        continue;
-                    }
-
-                    if (! $this->filled('amount')) {
-                        $validator->errors()->add('amount', 'The amount field is required when bet_numbers is a list of integers.');
-                    }
+                if ($amount === null || $amount < 1) {
+                    $validator->errors()->add('bet_numbers.'.$index.'.amount', 'The bet_numbers.'.$index.'.amount field must be at least 1.');
                 }
 
                 if (in_array($number, $seenNumbers, true)) {

@@ -13,6 +13,7 @@ class BetNumberFactory extends Factory
             'bet_id' => Bet::factory(),
             'number' => 12,
             'amount' => 1_000,
+            'potential_winning' => '80000.00',
         ];
     }
 
@@ -21,6 +22,7 @@ class BetNumberFactory extends Factory
         return $this->for($bet)->state([
             'number' => $number,
             'amount' => $amount ?? 1_000,
+            'potential_winning' => number_format(($amount ?? 1_000) * 80, 2, '.', ''),
         ]);
     }
 }

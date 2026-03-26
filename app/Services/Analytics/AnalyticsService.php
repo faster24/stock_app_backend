@@ -176,7 +176,7 @@ class AnalyticsService extends Service
                 'bet_numbers.number as number,
                 COUNT(*) as bet_frequency,
                 COUNT(DISTINCT bets.user_id) as distinct_user_count,
-                COALESCE(SUM(bets.amount), 0) as total_stake'
+                COALESCE(SUM(bet_numbers.amount), 0) as total_stake'
             )
             ->groupBy('bet_numbers.number')
             ->orderByDesc('bet_frequency')

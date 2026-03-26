@@ -4,6 +4,7 @@ namespace Tests\Feature\Betting;
 
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
+use App\Enums\Currency;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -37,7 +38,7 @@ class BetApiValidationTest extends TestCase
         });
     }
 
-    public function test_store_rejects_invalid_enum_amount_and_bet_numbers_payload_with_422_envelope(): void
+    public function test_store_rejects_invalid_enum_and_bet_numbers_payload_with_422_envelope(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -46,8 +47,8 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => 'NOT_A_REAL_ENUM',
+                'currency' => 'USD',
                 'target_opentime' => '11:00:00',
-                'amount' => 0,
                 'bet_numbers' => 'not-an-array',
             ])
             ->assertStatus(422)
@@ -56,7 +57,7 @@ class BetApiValidationTest extends TestCase
             ->assertJsonStructure([
                 'message',
                 'data',
-                'errors' => ['bet_type', 'amount', 'bet_numbers'],
+                'errors' => ['bet_type', 'currency', 'bet_numbers'],
             ]);
     }
 
@@ -69,9 +70,12 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [12, 12],
+                'bet_numbers' => [
+                    ['number' => 12, 'amount' => 1000],
+                    ['number' => 12, 'amount' => 1000],
+                ],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -92,9 +96,9 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [0],
+                'bet_numbers' => [['number' => 0, 'amount' => 1000]],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -115,9 +119,9 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [0],
+                'bet_numbers' => [['number' => 0, 'amount' => 1000]],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -129,15 +133,17 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_update_rejects_invalid_amount_and_duplicate_bet_numbers_with_422_envelope(): void
+    public function test_update_rejects_duplicate_bet_numbers_with_422_envelope(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/test-support/bets/validation/00000000-0000-0000-0000-000000000001', [
-                'amount' => 0,
-                'bet_numbers' => [99, 99],
+                'bet_numbers' => [
+                    ['number' => 99, 'amount' => 1000],
+                    ['number' => 99, 'amount' => 1200],
+                ],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -145,7 +151,7 @@ class BetApiValidationTest extends TestCase
             ->assertJsonStructure([
                 'message',
                 'data',
-                'errors' => ['amount', 'bet_numbers.1'],
+                'errors' => ['bet_numbers.1'],
             ]);
     }
 
@@ -158,9 +164,9 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '10:30:00',
-                'amount' => 1000,
-                'bet_numbers' => [12],
+                'bet_numbers' => [['number' => 12, 'amount' => 1000]],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -181,9 +187,9 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [12],
+                'bet_numbers' => [['number' => 12, 'amount' => 1000]],
                 'status' => 'ACCEPTED',
                 'bet_result_status' => 'WON',
                 'payout_status' => 'PAID_OUT',
@@ -227,9 +233,9 @@ class BetApiValidationTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->post('/api/v1/test-support/bets/validation', [
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [12],
+                'bet_numbers' => [['number' => 12, 'amount' => 1000]],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
@@ -250,6 +256,7 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
                 'bet_numbers' => [
                     ['number' => 12],
@@ -265,7 +272,7 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_legacy_integer_bet_numbers_requires_top_level_amount(): void
+    public function test_store_rejects_legacy_integer_bet_numbers_payload(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -274,6 +281,7 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
                 'bet_numbers' => [12],
             ])
@@ -283,7 +291,7 @@ class BetApiValidationTest extends TestCase
             ->assertJsonStructure([
                 'message',
                 'data',
-                'errors' => ['amount'],
+                'errors' => ['bet_numbers.0'],
             ]);
     }
 
@@ -296,9 +304,13 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => ['01', '09', '99'],
+                'bet_numbers' => [
+                    ['number' => '01', 'amount' => 1000],
+                    ['number' => '09', 'amount' => 1000],
+                    ['number' => '99', 'amount' => 1000],
+                ],
             ])
             ->assertStatus(201)
             ->assertJsonPath('message', 'Validated.');
@@ -307,9 +319,13 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => ['001', '099', '999'],
+                'bet_numbers' => [
+                    ['number' => '001', 'amount' => 1000],
+                    ['number' => '099', 'amount' => 1000],
+                    ['number' => '999', 'amount' => 1000],
+                ],
             ])
             ->assertStatus(201)
             ->assertJsonPath('message', 'Validated.');
@@ -324,9 +340,12 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'amount' => 1000,
-                'bet_numbers' => [1, '01'],
+                'bet_numbers' => [
+                    ['number' => 1, 'amount' => 1000],
+                    ['number' => '01', 'amount' => 1000],
+                ],
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')
