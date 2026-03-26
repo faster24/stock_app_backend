@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,8 +14,9 @@ class OddSetting extends Model
 
     protected $fillable = [
         'bet_type',
+        'currency',
+        'user_type',
         'odd',
-        'bet_amount',
         'is_active',
     ];
 
@@ -21,8 +24,9 @@ class OddSetting extends Model
     {
         return [
             'bet_type' => BetType::class,
+            'currency' => Currency::class,
+            'user_type' => OddSettingUserType::class,
             'odd' => 'decimal:2',
-            'bet_amount' => 'integer',
             'is_active' => 'boolean',
         ];
     }

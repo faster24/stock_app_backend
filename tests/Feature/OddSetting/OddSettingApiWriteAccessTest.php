@@ -3,6 +3,8 @@
 namespace Tests\Feature\OddSetting;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use App\Models\OddSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,8 +18,9 @@ class OddSettingApiWriteAccessTest extends TestCase
     {
         $oddSetting = OddSetting::query()->create([
             'bet_type' => BetType::TWO_D,
+            'currency' => Currency::MMK,
+            'user_type' => OddSettingUserType::USER,
             'odd' => '80.00',
-            'bet_amount' => 1000,
             'is_active' => true,
         ]);
 
@@ -26,8 +29,9 @@ class OddSettingApiWriteAccessTest extends TestCase
 
         $payload = [
             'bet_type' => BetType::THREE_D->value,
+            'currency' => Currency::THB->value,
+            'user_type' => OddSettingUserType::VIP->value,
             'odd' => '10.00',
-            'bet_amount' => 2000,
             'is_active' => true,
         ];
 
@@ -58,8 +62,9 @@ class OddSettingApiWriteAccessTest extends TestCase
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/admin/odd-settings', [
                 'bet_type' => BetType::THREE_D->value,
+                'currency' => Currency::THB->value,
+                'user_type' => OddSettingUserType::VIP->value,
                 'odd' => '10.00',
-                'bet_amount' => 2000,
                 'is_active' => true,
             ]);
 
@@ -73,24 +78,26 @@ class OddSettingApiWriteAccessTest extends TestCase
         $this->assertDatabaseHas('odd_settings', [
             'id' => $oddSettingId,
             'bet_type' => BetType::THREE_D->value,
-            'bet_amount' => 2000,
+            'currency' => Currency::THB->value,
+            'user_type' => OddSettingUserType::VIP->value,
         ]);
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/admin/odd-settings/'.$oddSettingId, [
                 'odd' => '11.50',
-                'bet_amount' => 2500,
                 'is_active' => false,
             ])
             ->assertOk()
             ->assertJsonPath('message', 'Odd setting updated successfully.')
-            ->assertJsonPath('data.odd_setting.bet_amount', 2500)
+            ->assertJsonPath('data.odd_setting.odd', '11.50')
             ->assertJsonPath('errors', null);
 
         $this->assertDatabaseHas('odd_settings', [
             'id' => $oddSettingId,
-            'bet_amount' => 2500,
+            'odd' => '11.50',
             'is_active' => 0,
+            'currency' => Currency::THB->value,
+            'user_type' => OddSettingUserType::VIP->value,
         ]);
 
         $this->withHeader('Authorization', 'Bearer '.$token)

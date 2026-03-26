@@ -12,7 +12,6 @@ return new class extends Migration
             $table->id();
             $table->enum('bet_type', ['2D', '3D'])->unique();
             $table->decimal('odd', 8, 2);
-            $table->integer('bet_amount');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

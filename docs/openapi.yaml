@@ -826,7 +826,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/OddSettingWriteRequest'
+              $ref: '#/components/schemas/OddSettingUpdateRequest'
       responses:
         '200':
           description: Odd setting updated
@@ -1498,11 +1498,15 @@ components:
         bet_type:
           type: string
           enum: ['2D', '3D']
+        currency:
+          type: string
+          enum: [MMK, THB]
+        user_type:
+          type: string
+          enum: [user, vip]
         odd:
           type: string
           example: "80.00"
-        bet_amount:
-          type: integer
         is_active:
           type: boolean
         created_at:
@@ -1686,17 +1690,40 @@ components:
 
     OddSettingWriteRequest:
       type: object
-      required: [bet_type, odd, bet_amount]
+      required: [bet_type, currency, user_type, odd]
+      additionalProperties: false
       properties:
         bet_type:
           type: string
           enum: ['2D', '3D']
+        currency:
+          type: string
+          enum: [MMK, THB]
+        user_type:
+          type: string
+          enum: [user, vip]
         odd:
           type: number
           minimum: 0
-        bet_amount:
-          type: integer
-          minimum: 1
+        is_active:
+          type: boolean
+
+    OddSettingUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        bet_type:
+          type: string
+          enum: ['2D', '3D']
+        currency:
+          type: string
+          enum: [MMK, THB]
+        user_type:
+          type: string
+          enum: [user, vip]
+        odd:
+          type: number
+          minimum: 0
         is_active:
           type: boolean
 

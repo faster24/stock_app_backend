@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use App\Models\OddSetting;
 use App\Models\User;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -36,20 +38,24 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('password'),
         ]);
 
-        OddSetting::query()->updateOrCreate([
-            'bet_type' => BetType::TWO_D,
-        ], [
-            'odd' => '80.00',
-            'bet_amount' => 1_000,
-            'is_active' => true,
-        ]);
+        $defaultOdds = [
+            BetType::TWO_D->value => '80.00',
+            BetType::THREE_D->value => '80.00',
+        ];
 
-        OddSetting::query()->updateOrCreate([
-            'bet_type' => BetType::THREE_D,
-        ], [
-            'odd' => '10.00',
-            'bet_amount' => 1_000,
-            'is_active' => true,
-        ]);
+        foreach (BetType::cases() as $betType) {
+            foreach (Currency::cases() as $currency) {
+                foreach (OddSettingUserType::cases() as $userType) {
+                    OddSetting::query()->updateOrCreate([
+                        'bet_type' => $betType,
+                        'currency' => $currency,
+                        'user_type' => $userType,
+                    ], [
+                        'odd' => $defaultOdds[$betType->value],
+                        'is_active' => true,
+                    ]);
+                }
+            }
+        }
     }
 }

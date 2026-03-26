@@ -3,6 +3,8 @@
 namespace Tests\Feature\OddSetting;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use App\Models\OddSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,8 +18,9 @@ class OddSettingApiReadAccessTest extends TestCase
     {
         $oddSetting = OddSetting::query()->create([
             'bet_type' => BetType::TWO_D,
+            'currency' => Currency::MMK,
+            'user_type' => OddSettingUserType::USER,
             'odd' => '80.00',
-            'bet_amount' => 1000,
             'is_active' => true,
         ]);
 
@@ -29,6 +32,8 @@ class OddSettingApiReadAccessTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Odd settings retrieved successfully.')
             ->assertJsonPath('data.odd_settings.0.id', $oddSetting->id)
+            ->assertJsonPath('data.odd_settings.0.currency', Currency::MMK->value)
+            ->assertJsonPath('data.odd_settings.0.user_type', OddSettingUserType::USER->value)
             ->assertJsonPath('errors', null);
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -36,6 +41,8 @@ class OddSettingApiReadAccessTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Odd setting retrieved successfully.')
             ->assertJsonPath('data.odd_setting.id', $oddSetting->id)
+            ->assertJsonPath('data.odd_setting.currency', Currency::MMK->value)
+            ->assertJsonPath('data.odd_setting.user_type', OddSettingUserType::USER->value)
             ->assertJsonPath('errors', null);
     }
 
@@ -43,8 +50,9 @@ class OddSettingApiReadAccessTest extends TestCase
     {
         $oddSetting = OddSetting::query()->create([
             'bet_type' => BetType::TWO_D,
+            'currency' => Currency::MMK,
+            'user_type' => OddSettingUserType::USER,
             'odd' => '80.00',
-            'bet_amount' => 1000,
             'is_active' => true,
         ]);
 

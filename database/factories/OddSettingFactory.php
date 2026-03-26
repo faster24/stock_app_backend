@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Enums\BetType;
+use App\Enums\Currency;
+use App\Enums\OddSettingUserType;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class OddSettingFactory extends Factory
@@ -11,8 +13,9 @@ class OddSettingFactory extends Factory
     {
         return [
             'bet_type' => BetType::TWO_D,
+            'currency' => Currency::MMK,
+            'user_type' => OddSettingUserType::USER,
             'odd' => '80.00',
-            'bet_amount' => 1_000,
             'is_active' => true,
         ];
     }
@@ -21,8 +24,9 @@ class OddSettingFactory extends Factory
     {
         return $this->state([
             'bet_type' => BetType::THREE_D,
+            'currency' => Currency::THB,
+            'user_type' => OddSettingUserType::VIP,
             'odd' => '10.00',
-            'bet_amount' => 1_000,
         ]);
     }
 }
