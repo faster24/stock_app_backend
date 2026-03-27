@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
 use App\Http\Controllers\Api\V1\AdminUserController;
+use App\Http\Controllers\Api\V1\AppSettingController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/app-settings/maintenance', [AppSettingController::class, 'maintenance']);
 
     Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
@@ -46,6 +48,7 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::get('/dashboard', AdminDashboardController::class);
                 Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
+                Route::put('/app-settings/maintenance', [AppSettingController::class, 'updateMaintenance']);
                 Route::post('/announcements', [AnnouncementController::class, 'store']);
                 Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update']);
                 Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
