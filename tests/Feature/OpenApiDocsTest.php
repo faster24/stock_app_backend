@@ -29,6 +29,7 @@ class OpenApiDocsTest extends TestCase
             ->assertOk()
             ->assertSee('/two-d-results:')
             ->assertSee('/two-d-results/latest:')
+            ->assertSee('/two-d-results/last-5-days:')
             ->assertSee('/three-d-results:')
             ->assertSee('/three-d-results/latest:')
             ->assertSee('/app-settings/maintenance:')

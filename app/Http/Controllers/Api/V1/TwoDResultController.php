@@ -34,6 +34,13 @@ class TwoDResultController extends Controller
         ]);
     }
 
+    public function lastFiveDays(): JsonResponse
+    {
+        return $this->respond('Last 5 days 2D results retrieved successfully.', [
+            'two_d_results' => $this->twoDResultService->lastFiveDays(),
+        ]);
+    }
+
     private function respond(string $message, ?array $data, int $status = 200, ?array $errors = null): JsonResponse
     {
         return response()->json([

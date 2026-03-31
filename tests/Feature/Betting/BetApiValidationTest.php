@@ -4,8 +4,10 @@ namespace Tests\Feature\Betting;
 
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
+use App\Enums\BankName;
 use App\Enums\Currency;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
@@ -40,7 +42,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_invalid_enum_and_bet_numbers_payload_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -49,6 +51,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => 'NOT_A_REAL_ENUM',
                 'currency' => 'USD',
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => 'not-an-array',
             ])
             ->assertStatus(422)
@@ -61,7 +64,7 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_rejects_duplicate_bet_numbers_with_422_envelope(): void
+    public function test_store_requires_bank_info_with_422_envelope(): void
     {
         $user = User::factory()->normalUser()->create();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -72,6 +75,80 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
+                'bet_numbers' => [
+                    ['number' => 12, 'amount' => 1000],
+                ],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.bank_info.0', 'Bank account information is required before creating a bet.');
+    }
+
+    public function test_store_requires_transaction_id_last_two_digits_with_422_envelope(): void
+    {
+        $user = $this->createUserWithBankInfo();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
+                'target_opentime' => '11:00:00',
+                'bet_numbers' => [
+                    ['number' => 12, 'amount' => 1000],
+                ],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['transaction_id_last_two_digits'],
+            ]);
+    }
+
+    public function test_store_rejects_invalid_transaction_id_last_two_digits_with_422_envelope(): void
+    {
+        $user = $this->createUserWithBankInfo();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
+                'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '7',
+                'bet_numbers' => [
+                    ['number' => 12, 'amount' => 1000],
+                ],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['transaction_id_last_two_digits'],
+            ]);
+    }
+
+    public function test_store_rejects_duplicate_bet_numbers_with_422_envelope(): void
+    {
+        $user = $this->createUserWithBankInfo();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
+                'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
+                'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 12, 'amount' => 1000],
                     ['number' => 12, 'amount' => 1000],
@@ -89,7 +166,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_2d_numbers_outside_1_to_99_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -98,6 +175,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 0, 'amount' => 1000]],
             ])
             ->assertStatus(422)
@@ -112,7 +190,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_3d_numbers_outside_1_to_999_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -121,6 +199,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '3D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 0, 'amount' => 1000]],
             ])
             ->assertStatus(422)
@@ -135,7 +214,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_update_rejects_duplicate_bet_numbers_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -157,7 +236,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_invalid_target_opentime_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -166,6 +245,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '10:30:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 12, 'amount' => 1000]],
             ])
             ->assertStatus(422)
@@ -180,7 +260,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_internal_status_fields_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -189,6 +269,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 12, 'amount' => 1000]],
                 'status' => 'ACCEPTED',
                 'bet_result_status' => 'WON',
@@ -206,7 +287,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_update_rejects_internal_status_fields_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -227,7 +308,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_requires_pay_slip_image_with_422_envelope(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -235,6 +316,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 12, 'amount' => 1000]],
             ])
             ->assertStatus(422)
@@ -249,7 +331,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_object_bet_number_without_amount(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -258,6 +340,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 12],
                 ],
@@ -274,7 +357,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_legacy_integer_bet_numbers_payload(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -283,6 +366,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [12],
             ])
             ->assertStatus(422)
@@ -297,7 +381,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_accepts_leading_zero_string_numbers_for_2d_and_3d(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -306,6 +390,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => '01', 'amount' => 1000],
                     ['number' => '09', 'amount' => 1000],
@@ -321,6 +406,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '3D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => '001', 'amount' => 1000],
                     ['number' => '099', 'amount' => 1000],
@@ -333,7 +419,7 @@ class BetApiValidationTest extends TestCase
 
     public function test_store_rejects_normalized_duplicate_numbers(): void
     {
-        $user = User::factory()->normalUser()->create();
+        $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -342,6 +428,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 1, 'amount' => 1000],
                     ['number' => '01', 'amount' => 1000],
@@ -355,5 +442,19 @@ class BetApiValidationTest extends TestCase
                 'data',
                 'errors' => ['bet_numbers.1'],
             ]);
+    }
+
+    private function createUserWithBankInfo(): User
+    {
+        $user = User::factory()->normalUser()->create();
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Main User',
+            'account_number' => '111222333',
+        ]);
+
+        return $user;
     }
 }

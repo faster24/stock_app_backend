@@ -471,6 +471,22 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
+  /two-d-results/last-5-days:
+    get:
+      tags: [TwoDResult]
+      summary: List 2D results for latest 5 stock dates (authenticated)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 2D results from last 5 stock dates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoDResultListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /three-d-results:
     get:
       tags: [ThreeDResult]
@@ -2099,6 +2115,10 @@ components:
         bet_slip:
           type: string
           format: uuid
+        transaction_id_last_two_digits:
+          type: string
+          pattern: '^\d{2}$'
+          example: '45'
         bet_type:
           type: string
           enum: ['2D', '3D']
@@ -2194,7 +2214,7 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [pay_slip_image, bet_type, currency, target_opentime, bet_numbers]
+      required: [pay_slip_image, bet_type, currency, target_opentime, transaction_id_last_two_digits, bet_numbers]
       description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied. Bet numbers must be objects with per-number amount.
       properties:
         pay_slip_image:
@@ -2213,6 +2233,10 @@ components:
           type: string
           enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
           description: Target stock market open time for this bet.
+        transaction_id_last_two_digits:
+          type: string
+          pattern: '^\d{2}$'
+          description: Required last two digits of the transaction ID (00-99).
         bet_numbers:
           type: array
           description: Array of objects {number, amount}. Leading-zero strings like 01/001 are accepted and normalized numerically.

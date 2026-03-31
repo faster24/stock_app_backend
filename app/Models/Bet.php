@@ -34,6 +34,7 @@ class Bet extends Model implements HasMedia
     protected $fillable = [
         'user_id',
         'bet_slip',
+        'transaction_id_last_two_digits',
         'bet_type',
         'currency',
         'target_opentime',
@@ -132,6 +133,7 @@ class Bet extends Model implements HasMedia
         return [
             'bet_type' => BetType::class,
             'currency' => Currency::class,
+            'transaction_id_last_two_digits' => 'string',
             'target_opentime' => 'string',
             'stock_date' => 'date',
             'total_amount' => 'decimal:2',

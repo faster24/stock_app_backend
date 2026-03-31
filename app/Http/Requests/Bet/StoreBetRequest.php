@@ -5,6 +5,7 @@ namespace App\Http\Requests\Bet;
 use App\Enums\BetType;
 use App\Enums\Currency;
 use App\Http\Requests\Auth\AuthFormRequest;
+use App\Models\Wallet;
 use Illuminate\Validation\Validator;
 use Illuminate\Validation\Rule;
 
@@ -34,6 +35,7 @@ class StoreBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
             ],
+            'transaction_id_last_two_digits' => ['required', 'regex:/^\d{2}$/'],
             'bet_numbers' => ['required', 'array'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],
@@ -44,6 +46,10 @@ class StoreBetRequest extends AuthFormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if (! $this->hasCompleteBankInfo()) {
+                $validator->errors()->add('bank_info', 'Bank account information is required before creating a bet.');
+            }
+
             $betNumbers = $this->input('bet_numbers');
 
             if (! is_array($betNumbers)) {
@@ -85,6 +91,25 @@ class StoreBetRequest extends AuthFormRequest
                 }
             }
         });
+    }
+
+    private function hasCompleteBankInfo(): bool
+    {
+        $user = $this->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $wallet = Wallet::query()->where('user_id', $user->id)->first();
+
+        if ($wallet === null) {
+            return false;
+        }
+
+        return filled($wallet->bank_name)
+            && filled($wallet->account_name)
+            && filled($wallet->account_number);
     }
 
     private function resolveInteger(mixed $value): ?int

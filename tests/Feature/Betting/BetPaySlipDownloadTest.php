@@ -3,10 +3,12 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
+use App\Enums\BankName;
 use App\Enums\Currency;
 use App\Enums\OddSettingUserType;
 use App\Models\OddSetting;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +26,7 @@ class BetPaySlipDownloadTest extends TestCase
         $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
+        $this->createBankInfo($owner);
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -33,6 +36,7 @@ class BetPaySlipDownloadTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1500],
                     ['number' => 22, 'amount' => 1500],
@@ -55,6 +59,7 @@ class BetPaySlipDownloadTest extends TestCase
         $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
+        $this->createBankInfo($owner);
         $ownerToken = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$ownerToken)
@@ -64,6 +69,7 @@ class BetPaySlipDownloadTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1500],
                     ['number' => 22, 'amount' => 1500],
@@ -90,6 +96,7 @@ class BetPaySlipDownloadTest extends TestCase
         $this->seedDefaultTwoDOdd();
 
         $owner = User::factory()->normalUser()->create();
+        $this->createBankInfo($owner);
         $ownerToken = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$ownerToken)
@@ -99,6 +106,7 @@ class BetPaySlipDownloadTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1500],
                     ['number' => 22, 'amount' => 1500],
@@ -126,6 +134,16 @@ class BetPaySlipDownloadTest extends TestCase
         ], [
             'odd' => '80.00',
             'is_active' => true,
+        ]);
+    }
+
+    private function createBankInfo(User $user): void
+    {
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Main User',
+            'account_number' => '111222333',
         ]);
     }
 }

@@ -93,6 +93,8 @@ Authenticated users (`user` or `admin`) can read persisted 2D results:
 - `GET /api/v1/two-d-results`
   - Query params: `page`, `page_size`, `stock_date`, `open_time`, `history_id`
 - `GET /api/v1/two-d-results/latest`
+- `GET /api/v1/two-d-results/last-5-days`
+  - Returns all records within the latest 5 distinct `stock_date` values, ordered by newest `stock_datetime`.
 
 ## Background Scheduler (Thai 2D)
 

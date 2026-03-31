@@ -41,4 +41,19 @@ class TwoDResultService extends Service
             ->orderByDesc('id')
             ->first();
     }
+
+    public function lastFiveDays(): Collection
+    {
+        $latestFiveStockDates = TwoDResult::query()
+            ->select('stock_date')
+            ->distinct()
+            ->orderByDesc('stock_date')
+            ->limit(5);
+
+        return TwoDResult::query()
+            ->whereIn('stock_date', $latestFiveStockDates)
+            ->orderByDesc('stock_datetime')
+            ->orderByDesc('id')
+            ->get();
+    }
 }

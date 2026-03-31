@@ -25,6 +25,7 @@ class UpdateBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
             ],
+            'transaction_id_last_two_digits' => ['prohibited'],
             'bet_numbers' => ['sometimes', 'required', 'array'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],

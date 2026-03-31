@@ -15,6 +15,7 @@ class BetFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            'transaction_id_last_two_digits' => str_pad((string) fake()->numberBetween(0, 99), 2, '0', STR_PAD_LEFT),
             'bet_type' => BetType::TWO_D,
             'currency' => Currency::MMK,
             'total_amount' => '1000.00',

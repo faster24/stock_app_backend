@@ -10,6 +10,7 @@ use App\Enums\OddSettingUserType;
 use App\Models\Bet;
 use App\Models\OddSetting;
 use App\Models\User;
+use App\Models\Wallet;
 use App\Services\Service;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection;
@@ -66,6 +67,9 @@ class BetService extends Service
     {
         $paySlipImage = $attributes['pay_slip_image'] ?? null;
         unset($attributes['pay_slip_image']);
+
+        $this->assertUserHasCompleteBankInfo($userId);
+        $this->assertHasValidTransactionIdLastTwoDigits($attributes);
 
         if (! $paySlipImage instanceof UploadedFile) {
             throw ValidationException::withMessages([
@@ -371,6 +375,34 @@ class BetService extends Service
         }
 
         return number_format((float) $oddValue, 2, '.', '');
+    }
+
+    private function assertUserHasCompleteBankInfo(int $userId): void
+    {
+        $wallet = Wallet::query()->where('user_id', $userId)->first();
+
+        if ($wallet === null
+            || blank($wallet->bank_name)
+            || blank($wallet->account_name)
+            || blank($wallet->account_number)) {
+            throw ValidationException::withMessages([
+                'bank_info' => ['Bank account information is required before creating a bet.'],
+            ]);
+        }
+    }
+
+    private function assertHasValidTransactionIdLastTwoDigits(array $attributes): void
+    {
+        $lastTwoDigits = $attributes['transaction_id_last_two_digits'] ?? null;
+
+        $isTwoDigitString = is_string($lastTwoDigits) && preg_match('/^\d{2}$/', $lastTwoDigits) === 1;
+        $isTwoDigitInteger = is_int($lastTwoDigits) && $lastTwoDigits >= 10 && $lastTwoDigits <= 99;
+
+        if (! $isTwoDigitString && ! $isTwoDigitInteger) {
+            throw ValidationException::withMessages([
+                'transaction_id_last_two_digits' => ['The transaction_id_last_two_digits field must be exactly 2 digits.'],
+            ]);
+        }
     }
 
     private function attachPotentialWinnings(array $numberEntries, string $odd): array

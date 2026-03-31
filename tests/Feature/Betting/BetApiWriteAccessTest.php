@@ -3,11 +3,13 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
+use App\Enums\BankName;
 use App\Enums\Currency;
 use App\Enums\OddSettingUserType;
 use App\Models\Bet;
 use App\Models\OddSetting;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -23,6 +25,7 @@ class BetApiWriteAccessTest extends TestCase
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $owner = User::factory()->normalUser()->create();
+        $this->createBankInfo($owner);
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -32,6 +35,7 @@ class BetApiWriteAccessTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1000],
                     ['number' => 22, 'amount' => 1500],
@@ -68,6 +72,7 @@ class BetApiWriteAccessTest extends TestCase
             'bet_type' => BetType::TWO_D->value,
             'currency' => Currency::MMK->value,
             'target_opentime' => '11:00:00',
+            'transaction_id_last_two_digits' => '45',
             'stock_date' => Carbon::now()->toDateString(),
             'total_amount' => 2500.00,
         ]);
@@ -145,6 +150,7 @@ class BetApiWriteAccessTest extends TestCase
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $owner = User::factory()->normalUser()->create();
+        $this->createBankInfo($owner);
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -154,6 +160,7 @@ class BetApiWriteAccessTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [11, 22],
             ]);
 
@@ -176,6 +183,16 @@ class BetApiWriteAccessTest extends TestCase
         ], [
             'odd' => $odd,
             'is_active' => true,
+        ]);
+    }
+
+    private function createBankInfo(User $user): void
+    {
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Main User',
+            'account_number' => '111222333',
         ]);
     }
 }
