@@ -1,49 +1,30 @@
-name: CI
+name: Deploy Laravel API
 
 on:
   push:
-  pull_request:
+    branches:
+      - production
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1
         with:
-          php-version: '8.3'
-          extensions: pdo_sqlite, sqlite3
-          tools: composer:v2
-
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Prepare environment
-        run: |
-          cp .env.example .env
-          touch database/database.sqlite
-          php artisan key:generate
-
-      - name: Run migrations
-        env:
-          APP_ENV: testing
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-          CACHE_STORE: file
-          SESSION_DRIVER: array
-          QUEUE_CONNECTION: sync
-        run: php artisan migrate --force
-
-      - name: Run tests
-        env:
-          APP_ENV: testing
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
-          CACHE_STORE: file
-          SESSION_DRIVER: array
-          QUEUE_CONNECTION: sync
-        run: php artisan test
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /opt/apps/backend
+            git pull origin production
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
