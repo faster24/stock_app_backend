@@ -99,7 +99,7 @@ class BetPayoutService extends Service
                 $settledAt
             ): ?Bet {
                 $bet = Bet::query()
-                    ->with(['betNumbers', 'media'])
+                    ->with(['betNumbers', 'media', 'user.wallet'])
                     ->whereKey($betId)
                     ->lockForUpdate()
                     ->first();
@@ -157,7 +157,7 @@ class BetPayoutService extends Service
                     ]);
                 }
 
-                return $bet->fresh(['betNumbers', 'media']);
+                return $bet->fresh(['betNumbers', 'media', 'user.wallet']);
             });
         } catch (DomainException $exception) {
             throw $exception;

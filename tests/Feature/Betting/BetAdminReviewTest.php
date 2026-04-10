@@ -41,8 +41,12 @@ class BetAdminReviewTest extends TestCase
             ->assertJsonCount(2, 'data.bets')
             ->assertJsonPath('data.bets.0.id', $newest->id)
             ->assertJsonPath('data.bets.0.user_id', $userA->id)
+            ->assertJsonPath('data.bets.0.user.id', $userA->id)
+            ->assertJsonPath('data.bets.0.user.email', $userA->email)
             ->assertJsonPath('data.bets.1.id', $middle->id)
             ->assertJsonPath('data.bets.1.user_id', $userB->id)
+            ->assertJsonPath('data.bets.1.user.id', $userB->id)
+            ->assertJsonPath('data.bets.1.user.email', $userB->email)
             ->assertJsonPath('errors', null);
 
         $this->withHeader('Authorization', 'Bearer '.$token)

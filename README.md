@@ -96,6 +96,20 @@ Authenticated users (`user` or `admin`) can read persisted 2D results:
 - `GET /api/v1/two-d-results/last-5-days`
   - Returns all records within the latest 5 distinct `stock_date` values, ordered by newest `stock_datetime`.
 
+## Bet Payment Transition APIs
+
+Authenticated users can read accepted payment transitions:
+
+- `GET /api/v1/bets/accepted-payments`
+  - Query params: `page`, `page_size`
+  - Returns only bets with `status=ACCEPTED`, ordered by latest `updated_at`.
+- `GET /api/v1/bets/payout-history`
+  - Query params: `page`, `page_size`
+  - Returns bets where either:
+    - `status=ACCEPTED` + `bet_result_status=WON` + `payout_status=PAID_OUT`, or
+    - `payout_status=REFUNDED`
+  - Ordered by latest `paid_out_at`.
+
 ## Background Scheduler (Thai 2D)
 
 Command:

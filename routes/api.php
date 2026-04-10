@@ -37,6 +37,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
+            Route::get('/accepted-payments', 'acceptedPayments');
+            Route::get('/payout-history', 'payoutHistory');
             Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
             Route::get('/{bet}/payout-proof', 'downloadPayoutProof')->name('bets.payout-proof');
             Route::get('/{bet}', 'show');

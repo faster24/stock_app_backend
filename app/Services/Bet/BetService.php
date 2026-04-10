@@ -42,13 +42,53 @@ class BetService extends Service
             ->get();
     }
 
-    public function listForAdmin(int $page = 1, int $pageSize = 10): Collection
+    public function listAcceptedPaymentsForUser(int $userId, int $page = 1, int $pageSize = 10): Collection
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
             ->with(['betNumbers', 'media'])
+            ->where('user_id', $userId)
+            ->where('status', BetStatus::ACCEPTED->value)
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->forPage($resolvedPage, $resolvedPageSize)
+            ->get();
+    }
+
+    public function listPayoutHistoryForUser(int $userId, int $page = 1, int $pageSize = 10): Collection
+    {
+        $resolvedPage = max(1, $page);
+        $resolvedPageSize = min(100, max(1, $pageSize));
+
+        return Bet::query()
+            ->with(['betNumbers', 'media'])
+            ->where('user_id', $userId)
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($inner): void {
+                        $inner
+                            ->where('status', BetStatus::ACCEPTED->value)
+                            ->where('bet_result_status', BetResultStatus::WON->value)
+                            ->where('payout_status', BetPayoutStatus::PAID_OUT->value);
+                    })
+                    ->orWhere('payout_status', BetPayoutStatus::REFUNDED->value);
+            })
+            ->orderByDesc('paid_out_at')
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->forPage($resolvedPage, $resolvedPageSize)
+            ->get();
+    }
+
+    public function listForAdmin(int $page = 1, int $pageSize = 10): Collection
+    {
+        $resolvedPage = max(1, $page);
+        $resolvedPageSize = min(100, max(1, $pageSize));
+
+        return Bet::query()
+            ->with(['betNumbers', 'media', 'user.wallet'])
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
             ->get();
@@ -191,7 +231,7 @@ class BetService extends Service
     public function updateReviewStatusForAdmin(string $betId, string $targetStatus): ?Bet
     {
         $bet = Bet::query()
-            ->with(['betNumbers', 'media'])
+            ->with(['betNumbers', 'media', 'user.wallet'])
             ->whereKey($betId)
             ->first();
 
@@ -224,7 +264,7 @@ class BetService extends Service
 
         $bet->update($payload);
 
-        return $bet->fresh(['betNumbers', 'media']);
+        return $bet->fresh(['betNumbers', 'media', 'user.wallet']);
     }
 
     private function isDeleteRestrictionConflict(QueryException $exception): bool

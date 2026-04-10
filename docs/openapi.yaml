@@ -283,6 +283,72 @@ paths:
         '409':
           $ref: '#/components/responses/BetDeleteConflict'
 
+  /bets/accepted-payments:
+    get:
+      tags: [Bet]
+      summary: List accepted payment transitions for authenticated user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Accepted payment transitions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedPaymentListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /bets/payout-history:
+    get:
+      tags: [Bet]
+      summary: List paid-out winning bets and refunded bets for authenticated user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          description: Page size clamped to [1,100]. Defaults to 10.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Payout history list (accepted+won+paid-out or refunded)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutHistoryListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   /bets/{bet}/pay-slip:
     get:
       tags: [Bet]
@@ -2493,6 +2559,38 @@ components:
           type: object
           properties:
             bets:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bet'
+        errors:
+          type: object
+          nullable: true
+
+    AcceptedPaymentListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            accepted_payments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Bet'
+        errors:
+          type: object
+          nullable: true
+
+    PayoutHistoryListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            payout_history:
               type: array
               items:
                 $ref: '#/components/schemas/Bet'

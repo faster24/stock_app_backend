@@ -40,6 +40,28 @@ class BetController extends Controller
         ]);
     }
 
+    public function acceptedPayments(Request $request): JsonResponse
+    {
+        $userId = (int) $request->user()->id;
+        $page = max(1, (int) $request->query('page', 1));
+        $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
+
+        return $this->respond('Accepted payment transitions retrieved successfully.', [
+            'accepted_payments' => $this->betService->listAcceptedPaymentsForUser($userId, $page, $pageSize),
+        ]);
+    }
+
+    public function payoutHistory(Request $request): JsonResponse
+    {
+        $userId = (int) $request->user()->id;
+        $page = max(1, (int) $request->query('page', 1));
+        $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
+
+        return $this->respond('Payout history retrieved successfully.', [
+            'payout_history' => $this->betService->listPayoutHistoryForUser($userId, $page, $pageSize),
+        ]);
+    }
+
     public function show(Request $request, string $bet): JsonResponse
     {
         $userId = (int) $request->user()->id;
