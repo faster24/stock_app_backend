@@ -22,3 +22,5 @@ yarn-error.log
 /.vscode
 /.zed
 /.sisyphus
+.mcp.json
+.claude/
