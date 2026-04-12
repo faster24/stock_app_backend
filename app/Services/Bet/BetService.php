@@ -29,7 +29,7 @@ class BetService extends Service
 
     public const DELETE_RESULT_CONFLICT = 'conflict';
 
-    public function listForUser(int $userId, int $page = 1, int $pageSize = 10): Collection
+    public function listForUser(string $userId, int $page = 1, int $pageSize = 10): Collection
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
@@ -42,7 +42,7 @@ class BetService extends Service
             ->get();
     }
 
-    public function listAcceptedPaymentsForUser(int $userId, int $page = 1, int $pageSize = 10): Collection
+    public function listAcceptedPaymentsForUser(string $userId, int $page = 1, int $pageSize = 10): Collection
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
@@ -57,7 +57,7 @@ class BetService extends Service
             ->get();
     }
 
-    public function listPayoutHistoryForUser(int $userId, int $page = 1, int $pageSize = 10): Collection
+    public function listPayoutHistoryForUser(string $userId, int $page = 1, int $pageSize = 10): Collection
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
@@ -94,7 +94,7 @@ class BetService extends Service
             ->get();
     }
 
-    public function showForUser(int $userId, string $betId): ?Bet
+    public function showForUser(string $userId, string $betId): ?Bet
     {
         return Bet::query()
             ->with(['betNumbers', 'media', 'user.wallet'])
@@ -103,7 +103,7 @@ class BetService extends Service
             ->first();
     }
 
-    public function createForUser(int $userId, array $attributes): Bet
+    public function createForUser(string $userId, array $attributes): Bet
     {
         $paySlipImage = $attributes['pay_slip_image'] ?? null;
         unset($attributes['pay_slip_image']);
@@ -156,7 +156,7 @@ class BetService extends Service
         return $bet->fresh(['betNumbers', 'media']);
     }
 
-    public function updateForUser(int $userId, string $betId, array $attributes): ?Bet
+    public function updateForUser(string $userId, string $betId, array $attributes): ?Bet
     {
         $bet = Bet::query()
             ->where('user_id', $userId)
@@ -204,7 +204,7 @@ class BetService extends Service
         });
     }
 
-    public function deleteForUser(int $userId, string $betId): string
+    public function deleteForUser(string $userId, string $betId): string
     {
         $bet = Bet::query()
             ->where('user_id', $userId)
@@ -389,7 +389,7 @@ class BetService extends Service
         return number_format($total, 2, '.', '');
     }
 
-    private function resolveOddValueForBet(int $userId, string $betType, string $currency): string
+    private function resolveOddValueForBet(string $userId, string $betType, string $currency): string
     {
         $user = User::query()->find($userId);
 
@@ -417,7 +417,7 @@ class BetService extends Service
         return number_format((float) $oddValue, 2, '.', '');
     }
 
-    private function assertUserHasCompleteBankInfo(int $userId): void
+    private function assertUserHasCompleteBankInfo(string $userId): void
     {
         $wallet = Wallet::query()->where('user_id', $userId)->first();
 

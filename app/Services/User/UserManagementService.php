@@ -26,7 +26,7 @@ class UserManagementService extends Service
             ->get();
     }
 
-    public function showUser(int $userId): ?User
+    public function showUser(string $userId): ?User
     {
         return User::query()
             ->with(['wallet', 'roles'])
@@ -34,9 +34,9 @@ class UserManagementService extends Service
             ->first();
     }
 
-    public function banUser(int $adminUserId, User $user): User
+    public function banUser(string $adminUserId, User $user): User
     {
-        $this->assertNotSelfAction($adminUserId, (int) $user->id);
+        $this->assertNotSelfAction($adminUserId, (string) $user->id);
 
         $user->forceFill([
             'is_banned' => true,
@@ -48,9 +48,9 @@ class UserManagementService extends Service
         return $user->fresh(['wallet', 'roles']);
     }
 
-    public function unbanUser(int $adminUserId, User $user): User
+    public function unbanUser(string $adminUserId, User $user): User
     {
-        $this->assertNotSelfAction($adminUserId, (int) $user->id);
+        $this->assertNotSelfAction($adminUserId, (string) $user->id);
 
         $user->forceFill([
             'is_banned' => false,
@@ -60,9 +60,9 @@ class UserManagementService extends Service
         return $user->fresh(['wallet', 'roles']);
     }
 
-    public function assignCustomerRole(int $adminUserId, User $user, string $role): User
+    public function assignCustomerRole(string $adminUserId, User $user, string $role): User
     {
-        $this->assertNotSelfAction($adminUserId, (int) $user->id);
+        $this->assertNotSelfAction($adminUserId, (string) $user->id);
 
         if (! in_array($role, self::CUSTOMER_ROLES, true)) {
             throw new DomainException('Unsupported role.');
@@ -81,15 +81,15 @@ class UserManagementService extends Service
         return $user->fresh(['wallet', 'roles']);
     }
 
-    public function deleteUser(int $adminUserId, User $user): void
+    public function deleteUser(string $adminUserId, User $user): void
     {
-        $this->assertNotSelfAction($adminUserId, (int) $user->id);
+        $this->assertNotSelfAction($adminUserId, (string) $user->id);
 
         $user->tokens()->delete();
         $user->delete();
     }
 
-    private function assertNotSelfAction(int $adminUserId, int $targetUserId): void
+    private function assertNotSelfAction(string $adminUserId, string $targetUserId): void
     {
         if ($adminUserId === $targetUserId) {
             throw new DomainException('You cannot manage your own account.');

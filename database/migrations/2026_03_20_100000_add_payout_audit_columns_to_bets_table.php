@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('bets', function (Blueprint $table) {
             $table->dateTime('paid_out_at')->nullable()->after('payout_status');
-            $table->unsignedBigInteger('paid_out_by_user_id')->nullable()->after('paid_out_at');
+            $table->uuid('paid_out_by_user_id')->nullable()->after('paid_out_at');
             $table->string('payout_reference')->nullable()->after('paid_out_by_user_id');
             $table->text('payout_note')->nullable()->after('payout_reference');
 

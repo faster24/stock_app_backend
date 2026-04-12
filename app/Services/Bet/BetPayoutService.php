@@ -27,7 +27,7 @@ class BetPayoutService extends Service
 
     public function payoutWinningBet(
         string $betId,
-        int $adminUserId,
+        string $adminUserId,
         UploadedFile $payoutProofImage,
         ?string $reference = null,
         ?string $note = null
@@ -48,7 +48,7 @@ class BetPayoutService extends Service
 
     public function refundBet(
         string $betId,
-        int $adminUserId,
+        string $adminUserId,
         UploadedFile $payoutProofImage,
         ?string $reference = null,
         ?string $note = null
@@ -74,7 +74,7 @@ class BetPayoutService extends Service
      */
     private function executeSettlement(
         string $betId,
-        int $adminUserId,
+        string $adminUserId,
         UploadedFile $proofImage,
         ?string $reference,
         ?string $note,

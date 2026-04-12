@@ -9,12 +9,12 @@ class WalletBankInfoService extends Service
 {
     private const BANK_INFO_KEYS = ['bank_name', 'account_name', 'account_number'];
 
-    public function showForUser(int $userId): ?Wallet
+    public function showForUser(string $userId): ?Wallet
     {
         return Wallet::query()->where('user_id', $userId)->first();
     }
 
-    public function createForUser(int $userId, array $attributes): Wallet
+    public function createForUser(string $userId, array $attributes): Wallet
     {
         return Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
@@ -22,7 +22,7 @@ class WalletBankInfoService extends Service
         );
     }
 
-    public function updateForUser(int $userId, array $attributes): Wallet
+    public function updateForUser(string $userId, array $attributes): Wallet
     {
         return Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
@@ -30,7 +30,7 @@ class WalletBankInfoService extends Service
         );
     }
 
-    public function clearForUser(int $userId): void
+    public function clearForUser(string $userId): void
     {
         Wallet::query()->where('user_id', $userId)->update([
             'bank_name' => null,

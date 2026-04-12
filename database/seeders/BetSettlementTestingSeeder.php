@@ -56,7 +56,7 @@ class BetSettlementTestingSeeder extends Seeder
         ]);
     }
 
-    private function seedBetFlowSnapshot(int $userId): void
+    private function seedBetFlowSnapshot(string $userId): void
     {
         $this->upsertBet(
             userId: $userId,
@@ -124,7 +124,7 @@ class BetSettlementTestingSeeder extends Seeder
     }
 
     private function upsertBet(
-        int $userId,
+        string $userId,
         string $betSlip,
         string $stockDate,
         string $openTime,

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id')->unique();
+            $table->uuid('user_id')->unique();
             $table->unsignedBigInteger('balance')->default(0);
             $table->enum('bank_name', ['KBZ', 'AYA', 'CB', 'UAB', 'YOMA', 'OTHER'])->nullable();
             $table->string('account_name')->nullable();

@@ -30,7 +30,7 @@ class AdminUserController extends Controller
 
     public function show(string $user): JsonResponse
     {
-        $resolvedUser = $this->userManagementService->showUser((int) $user);
+        $resolvedUser = $this->userManagementService->showUser($user);
 
         if (! $resolvedUser instanceof User) {
             return $this->respond('User not found.', null, 404, [
@@ -45,7 +45,7 @@ class AdminUserController extends Controller
 
     public function ban(Request $request, string $user): JsonResponse
     {
-        $resolvedUser = $this->userManagementService->showUser((int) $user);
+        $resolvedUser = $this->userManagementService->showUser($user);
 
         if (! $resolvedUser instanceof User) {
             return $this->respond('User not found.', null, 404, [
@@ -54,7 +54,7 @@ class AdminUserController extends Controller
         }
 
         try {
-            $bannedUser = $this->userManagementService->banUser((int) $request->user()->id, $resolvedUser);
+            $bannedUser = $this->userManagementService->banUser((string) $request->user()->id, $resolvedUser);
         } catch (DomainException $exception) {
             return $this->respond('The given data was invalid.', null, 422, [
                 'user' => [$exception->getMessage()],
@@ -68,7 +68,7 @@ class AdminUserController extends Controller
 
     public function unban(Request $request, string $user): JsonResponse
     {
-        $resolvedUser = $this->userManagementService->showUser((int) $user);
+        $resolvedUser = $this->userManagementService->showUser($user);
 
         if (! $resolvedUser instanceof User) {
             return $this->respond('User not found.', null, 404, [
@@ -77,7 +77,7 @@ class AdminUserController extends Controller
         }
 
         try {
-            $unbannedUser = $this->userManagementService->unbanUser((int) $request->user()->id, $resolvedUser);
+            $unbannedUser = $this->userManagementService->unbanUser((string) $request->user()->id, $resolvedUser);
         } catch (DomainException $exception) {
             return $this->respond('The given data was invalid.', null, 422, [
                 'user' => [$exception->getMessage()],
@@ -91,7 +91,7 @@ class AdminUserController extends Controller
 
     public function destroy(Request $request, string $user): JsonResponse
     {
-        $resolvedUser = $this->userManagementService->showUser((int) $user);
+        $resolvedUser = $this->userManagementService->showUser($user);
 
         if (! $resolvedUser instanceof User) {
             return $this->respond('User not found.', null, 404, [
@@ -100,7 +100,7 @@ class AdminUserController extends Controller
         }
 
         try {
-            $this->userManagementService->deleteUser((int) $request->user()->id, $resolvedUser);
+            $this->userManagementService->deleteUser((string) $request->user()->id, $resolvedUser);
         } catch (DomainException $exception) {
             return $this->respond('The given data was invalid.', null, 422, [
                 'user' => [$exception->getMessage()],
@@ -112,7 +112,7 @@ class AdminUserController extends Controller
 
     public function assignRole(AssignUserRoleRequest $request, string $user): JsonResponse
     {
-        $resolvedUser = $this->userManagementService->showUser((int) $user);
+        $resolvedUser = $this->userManagementService->showUser($user);
 
         if (! $resolvedUser instanceof User) {
             return $this->respond('User not found.', null, 404, [
@@ -122,7 +122,7 @@ class AdminUserController extends Controller
 
         try {
             $updatedUser = $this->userManagementService->assignCustomerRole(
-                (int) $request->user()->id,
+                (string) $request->user()->id,
                 $resolvedUser,
                 (string) $request->validated()['role'],
             );

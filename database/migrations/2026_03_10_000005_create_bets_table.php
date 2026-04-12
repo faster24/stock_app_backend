@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('bets', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->unsignedBigInteger('user_id');
+            $table->uuid('user_id');
             $table->uuid('bet_slip')->unique();
             $table->enum('bet_type', ['2D', '3D']);
             $table->unsignedBigInteger('amount');

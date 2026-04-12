@@ -141,7 +141,7 @@ class Bet extends Model implements HasMedia
             'bet_result_status' => BetResultStatus::class,
             'payout_status' => BetPayoutStatus::class,
             'paid_out_at' => 'datetime',
-            'paid_out_by_user_id' => 'integer',
+            'paid_out_by_user_id' => 'string',
             'payout_reference' => 'string',
             'payout_note' => 'string',
             'placed_at' => 'datetime',

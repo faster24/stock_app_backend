@@ -23,7 +23,7 @@ class BetController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
@@ -39,7 +39,7 @@ class BetController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
-        Log::info('Admin bet list requested.', ['admin_user_id' => (int) $request->user()->id, 'page' => $page, 'page_size' => $pageSize]);
+        Log::info('Admin bet list requested.', ['admin_user_id' => (string) $request->user()->id, 'page' => $page, 'page_size' => $pageSize]);
 
         return $this->respond('Bets retrieved successfully.', [
             'bets' => $this->betService->listForAdmin($page, $pageSize),
@@ -48,7 +48,7 @@ class BetController extends Controller
 
     public function acceptedPayments(Request $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
@@ -61,7 +61,7 @@ class BetController extends Controller
 
     public function payoutHistory(Request $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
@@ -74,7 +74,7 @@ class BetController extends Controller
 
     public function show(Request $request, string $bet): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
 
         Log::info('Bet show requested.', ['user_id' => $userId, 'bet_id' => $bet]);
 
@@ -95,7 +95,7 @@ class BetController extends Controller
 
     public function store(StoreBetRequest $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
 
         Log::info('Bet store requested.', ['user_id' => $userId]);
 
@@ -117,7 +117,7 @@ class BetController extends Controller
 
     public function update(UpdateBetRequest $request, string $bet): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
 
         Log::info('Bet update requested.', ['user_id' => $userId, 'bet_id' => $bet]);
 
@@ -147,7 +147,7 @@ class BetController extends Controller
 
     public function destroy(Request $request, string $bet): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $userId = (string) $request->user()->id;
 
         Log::info('Bet delete requested.', ['user_id' => $userId, 'bet_id' => $bet]);
 
@@ -182,7 +182,7 @@ class BetController extends Controller
     public function downloadPaySlip(Request $request, string $bet): BinaryFileResponse|JsonResponse
     {
         $user = $request->user();
-        $userId = (int) $user->id;
+        $userId = (string) $user->id;
 
         Log::info('Pay slip download requested.', ['user_id' => $userId, 'bet_id' => $bet]);
 
@@ -196,7 +196,7 @@ class BetController extends Controller
             ]);
         }
 
-        if (! $user->hasRole('admin') && (int) $resolvedBet->user_id !== $userId) {
+        if (! $user->hasRole('admin') && $resolvedBet->user_id !== $userId) {
             Log::warning('Unauthorized pay slip download attempt.', ['user_id' => $userId, 'bet_id' => $bet]);
 
             return $this->respond('Bet not found.', null, 404, [
@@ -228,7 +228,7 @@ class BetController extends Controller
     public function downloadPayoutProof(Request $request, string $bet): BinaryFileResponse|JsonResponse
     {
         $user = $request->user();
-        $userId = (int) $user->id;
+        $userId = (string) $user->id;
 
         Log::info('Payout proof download requested.', ['user_id' => $userId, 'bet_id' => $bet]);
 
@@ -242,7 +242,7 @@ class BetController extends Controller
             ]);
         }
 
-        if (! $user->hasRole('admin') && (int) $resolvedBet->user_id !== $userId) {
+        if (! $user->hasRole('admin') && $resolvedBet->user_id !== $userId) {
             Log::warning('Unauthorized payout proof download attempt.', ['user_id' => $userId, 'bet_id' => $bet]);
 
             return $this->respond('Bet not found.', null, 404, [
@@ -273,7 +273,7 @@ class BetController extends Controller
 
     public function payout(AdminPayoutBetRequest $request, string $bet): JsonResponse
     {
-        $adminUserId = (int) $request->user()->id;
+        $adminUserId = (string) $request->user()->id;
         /** @var \Illuminate\Http\UploadedFile $payoutProof */
         $payoutProof = $request->file('payout_proof_image');
 
@@ -315,7 +315,7 @@ class BetController extends Controller
 
     public function refund(AdminPayoutBetRequest $request, string $bet): JsonResponse
     {
-        $adminUserId = (int) $request->user()->id;
+        $adminUserId = (string) $request->user()->id;
         /** @var \Illuminate\Http\UploadedFile $payoutProof */
         $payoutProof = $request->file('payout_proof_image');
 
@@ -357,7 +357,7 @@ class BetController extends Controller
 
     public function updateReviewStatus(AdminUpdateBetStatusRequest $request, string $bet): JsonResponse
     {
-        $adminUserId = (int) $request->user()->id;
+        $adminUserId = (string) $request->user()->id;
         $targetStatus = (string) $request->validated()['status'];
 
         Log::info('Bet review status update requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'target_status' => $targetStatus]);
