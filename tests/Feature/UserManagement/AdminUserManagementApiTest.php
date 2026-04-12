@@ -212,10 +212,10 @@ class AdminUserManagementApiTest extends TestCase
         ]);
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->update([
+        $user->forceFill([
             'is_banned' => true,
             'banned_at' => now(),
-        ]);
+        ])->save();
 
         $this->postJson('/api/v1/login', [
             'email' => 'banned-user@example.com',

@@ -19,7 +19,7 @@ class ThreeDResult extends Model
     protected function casts(): array
     {
         return [
-            'stock_date' => 'date',
+            'stock_date' => 'date:Y-m-d',
         ];
     }
 }

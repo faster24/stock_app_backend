@@ -48,7 +48,8 @@ class TwoDResultService extends Service
             ->select('stock_date')
             ->distinct()
             ->orderByDesc('stock_date')
-            ->limit(5);
+            ->limit(5)
+            ->pluck('stock_date');
 
         return TwoDResult::query()
             ->whereIn('stock_date', $latestFiveStockDates)

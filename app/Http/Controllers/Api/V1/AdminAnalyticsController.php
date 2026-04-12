@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\BetType;
 use App\Http\Controllers\Controller;
 use App\Services\Analytics\AnalyticsService;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 class AdminAnalyticsController extends Controller
@@ -42,10 +44,10 @@ class AdminAnalyticsController extends Controller
 
     public function payouts(Request $request): JsonResponse
     {
-        $filters = $request->validate([
+        $filters = $this->validateOrFail($request, [
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
-            'admin_user_id' => ['sometimes', 'integer', 'exists:users,id'],
+            'admin_user_id' => ['sometimes', 'string', 'exists:users,id'],
         ]);
 
         return $this->respond('Analytics payout metrics retrieved successfully.', [
@@ -55,7 +57,7 @@ class AdminAnalyticsController extends Controller
 
     public function topNumbers(Request $request): JsonResponse
     {
-        $filters = $request->validate([
+        $filters = $this->validateOrFail($request, [
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
             'bet_type' => ['sometimes', Rule::in(array_column(BetType::cases(), 'value'))],
@@ -69,7 +71,7 @@ class AdminAnalyticsController extends Controller
 
     public function settlementRuns(Request $request): JsonResponse
     {
-        $filters = $request->validate([
+        $filters = $this->validateOrFail($request, [
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
         ]);
@@ -81,7 +83,7 @@ class AdminAnalyticsController extends Controller
 
     private function validateBaseFilters(Request $request): array
     {
-        return $request->validate([
+        return $this->validateOrFail($request, [
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
             'target_opentime' => ['sometimes', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])],
@@ -90,12 +92,27 @@ class AdminAnalyticsController extends Controller
 
     private function validateWithOptionalBetType(Request $request): array
     {
-        return $request->validate([
+        return $this->validateOrFail($request, [
             'from' => ['required', 'date_format:Y-m-d'],
             'to' => ['required', 'date_format:Y-m-d', 'after_or_equal:from'],
             'target_opentime' => ['sometimes', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])],
             'bet_type' => ['sometimes', Rule::in(array_column(BetType::cases(), 'value'))],
         ]);
+    }
+
+    private function validateOrFail(Request $request, array $rules): array
+    {
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'The given data was invalid.',
+                'data' => null,
+                'errors' => $validator->errors(),
+            ], 422));
+        }
+
+        return $validator->validated();
     }
 
     private function respond(string $message, ?array $data, int $status = 200, ?array $errors = null): JsonResponse
