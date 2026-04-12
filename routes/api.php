@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\BetController;
 use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
+use App\Http\Controllers\Api\V1\AdminBankSettingController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
 
@@ -73,6 +74,13 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
                 Route::post('/bets/{bet}/payout', [BetController::class, 'payout']);
                 Route::post('/bets/{bet}/refund', [BetController::class, 'refund']);
+                Route::prefix('bank-settings')->controller(AdminBankSettingController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{adminBankSetting}', 'show');
+                    Route::post('/', 'store');
+                    Route::put('/{adminBankSetting}', 'update');
+                    Route::delete('/{adminBankSetting}', 'destroy');
+                });
                 Route::prefix('users')->controller(AdminUserController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{user}', 'show');

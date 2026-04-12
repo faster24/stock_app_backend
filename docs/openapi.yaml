@@ -19,6 +19,7 @@ tags:
   - name: TwoDResult
   - name: ThreeDResult
   - name: Admin
+  - name: AdminBankSetting
 
 paths:
   /register:
@@ -1244,6 +1245,130 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/bank-settings:
+    get:
+      tags: [AdminBankSetting]
+      summary: List all admin bank settings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin bank settings list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBankSettingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [AdminBankSetting]
+      summary: Create admin bank setting
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreAdminBankSettingRequest'
+      responses:
+        '201':
+          description: Admin bank setting created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBankSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/bank-settings/{adminBankSetting}:
+    get:
+      tags: [AdminBankSetting]
+      summary: Get admin bank setting by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdminBankSettingId'
+      responses:
+        '200':
+          description: Admin bank setting retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBankSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [AdminBankSetting]
+      summary: Update admin bank setting
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdminBankSettingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAdminBankSettingRequest'
+      responses:
+        '200':
+          description: Admin bank setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBankSettingItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [AdminBankSetting]
+      summary: Delete admin bank setting
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AdminBankSettingId'
+      responses:
+        '200':
+          description: Admin bank setting deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /admin/bets:
     get:
       tags: [Bet]
@@ -1455,6 +1580,12 @@ components:
       schema:
         type: string
         enum: ['2D', '3D']
+    AdminBankSettingId:
+      name: adminBankSetting
+      in: path
+      required: true
+      schema:
+        type: integer
 
   responses:
     Unauthenticated:
@@ -2647,3 +2778,101 @@ components:
               items:
                 type: string
               example: [This bet has dependent results and cannot be deleted.]
+
+    AdminBankSetting:
+      type: object
+      properties:
+        id:
+          type: integer
+        bank_name:
+          type: string
+        account_holder_name:
+          type: string
+        account_number:
+          type: string
+        is_active:
+          type: boolean
+        is_primary:
+          type: boolean
+        currency:
+          type: string
+          enum: [THB, MMK]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StoreAdminBankSettingRequest:
+      type: object
+      required: [bank_name, account_holder_name, account_number, currency]
+      properties:
+        bank_name:
+          type: string
+          maxLength: 255
+        account_holder_name:
+          type: string
+          maxLength: 255
+        account_number:
+          type: string
+          maxLength: 255
+        is_active:
+          type: boolean
+          default: false
+        is_primary:
+          type: boolean
+          default: false
+        currency:
+          type: string
+          enum: [THB, MMK]
+
+    UpdateAdminBankSettingRequest:
+      type: object
+      properties:
+        bank_name:
+          type: string
+          maxLength: 255
+        account_holder_name:
+          type: string
+          maxLength: 255
+        account_number:
+          type: string
+          maxLength: 255
+        is_active:
+          type: boolean
+        is_primary:
+          type: boolean
+        currency:
+          type: string
+          enum: [THB, MMK]
+
+    AdminBankSettingListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            admin_bank_settings:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdminBankSetting'
+        errors:
+          type: object
+          nullable: true
+
+    AdminBankSettingItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            admin_bank_setting:
+              $ref: '#/components/schemas/AdminBankSetting'
+        errors:
+          type: object
+          nullable: true
