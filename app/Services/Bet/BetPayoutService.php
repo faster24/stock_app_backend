@@ -131,6 +131,11 @@ class BetPayoutService extends Service
                     'payout_status' => $targetStatus,
                 ];
 
+                if ($targetStatus === BetPayoutStatus::REFUNDED) {
+                    $updatePayload['status'] = BetStatus::REFUNDED;
+                    $updatePayload['bet_result_status'] = BetResultStatus::INVALID;
+                }
+
                 if ($auditColumns['paid_out_at']) {
                     $updatePayload['paid_out_at'] = $settledAt;
                 }
