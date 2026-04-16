@@ -27,6 +27,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/me/bank-info', [WalletBankInfoController::class, 'store']);
         Route::put('/me/bank-info', [WalletBankInfoController::class, 'update']);
         Route::delete('/me/bank-info', [WalletBankInfoController::class, 'destroy']);
+        Route::get('/bank-settings', [AdminBankSettingController::class, 'userIndex']);
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
         Route::get('/odd-settings', [OddSettingController::class, 'index']);

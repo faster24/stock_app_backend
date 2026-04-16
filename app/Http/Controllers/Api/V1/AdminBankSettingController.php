@@ -20,6 +20,13 @@ class AdminBankSettingController extends Controller
         ]);
     }
 
+    public function userIndex(): JsonResponse
+    {
+        return $this->respond('Bank settings retrieved successfully.', [
+            'bank_settings' => $this->adminBankSettingService->listActive(),
+        ]);
+    }
+
     public function show(AdminBankSetting $adminBankSetting): JsonResponse
     {
         return $this->respond('Admin bank setting retrieved successfully.', [

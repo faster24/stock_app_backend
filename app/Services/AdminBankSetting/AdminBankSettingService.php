@@ -13,6 +13,11 @@ class AdminBankSettingService extends Service
         return AdminBankSetting::query()->latest()->get();
     }
 
+    public function listActive(): Collection
+    {
+        return AdminBankSetting::query()->where('is_active', true)->latest()->get();
+    }
+
     public function show(AdminBankSetting $adminBankSetting): AdminBankSetting
     {
         return $adminBankSetting;
