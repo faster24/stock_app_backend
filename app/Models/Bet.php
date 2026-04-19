@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use App\Models\TwoDResult;
+use App\Models\ThreeDResult;
 
 class Bet extends Model implements HasMedia
 {
@@ -29,6 +31,7 @@ class Bet extends Model implements HasMedia
     protected $appends = [
         'pay_slip',
         'payout_proof',
+        'winning_number',
     ];
 
     protected $fillable = [
@@ -117,6 +120,19 @@ class Bet extends Model implements HasMedia
             'mime_type' => $media->mime_type,
             'size' => $media->size,
         ];
+    }
+
+    public function getWinningNumberAttribute(): ?int
+    {
+        if ($this->bet_result_status !== BetResultStatus::WON || $this->settled_result_history_id === null) {
+            return null;
+        }
+        if ($this->bet_type === BetType::TWO_D) {
+            return TwoDResult::where('history_id', $this->settled_result_history_id)->value('twod');
+        }
+        $date = str_replace('3d-result-', '', $this->settled_result_history_id);
+
+        return ThreeDResult::whereDate('stock_date', $date)->value('threed');
     }
 
     protected static function booted(): void
