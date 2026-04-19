@@ -82,12 +82,12 @@ class StoreBetRequest extends AuthFormRequest
                     $seenNumbers[] = $number;
                 }
 
-                if ($this->input('bet_type') === BetType::TWO_D->value && ($number < 1 || $number > 99)) {
-                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 1 and 99 when bet type is 2D.');
+                if ($this->input('bet_type') === BetType::TWO_D->value && ($number < 0 || $number > 99)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 0 and 99 when bet type is 2D.');
                 }
 
-                if ($this->input('bet_type') === BetType::THREE_D->value && ($number < 1 || $number > 999)) {
-                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 1 and 999 when bet type is 3D.');
+                if ($this->input('bet_type') === BetType::THREE_D->value && ($number < 0 || $number > 999)) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 0 and 999 when bet type is 3D.');
                 }
             }
         });
