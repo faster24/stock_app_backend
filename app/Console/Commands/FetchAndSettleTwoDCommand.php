@@ -14,13 +14,13 @@ class FetchAndSettleTwoDCommand extends Command
 {
     protected $signature = 'twod:fetch-and-settle
                             {open_time : The open_time slot to settle after fetch, e.g. "12:01"}
-                            {--max-attempts=6 : Maximum fetch attempts before giving up}
+                            {--timeout-minutes=120 : Total minutes to keep retrying before giving up}
+                            {--retry-interval=60 : Seconds to wait between retry attempts}
                             {--chunk-size=500 : Bet settlement chunk size}';
 
-    protected $description = 'Fetch 2D live results with retry backoff, then settle bets for the given open_time slot.';
+    protected $description = 'Fetch 2D live results with time-based retry, then settle bets for the given open_time slot.';
 
-    // Seconds to wait before each retry attempt (index 0 = before attempt 2, etc.)
-    private const RETRY_DELAYS = [60, 120, 300, 600, 900];
+    private const HTTP_TIMEOUT_SECONDS = 20;
 
     public function __construct(private readonly BetSettlementService $settlementService)
     {
@@ -30,10 +30,11 @@ class FetchAndSettleTwoDCommand extends Command
     public function handle(): int
     {
         $openTime = trim($this->argument('open_time'));
-        $maxAttempts = max(1, (int) $this->option('max-attempts'));
+        $timeoutMinutes = max(1, (int) $this->option('timeout-minutes'));
+        $retryInterval = max(10, (int) $this->option('retry-interval'));
         $chunkSize = max(1, (int) $this->option('chunk-size'));
 
-        $payload = $this->fetchWithRetry($maxAttempts);
+        $payload = $this->fetchWithRetry($timeoutMinutes, $retryInterval);
 
         if ($payload === null) {
             return self::FAILURE;
@@ -46,60 +47,69 @@ class FetchAndSettleTwoDCommand extends Command
         return $this->settle($openTime, $chunkSize);
     }
 
-    private function fetchWithRetry(int $maxAttempts): ?array
+    private function fetchWithRetry(int $timeoutMinutes, int $retryInterval): ?array
     {
-        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-            if ($attempt > 1) {
-                $delay = self::RETRY_DELAYS[$attempt - 2] ?? end(self::RETRY_DELAYS);
-                $this->warn("Attempt {$attempt}/{$maxAttempts}: waiting {$delay}s before retry...");
-                sleep($delay);
+        $deadline = now()->addMinutes($timeoutMinutes);
+        $attempt = 0;
+
+        while (true) {
+            $attempt++;
+            $remainingMinutes = (int) now()->diffInMinutes($deadline, false);
+            $this->info("Attempt {$attempt}: fetching from thaistock2d... ({$remainingMinutes}m remaining)");
+
+            $payload = $this->tryFetch();
+
+            if ($payload !== null) {
+                $this->info("Fetch succeeded on attempt {$attempt}.");
+
+                return $payload;
             }
 
-            $this->info("Attempt {$attempt}/{$maxAttempts}: fetching from thaistock2d...");
-
-            try {
-                $response = Http::acceptJson()->timeout(20)->get('https://api.thaistock2d.com/live');
-            } catch (Throwable $e) {
-                $this->error("Request exception: {$e->getMessage()}");
-                $this->logRetryOrExhausted($attempt, $maxAttempts);
-
-                continue;
+            if (now()->greaterThanOrEqualTo($deadline)) {
+                break;
             }
 
-            if (! $response->successful()) {
-                $this->error("HTTP {$response->status()} response.");
-                $this->logRetryOrExhausted($attempt, $maxAttempts);
+            $secondsLeft = (int) now()->diffInSeconds($deadline, false);
+            $wait = min($retryInterval, $secondsLeft);
 
-                continue;
-            }
-
-            $payload = $response->json();
-
-            if (! is_array($payload) || ! isset($payload['result']) || ! is_array($payload['result']) || $payload['result'] === []) {
-                $this->error('Invalid or empty payload: missing result array.');
-                $this->logRetryOrExhausted($attempt, $maxAttempts);
-
-                continue;
-            }
-
-            $this->info('Fetch succeeded on attempt '.$attempt.'.');
-
-            return $payload;
+            $this->warn("Retrying in {$wait}s...");
+            sleep($wait);
         }
 
-        Log::critical('twod:fetch-and-settle exhausted all attempts. No settlement will run.', [
-            'max_attempts' => $maxAttempts,
+        Log::critical('twod:fetch-and-settle timed out. No settlement will run.', [
+            'timeout_minutes' => $timeoutMinutes,
+            'attempts' => $attempt,
         ]);
-        $this->error('All fetch attempts exhausted. Bets will NOT be settled.');
+        $this->error("Timed out after {$timeoutMinutes} minutes ({$attempt} attempts). Bets will NOT be settled.");
 
         return null;
     }
 
-    private function logRetryOrExhausted(int $attempt, int $maxAttempts): void
+    private function tryFetch(): ?array
     {
-        if ($attempt < $maxAttempts) {
-            $this->warn("Will retry (attempt {$attempt}/{$maxAttempts} failed).");
+        try {
+            $response = Http::acceptJson()->timeout(self::HTTP_TIMEOUT_SECONDS)->get('https://api.thaistock2d.com/live');
+        } catch (Throwable $e) {
+            $this->error("Request exception: {$e->getMessage()}");
+
+            return null;
         }
+
+        if (! $response->successful()) {
+            $this->error("HTTP {$response->status()} response.");
+
+            return null;
+        }
+
+        $payload = $response->json();
+
+        if (! is_array($payload) || ! isset($payload['result']) || ! is_array($payload['result']) || $payload['result'] === []) {
+            $this->error('Invalid or empty payload: missing result array.');
+
+            return null;
+        }
+
+        return $payload;
     }
 
     private function persistResults(array $payload): bool

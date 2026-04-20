@@ -10,10 +10,10 @@ Artisan::command('inspire', function () {
 
 Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01'])
     ->timezone('Asia/Bangkok')
-    ->withoutOverlapping()
+    ->withoutOverlapping(130)
     ->dailyAt('12:01');
 
 Schedule::command('twod:fetch-and-settle', ['open_time' => '16:30'])
     ->timezone('Asia/Bangkok')
-    ->withoutOverlapping()
+    ->withoutOverlapping(130)
     ->dailyAt('16:30');
