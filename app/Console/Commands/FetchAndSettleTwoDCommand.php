@@ -151,7 +151,12 @@ class FetchAndSettleTwoDCommand extends Command
         $this->info("Persist — Fetched: {$fetched}, Saved: {$saved}, Skipped: {$skipped}, Failed: {$failed}");
 
         if ($failed > 0) {
-            $this->error('One or more rows failed during persistence.');
+            $this->warn("Persist — {$failed} row(s) failed. Settlement will proceed if target result exists.");
+            Log::warning('twod:fetch-and-settle: partial persist failures', ['failed' => $failed]);
+        }
+
+        if ($failed === $fetched) {
+            $this->error('All rows failed during persistence. Aborting settlement.');
 
             return false;
         }
