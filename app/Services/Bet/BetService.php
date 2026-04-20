@@ -132,6 +132,7 @@ class BetService extends Service
 
         $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
         $attributes['stock_date'] = Carbon::now()->toDateString();
+        $attributes['placed_at'] = Carbon::now();
 
         $bet = DB::transaction(function () use ($userId, $attributes, $numberEntries): Bet {
             $bet = Bet::query()->create(array_merge($attributes, [
