@@ -160,8 +160,8 @@ class Bet extends Model implements HasMedia
             'paid_out_by_user_id' => 'string',
             'payout_reference' => 'string',
             'payout_note' => 'string',
-            'placed_at' => 'datetime',
-            'settled_at' => 'datetime',
+            'placed_at' => 'datetime:Y-m-d\TH:i:s\Z',
+            'settled_at' => 'datetime:Y-m-d\TH:i:s\Z',
             'settled_result_history_id' => 'string',
         ];
     }
