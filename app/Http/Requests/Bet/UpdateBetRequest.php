@@ -19,12 +19,9 @@ class UpdateBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(array_column(BetType::cases(), 'value')),
             ],
-            'target_opentime' => [
-                'sometimes',
-                'required',
-                'string',
-                Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
-            ],
+            'target_opentime' => $this->resolvedBetType() === BetType::TWO_D->value
+                ? ['sometimes', 'required', 'string', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])]
+                : ['prohibited'],
             'transaction_id_last_two_digits' => ['prohibited'],
             'bet_numbers' => ['sometimes', 'required', 'array'],
             'status' => ['prohibited'],
@@ -77,6 +74,17 @@ class UpdateBetRequest extends AuthFormRequest
                 }
             }
         });
+    }
+
+    private function resolvedBetType(): ?string
+    {
+        if ($this->has('bet_type')) {
+            return $this->input('bet_type');
+        }
+
+        $bet = $this->route('bet');
+
+        return $bet?->bet_type?->value;
     }
 
     private function resolveInteger(mixed $value): ?int

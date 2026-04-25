@@ -30,11 +30,9 @@ class StoreBetRequest extends AuthFormRequest
                 'string',
                 Rule::in(array_column(Currency::cases(), 'value')),
             ],
-            'target_opentime' => [
-                'required',
-                'string',
-                Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
-            ],
+            'target_opentime' => $this->input('bet_type') === BetType::TWO_D->value
+                ? ['required', 'string', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])]
+                : ['prohibited'],
             'transaction_id_last_two_digits' => ['required', 'regex:/^\d{2}$/'],
             'bet_numbers' => ['required', 'array'],
             'status' => ['prohibited'],
