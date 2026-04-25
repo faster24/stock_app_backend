@@ -71,7 +71,6 @@ class ThreeDResultApiTest extends TestCase
             'bet_type' => BetType::THREE_D,
             'status' => BetStatus::ACCEPTED,
             'bet_result_status' => BetResultStatus::OPEN,
-            'target_opentime' => '11:00:00',
             'stock_date' => '2026-03-24',
         ]);
         $winningBet->betNumbers()->createMany([
@@ -82,7 +81,6 @@ class ThreeDResultApiTest extends TestCase
             'bet_type' => BetType::THREE_D,
             'status' => BetStatus::ACCEPTED,
             'bet_result_status' => BetResultStatus::OPEN,
-            'target_opentime' => '12:01:00',
             'stock_date' => '2026-03-24',
         ]);
         $losingBet->betNumbers()->createMany([

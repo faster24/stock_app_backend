@@ -2325,6 +2325,8 @@ components:
         target_opentime:
           type: string
           enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+          description: Null for 3D bets; one of the four open times for 2D bets.
+          nullable: true
         stock_date:
           type: string
           format: date
@@ -2411,7 +2413,7 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [pay_slip_image, bet_type, currency, target_opentime, transaction_id_last_two_digits, bet_numbers]
+      required: [pay_slip_image, bet_type, currency, transaction_id_last_two_digits, bet_numbers]
       description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied. Bet numbers must be objects with per-number amount.
       properties:
         pay_slip_image:
@@ -2429,7 +2431,7 @@ components:
         target_opentime:
           type: string
           enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
-          description: Target stock market open time for this bet.
+          description: Target stock market open time. Required for 2D bets; prohibited for 3D bets.
         transaction_id_last_two_digits:
           type: string
           pattern: '^\d{2}$'
@@ -2463,7 +2465,7 @@ components:
         target_opentime:
           type: string
           enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
-          description: Target stock market open time for this bet.
+          description: Target stock market open time. Only applicable for 2D bets; prohibited for 3D bets.
         bet_numbers:
           type: array
           description: Replaces existing bet numbers when provided. Array shape is objects {number, amount}; leading-zero strings like 01/001 are accepted and normalized numerically.

@@ -198,7 +198,6 @@ class BetApiValidationTest extends TestCase
                 'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => '3D',
                 'currency' => Currency::MMK->value,
-                'target_opentime' => '11:00:00',
                 'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [['number' => 0, 'amount' => 1000]],
             ])
