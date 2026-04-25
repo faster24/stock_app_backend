@@ -10,7 +10,6 @@ use App\Models\ThreeDResult;
 use App\Models\TwoDResult;
 use App\Services\Service;
 use DomainException;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -86,9 +85,25 @@ class BetSettlementService extends Service
         $resolvedChunkSize = max(1, min(2000, $chunkSize));
         $settledAt = Carbon::now();
 
+        // Bets eligible: stock_date from (prev settlement date + 1) up to (result date - 1).
+        // e.g. result saved for 25th → valid bets have stock_date on the 24th or earlier.
+        $upperBound = Carbon::parse($resolvedStockDate)->subDay()->toDateString();
+
+        $previousResult = ThreeDResult::query()
+            ->where('stock_date', '<', $resolvedStockDate)
+            ->orderBy('stock_date', 'desc')
+            ->first();
+
         $scopeQuery = Bet::query()
             ->where('bet_type', BetType::THREE_D->value)
-            ->whereDate('stock_date', $resolvedStockDate);
+            ->whereDate('stock_date', '<=', $upperBound);
+
+        if ($previousResult !== null) {
+            $lowerBound = Carbon::parse($this->resolveStockDate($previousResult->stock_date))
+                ->addDay()
+                ->toDateString();
+            $scopeQuery->whereDate('stock_date', '>=', $lowerBound);
+        }
 
         $eligibleBaseQuery = (clone $scopeQuery)
             ->where('status', BetStatus::ACCEPTED->value)
@@ -196,27 +211,31 @@ class BetSettlementService extends Service
         ?int $twoDResultId,
         ?int $threeDResultId
     ): bool {
-        try {
-            DB::table('bet_settlement_runs')->insert([
-                'history_id' => $historyId,
-                'bet_type' => $betType->value,
-                'two_d_result_id' => $twoDResultId,
-                'three_d_result_id' => $threeDResultId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        $existing = DB::table('bet_settlement_runs')
+            ->where('history_id', $historyId)
+            ->first();
 
-            return true;
-        } catch (QueryException $exception) {
-            $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
-            $driverCode = (string) ($exception->errorInfo[1] ?? '');
-
-            if ($sqlState === '23000' && ($driverCode === '1062' || $driverCode === '19')) {
-                return false;
+        if ($existing !== null) {
+            if ($existing->settled_at !== null) {
+                return false; // Already completed — block duplicate
             }
 
-            throw $exception;
+            // Previous run started but never completed — allow retry
+            DB::table('bet_settlement_runs')
+                ->where('history_id', $historyId)
+                ->delete();
         }
+
+        DB::table('bet_settlement_runs')->insert([
+            'history_id' => $historyId,
+            'bet_type' => $betType->value,
+            'two_d_result_id' => $twoDResultId,
+            'three_d_result_id' => $threeDResultId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return true;
     }
 
     private function completeSettlementRun(
