@@ -61,6 +61,8 @@ class WalletBankInfoApiTest extends TestCase
             ->assertJsonPath('data.bank_info.account_name', 'Main User')
             ->assertJsonPath('errors', null);
 
+        $this->travel(31)->days();
+
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/me/bank-info', [
                 'bank_name' => BankName::CB->value,
@@ -187,28 +189,12 @@ class WalletBankInfoApiTest extends TestCase
             ->assertStatus(201)
             ->assertJsonPath('errors', null);
 
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/me/bank-info', [
-                'bank_name' => BankName::AYA->value,
-                'account_name' => 'Main User 2',
-                'account_number' => '444555666',
-            ])
-            ->assertStatus(201)
-            ->assertJsonPath('errors', null);
+        $this->travel(31)->days();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->putJson('/api/v1/me/bank-info', [
                 'bank_name' => BankName::YOMA->value,
-                'account_name' => 'Main User 3',
-                'account_number' => '777888999',
-            ])
-            ->assertOk()
-            ->assertJsonPath('errors', null);
-
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->putJson('/api/v1/me/bank-info', [
-                'bank_name' => BankName::YOMA->value,
-                'account_name' => 'Main User 3',
+                'account_name' => 'Main User Updated',
                 'account_number' => '777888999',
             ])
             ->assertOk()
@@ -219,8 +205,163 @@ class WalletBankInfoApiTest extends TestCase
         $this->assertDatabaseHas('wallets', [
             'user_id' => $user->id,
             'bank_name' => BankName::YOMA->value,
-            'account_name' => 'Main User 3',
+            'account_name' => 'Main User Updated',
             'account_number' => '777888999',
         ]);
+    }
+
+    public function test_first_time_bank_info_creation_is_not_rate_limited(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::KBZ->value,
+                'account_name' => 'New User',
+                'account_number' => '100200300',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('errors', null);
+    }
+
+    public function test_update_within_30_days_is_rejected_with_422(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Bank info can only be updated once every 30 days.')
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.bank_info.0', 'Bank info can only be updated once every 30 days.')
+            ->assertJsonStructure(['errors' => ['next_allowed_at']]);
+    }
+
+    public function test_post_within_30_days_is_rejected_with_422(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+                'account_name' => 'User Updated',
+                'account_number' => '222000222',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Bank info can only be updated once every 30 days.')
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('errors.bank_info.0', 'Bank info can only be updated once every 30 days.')
+            ->assertJsonStructure(['errors' => ['next_allowed_at']]);
+    }
+
+    public function test_update_is_allowed_after_30_day_cooldown(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now()->subDays(30)->subSecond(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('errors', null);
+    }
+
+    public function test_update_at_exactly_30_days_is_allowed(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now()->subDays(30),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('errors', null);
+    }
+
+    public function test_update_1_second_before_30_days_is_blocked(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now()->subDays(30)->addSecond(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.bank_info.0', 'Bank info can only be updated once every 30 days.');
+    }
+
+    public function test_create_after_clear_is_not_rate_limited(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => now(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->deleteJson('/api/v1/me/bank-info')
+            ->assertOk();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::AYA->value,
+                'account_name' => 'User New',
+                'account_number' => '222000222',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('errors', null);
     }
 }

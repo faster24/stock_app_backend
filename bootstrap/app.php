@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\BankInfoUpdateTooSoonException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -47,6 +48,21 @@ return Application::configure(basePath: dirname(__DIR__))
                 'data' => null,
                 'errors' => $exception->errors(),
             ], $exception->status);
+        });
+
+        $exceptions->render(function (BankInfoUpdateTooSoonException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage(),
+                'data' => null,
+                'errors' => [
+                    'bank_info' => [$e->getMessage()],
+                    'next_allowed_at' => [$e->getNextAllowedAt()->toIso8601String()],
+                ],
+            ], 422);
         });
 
         $exceptions->render(function (\Throwable $exception, Request $request) {

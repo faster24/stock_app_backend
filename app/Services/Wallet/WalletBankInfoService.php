@@ -2,6 +2,7 @@
 
 namespace App\Services\Wallet;
 
+use App\Exceptions\BankInfoUpdateTooSoonException;
 use App\Models\Wallet;
 use App\Services\Service;
 
@@ -16,17 +17,27 @@ class WalletBankInfoService extends Service
 
     public function createForUser(string $userId, array $attributes): Wallet
     {
+        $this->guardBankInfoCooldown($userId);
+
         return Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
-            $this->bankInfoAttributes($attributes),
+            array_merge(
+                $this->bankInfoAttributes($attributes),
+                ['bank_info_updated_at' => now()],
+            ),
         );
     }
 
     public function updateForUser(string $userId, array $attributes): Wallet
     {
+        $this->guardBankInfoCooldown($userId);
+
         return Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
-            $this->providedBankInfoAttributes($attributes),
+            array_merge(
+                $this->providedBankInfoAttributes($attributes),
+                ['bank_info_updated_at' => now()],
+            ),
         );
     }
 
@@ -36,7 +47,20 @@ class WalletBankInfoService extends Service
             'bank_name' => null,
             'account_name' => null,
             'account_number' => null,
+            'bank_info_updated_at' => null,
         ]);
+    }
+
+    private function guardBankInfoCooldown(string $userId): void
+    {
+        $wallet = Wallet::query()->where('user_id', $userId)->first();
+
+        if ($wallet?->bank_info_updated_at !== null) {
+            $nextAllowedAt = $wallet->bank_info_updated_at->addDays(30);
+            if (now()->lt($nextAllowedAt)) {
+                throw new BankInfoUpdateTooSoonException($nextAllowedAt);
+            }
+        }
     }
 
     private function bankInfoAttributes(array $attributes): array

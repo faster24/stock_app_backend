@@ -17,6 +17,7 @@ class Wallet extends Model
         'bank_name',
         'account_name',
         'account_number',
+        'bank_info_updated_at',
     ];
 
     public function user(): BelongsTo
@@ -29,6 +30,7 @@ class Wallet extends Model
         return [
             'balance' => 'integer',
             'bank_name' => BankName::class,
+            'bank_info_updated_at' => 'datetime',
         ];
     }
 }
