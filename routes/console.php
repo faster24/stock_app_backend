@@ -14,8 +14,8 @@ Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01', '--timeout-m
     ->dailyAt('12:01')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-Schedule::command('twod:fetch-and-settle', ['open_time' => '14:30', '--timeout-minutes' => 20])
+Schedule::command('twod:fetch-and-settle', ['open_time' => '16:30', '--timeout-minutes' => 20])
     ->timezone('Asia/Yangon')
     ->withoutOverlapping(130)
-    ->dailyAt('14:30')
+    ->dailyAt('16:30')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
