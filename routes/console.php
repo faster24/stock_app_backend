@@ -8,9 +8,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01', '--timeout-minutes' => 20])
+Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01', '--timeout-minutes' => 60, '--no-live-fallback' => true])
     ->timezone('Asia/Yangon')
-    ->withoutOverlapping(130)
+    ->withoutOverlapping(70)
     ->dailyAt('12:01')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
 

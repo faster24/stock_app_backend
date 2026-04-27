@@ -16,7 +16,8 @@ class FetchAndSettleTwoDCommand extends Command
                             {open_time : The open_time slot to settle after fetch, e.g. "12:01"}
                             {--timeout-minutes=120 : Total minutes to keep retrying before giving up}
                             {--retry-interval=60 : Seconds to wait between retry attempts}
-                            {--chunk-size=500 : Bet settlement chunk size}';
+                            {--chunk-size=500 : Bet settlement chunk size}
+                            {--no-live-fallback : Do not fall back to live data on timeout; just give up}';
 
     protected $description = 'Fetch 2D live results with time-based retry, then settle bets for the given open_time slot.';
 
@@ -95,7 +96,7 @@ class FetchAndSettleTwoDCommand extends Command
             sleep($wait);
         }
 
-        if ($lastPayload !== null && ! empty($lastPayload['live']['twod'])) {
+        if (! $this->option('no-live-fallback') && $lastPayload !== null && ! empty($lastPayload['live']['twod'])) {
             $this->warn("Timeout reached after {$timeoutMinutes}m ({$attempt} attempts). Falling back to live data.");
             Log::warning('twod:fetch-and-settle: using live fallback', [
                 'open_time' => $openTime,
