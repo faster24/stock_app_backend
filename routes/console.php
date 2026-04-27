@@ -8,13 +8,13 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01'])
+Schedule::command('twod:fetch-and-settle', ['open_time' => '12:01', '--timeout-minutes' => 20])
     ->timezone('Asia/Yangon')
     ->withoutOverlapping(130)
     ->dailyAt('12:01')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-Schedule::command('twod:fetch-and-settle', ['open_time' => '14:30'])
+Schedule::command('twod:fetch-and-settle', ['open_time' => '14:30', '--timeout-minutes' => 20])
     ->timezone('Asia/Yangon')
     ->withoutOverlapping(130)
     ->dailyAt('14:30')
