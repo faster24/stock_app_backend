@@ -176,7 +176,7 @@ class FetchAndSettleTwoDCommand extends Command
 
     private function settle(string $openTime, int $chunkSize): int
     {
-        $today = now('Asia/Bangkok')->toDateString();
+        $today = now('Asia/Yangon')->toDateString();
 
         $result = TwoDResult::query()
             ->whereDate('stock_date', $today)
