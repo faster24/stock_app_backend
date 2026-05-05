@@ -99,7 +99,8 @@ class FetchAndSettleTwoDCommand extends Command
         if (! $this->option('no-live-fallback')
             && $lastPayload !== null
             && ! empty($lastPayload['live']['twod'])
-            && str_starts_with($lastPayload['live']['time'] ?? '', $openTime)) {
+            && ($lastPayload['live']['twod'] ?? '--') !== '--'
+            && str_contains($lastPayload['live']['time'] ?? '', $openTime)) {
             $this->warn("Timeout reached after {$timeoutMinutes}m ({$attempt} attempts). Falling back to live data.");
             Log::warning('twod:fetch-and-settle: using live fallback', [
                 'open_time' => $openTime,
