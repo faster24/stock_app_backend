@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\TwoDResult;
 use App\Services\Bet\BetSettlementService;
+use App\Support\Sleeper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -16,6 +17,7 @@ class FetchAndSettleTwoDCommand extends Command
                             {open_time : The open_time slot to settle after fetch, e.g. "12:01"}
                             {--timeout-minutes=120 : Total minutes to keep retrying before giving up}
                             {--retry-interval=60 : Seconds to wait between retry attempts}
+                            {--max-attempts=0 : Hard cap on fetch attempts; 0 = unlimited (use timeout only)}
                             {--chunk-size=500 : Bet settlement chunk size}
                             {--no-live-fallback : Do not fall back to live data on timeout; just give up}';
 
@@ -23,8 +25,10 @@ class FetchAndSettleTwoDCommand extends Command
 
     private const HTTP_TIMEOUT_SECONDS = 20;
 
-    public function __construct(private readonly BetSettlementService $settlementService)
-    {
+    public function __construct(
+        private readonly BetSettlementService $settlementService,
+        private readonly Sleeper $sleeper,
+    ) {
         parent::__construct();
     }
 
@@ -35,7 +39,9 @@ class FetchAndSettleTwoDCommand extends Command
         $retryInterval = max(10, (int) $this->option('retry-interval'));
         $chunkSize = max(1, (int) $this->option('chunk-size'));
 
-        $fetched = $this->fetchWithRetry($openTime, $timeoutMinutes, $retryInterval);
+        $maxAttempts = max(0, (int) $this->option('max-attempts'));
+
+        $fetched = $this->fetchWithRetry($openTime, $timeoutMinutes, $retryInterval, $maxAttempts);
 
         if ($fetched === null) {
             return self::FAILURE;
@@ -54,7 +60,7 @@ class FetchAndSettleTwoDCommand extends Command
         return $this->settle($openTime, $chunkSize);
     }
 
-    private function fetchWithRetry(string $openTime, int $timeoutMinutes, int $retryInterval): ?array
+    private function fetchWithRetry(string $openTime, int $timeoutMinutes, int $retryInterval, int $maxAttempts = 0): ?array
     {
         $deadline = now()->addMinutes($timeoutMinutes);
         $attempt = 0;
@@ -89,18 +95,22 @@ class FetchAndSettleTwoDCommand extends Command
                 break;
             }
 
+            if ($maxAttempts > 0 && $attempt >= $maxAttempts) {
+                break;
+            }
+
             $secondsLeft = (int) now()->diffInSeconds($deadline, false);
             $wait = min($retryInterval, $secondsLeft);
 
             $this->warn("Retrying in {$wait}s...");
-            sleep($wait);
+            $this->sleeper->sleep($wait);
         }
 
         if (! $this->option('no-live-fallback')
             && $lastPayload !== null
             && ! empty($lastPayload['live']['twod'])
             && ($lastPayload['live']['twod'] ?? '--') !== '--'
-            && str_contains($lastPayload['live']['time'] ?? '', $openTime)) {
+            && $this->liveTimeMatchesSlot($lastPayload['live']['time'] ?? '', $openTime)) {
             $this->warn("Timeout reached after {$timeoutMinutes}m ({$attempt} attempts). Falling back to live data.");
             Log::warning('twod:fetch-and-settle: using live fallback', [
                 'open_time' => $openTime,
@@ -146,6 +156,20 @@ class FetchAndSettleTwoDCommand extends Command
         }
 
         return $payload;
+    }
+
+    private function liveTimeMatchesSlot(string $liveTime, string $openTime): bool
+    {
+        // live.time is a full datetime ("2026-05-05 16:31:58"); open_time is "HH:MM".
+        // The market closes a minute or two after the slot opens, so we match by hour.
+        try {
+            $liveHour = (int) Carbon::parse($liveTime)->format('H');
+            $slotHour = (int) Carbon::createFromFormat('H:i', $openTime)->format('H');
+
+            return $liveHour === $slotHour;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function persistResults(array $payload): bool
