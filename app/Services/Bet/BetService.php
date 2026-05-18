@@ -322,12 +322,12 @@ class BetService extends Service
         $max = null;
 
         if ($betType === BetType::TWO_D->value) {
-            $min = 1;
+            $min = 0;
             $max = 99;
         }
 
         if ($betType === BetType::THREE_D->value) {
-            $min = 1;
+            $min = 0;
             $max = 999;
         }
 
