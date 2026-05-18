@@ -306,6 +306,7 @@ class BetService extends Service
             static fn (array $entry): array => [
                 'number' => (int) $entry['number'],
                 'amount' => (int) $entry['amount'],
+                'odd' => (string) $entry['odd'],
                 'potential_winning' => (string) $entry['potential_winning'],
             ],
             array_values($numberEntries)
