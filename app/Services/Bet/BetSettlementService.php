@@ -63,7 +63,9 @@ class BetSettlementService extends Service
             $eligibleBaseQuery,
             (clone $scopeQuery)->count(),
             $winningNumber,
-            $settledAt
+            $settledAt,
+            $resolvedStockDate,
+            $resolvedOpenTime
         );
     }
 
@@ -131,7 +133,9 @@ class BetSettlementService extends Service
         $eligibleBaseQuery,
         int $totalInScope,
         int $winningNumber,
-        Carbon $settledAt
+        Carbon $settledAt,
+        ?string $stockDate = null,
+        ?string $targetOpentime = null
     ): array {
         $summary = self::NOOP_SUMMARY;
 
@@ -143,7 +147,10 @@ class BetSettlementService extends Service
                     &$summary,
                     $winningNumber,
                     $historyId,
-                    $settledAt
+                    $settledAt,
+                    $betType,
+                    $stockDate,
+                    $targetOpentime
                 ): void {
                     $betIds = $bets->pluck('id')->all();
 
@@ -160,7 +167,11 @@ class BetSettlementService extends Service
 
                     $loserIds = array_values(array_diff($betIds, $winnerIds));
 
-                    DB::transaction(function () use (&$summary, $winnerIds, $loserIds, $historyId, $settledAt): void {
+                    DB::transaction(function () use (&$summary, $winnerIds, $loserIds, $historyId, $settledAt, $betType, $winningNumber, $stockDate, $targetOpentime): void {
+                        if ($winnerIds !== [] && $stockDate !== null && $targetOpentime !== null) {
+                            $this->applyTempOddsToWinners($winnerIds, $winningNumber, $betType, $stockDate, $targetOpentime);
+                        }
+
                         if ($winnerIds !== []) {
                             $won = Bet::query()
                                 ->whereIn('id', $winnerIds)
@@ -202,6 +213,50 @@ class BetSettlementService extends Service
             $this->rollbackSettlementRun($historyId);
 
             throw $throwable;
+        }
+    }
+
+    private function applyTempOddsToWinners(
+        array $winnerIds,
+        int $winningNumber,
+        BetType $betType,
+        string $stockDate,
+        string $targetOpentime
+    ): void {
+        $currencies = DB::table('bets')
+            ->whereIn('id', $winnerIds)
+            ->distinct()
+            ->pluck('currency');
+
+        foreach ($currencies as $currency) {
+            $tempOdd = DB::table('temporary_odd_adjustments')
+                ->where('bet_type', $betType->value)
+                ->where('currency', $currency)
+                ->where('number', $winningNumber)
+                ->where('target_opentime', $targetOpentime)
+                ->where('stock_date', $stockDate)
+                ->value('adjusted_odd');
+
+            if ($tempOdd === null) {
+                continue;
+            }
+
+            $currencyWinnerIds = DB::table('bets')
+                ->whereIn('id', $winnerIds)
+                ->where('currency', $currency)
+                ->pluck('id')
+                ->toArray();
+
+            if ($currencyWinnerIds === []) {
+                continue;
+            }
+
+            DB::table('bet_numbers')
+                ->whereIn('bet_id', $currencyWinnerIds)
+                ->where('number', $winningNumber)
+                ->update([
+                    'potential_winning' => DB::raw("amount * {$tempOdd}"),
+                ]);
         }
     }
 

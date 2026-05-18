@@ -1,17 +1,18 @@
 <?php
 
-use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
+use App\Http\Controllers\Api\V1\AdminBankSettingController;
+use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
 use App\Http\Controllers\Api\V1\AdminUserController;
-use App\Http\Controllers\Api\V1\AppSettingController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
+use App\Http\Controllers\Api\V1\AppSettingController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
+use App\Http\Controllers\Api\V1\BettingDistributionController;
 use App\Http\Controllers\Api\V1\OddSettingController;
-use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
-use App\Http\Controllers\Api\V1\AdminBankSettingController;
+use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use Illuminate\Support\Facades\Route;
 
@@ -90,6 +91,17 @@ Route::prefix('v1')->group(function () {
                     Route::post('/{user}/unban', 'unban');
                     Route::delete('/{user}', 'destroy');
                 });
+                Route::prefix('betting-distribution')
+                    ->name('admin.betting-distribution.')
+                    ->controller(BettingDistributionController::class)
+                    ->group(function () {
+                        Route::get('/current', 'getCurrentDistribution')->name('current');
+                        Route::get('/periods-today', 'getPeriodsForToday')->name('periods-today');
+                        Route::post('/adjust-odds', 'adjustOdds')->name('adjust-odds');
+                        Route::get('/temp-odds/{date}/{targetOpentime}', 'getTempOdds')->name('temp-odds');
+                        Route::post('/reset-odds/{date}/{targetOpentime}', 'resetOdds')->name('reset-odds');
+                        Route::get('/{date}/{targetOpentime}', 'getDistributionForPeriod')->name('show');
+                    });
             });
     });
 });
