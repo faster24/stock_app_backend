@@ -208,6 +208,14 @@ class BetSettlementService extends Service
 
             $this->completeSettlementRun($historyId, $betType, $twoDResultId, $threeDResultId, $summary, $settledAt);
 
+            if ($stockDate !== null && $targetOpentime !== null) {
+                DB::table('temporary_odd_adjustments')
+                    ->where('bet_type', $betType->value)
+                    ->where('stock_date', $stockDate)
+                    ->where('target_opentime', $targetOpentime)
+                    ->delete();
+            }
+
             return $summary;
         } catch (Throwable $throwable) {
             $this->rollbackSettlementRun($historyId);
