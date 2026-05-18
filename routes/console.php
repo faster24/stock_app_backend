@@ -15,9 +15,9 @@ Schedule::command('twod:fetch-and-settle 12:01 --timeout-minutes=60 --retry-inte
     ->dailyAt('12:01')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-// 16:30 slot — 20-minute timeout, shorter retry interval
+// 16:30 slot — triggers at 17:00 Bangkok (result appears at 5 PM), open_time stays 16:30 for bet lookup
 Schedule::command('twod:fetch-and-settle 16:30 --timeout-minutes=20 --retry-interval=30')
     ->timezone('Asia/Bangkok')
     ->withoutOverlapping(130)
-    ->dailyAt('16:30')
+    ->dailyAt('17:00')
     ->appendOutputTo(storage_path('logs/scheduler.log'));
