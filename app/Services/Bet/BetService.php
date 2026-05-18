@@ -9,6 +9,7 @@ use App\Enums\BetType;
 use App\Enums\OddSettingUserType;
 use App\Models\Bet;
 use App\Models\OddSetting;
+use App\Models\TemporaryOddAdjustment;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Service;
@@ -128,10 +129,19 @@ class BetService extends Service
             (string) ($attributes['bet_type'] ?? ''),
             (string) ($attributes['currency'] ?? ''),
         );
-        $numberEntries = $this->attachPotentialWinnings($numberEntries, $odd);
+        $stockDate = Carbon::now()->toDateString();
+        $perNumberOdds = $this->resolvePerNumberOdds(
+            $numberEntries,
+            $odd,
+            (string) ($attributes['bet_type'] ?? ''),
+            (string) ($attributes['currency'] ?? ''),
+            (string) ($attributes['target_opentime'] ?? ''),
+            $stockDate,
+        );
+        $numberEntries = $this->attachPotentialWinnings($numberEntries, $perNumberOdds, $odd);
 
         $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
-        $attributes['stock_date'] = Carbon::now()->toDateString();
+        $attributes['stock_date'] = $stockDate;
         $attributes['placed_at'] = Carbon::now();
 
         $bet = DB::transaction(function () use ($userId, $attributes, $numberEntries): Bet {
@@ -183,7 +193,15 @@ class BetService extends Service
 
         $odd = $this->resolveOddValueForBet($userId, $resolvedBetType, $resolvedCurrency);
         if ($hasBetNumbers) {
-            $numberEntries = $this->attachPotentialWinnings($numberEntries, $odd);
+            $perNumberOdds = $this->resolvePerNumberOdds(
+                $numberEntries,
+                $odd,
+                $resolvedBetType,
+                $resolvedCurrency,
+                (string) $bet->target_opentime,
+                (string) $bet->stock_date,
+            );
+            $numberEntries = $this->attachPotentialWinnings($numberEntries, $perNumberOdds, $odd);
         }
 
         if ($hasBetNumbers) {
@@ -446,24 +464,68 @@ class BetService extends Service
         }
     }
 
-    private function attachPotentialWinnings(array $numberEntries, string $odd): array
+    private function resolvePerNumberOdds(
+        array $numberEntries,
+        string $defaultOdd,
+        string $betType,
+        string $currency,
+        string $opentime,
+        string $stockDate,
+    ): array {
+        $numbers = array_column($numberEntries, 'number');
+
+        $tempOdds = TemporaryOddAdjustment::query()
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
+            ->where('target_opentime', $opentime)
+            ->where('stock_date', $stockDate)
+            ->whereIn('number', $numbers)
+            ->pluck('adjusted_odd', 'number');
+
+        $map = [];
+        foreach ($numbers as $number) {
+            $map[(int) $number] = $tempOdds->has($number)
+                ? number_format((float) $tempOdds[$number], 2, '.', '')
+                : $defaultOdd;
+        }
+
+        return $map;
+    }
+
+    private function attachPotentialWinnings(array $numberEntries, array $perNumberOdds, string $defaultOdd): array
     {
-        return array_map(function (array $entry) use ($odd): array {
+        return array_map(function (array $entry) use ($perNumberOdds, $defaultOdd): array {
+            $number = (int) $entry['number'];
             $amount = max(0, (int) $entry['amount']);
+            $odd = $perNumberOdds[$number] ?? $defaultOdd;
 
             return [
-                'number' => (int) $entry['number'],
+                'number' => $number,
                 'amount' => $amount,
+                'odd' => $odd,
                 'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
             ];
         }, array_values($numberEntries));
     }
 
-    private function refreshStoredBetNumberPotentialWinnings(Bet $bet, string $odd): void
+    private function refreshStoredBetNumberPotentialWinnings(Bet $bet, string $defaultOdd): void
     {
-        $bet->betNumbers()->get()->each(function ($betNumber) use ($odd): void {
+        $betNumbers = $bet->betNumbers()->get();
+        $entries = $betNumbers->map(fn ($bn) => ['number' => $bn->number])->all();
+        $perNumberOdds = $this->resolvePerNumberOdds(
+            $entries,
+            $defaultOdd,
+            (string) $bet->bet_type,
+            (string) $bet->currency,
+            (string) $bet->target_opentime,
+            (string) $bet->stock_date,
+        );
+
+        $betNumbers->each(function ($betNumber) use ($perNumberOdds, $defaultOdd): void {
             $amount = (int) $betNumber->amount;
+            $odd = $perNumberOdds[(int) $betNumber->number] ?? $defaultOdd;
             $betNumber->update([
+                'odd' => $odd,
                 'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
             ]);
         });

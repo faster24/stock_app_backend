@@ -20,6 +20,7 @@ class BetNumber extends Model
         'bet_id',
         'number',
         'amount',
+        'odd',
         'potential_winning',
     ];
 
@@ -33,6 +34,7 @@ class BetNumber extends Model
         return [
             'number' => 'integer',
             'amount' => 'integer',
+            'odd' => 'decimal:2',
             'potential_winning' => 'decimal:2',
         ];
     }
