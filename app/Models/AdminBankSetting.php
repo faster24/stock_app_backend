@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class AdminBankSetting extends Model
 {
+    /** @use HasFactory<\Database\Factories\AdminBankSettingFactory> */
     use HasFactory;
 
     protected $fillable = [
