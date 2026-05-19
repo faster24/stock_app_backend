@@ -64,13 +64,10 @@ class BetAcceptedPaymentsApiTest extends TestCase
                 'data' => [
                     'accepted_payments' => [[
                         'id',
-                        'transaction_id_last_two_digits',
                         'total_amount',
                         'status',
                         'bet_result_status',
                         'payout_status',
-                        'pay_slip',
-                        'payout_proof',
                         'updated_at',
                     ]],
                 ],

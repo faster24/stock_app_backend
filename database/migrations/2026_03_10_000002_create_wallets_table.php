@@ -12,6 +12,8 @@ return new class extends Migration
             $table->id();
             $table->uuid('user_id')->unique();
             $table->unsignedBigInteger('balance')->default(0);
+            $table->string('currency', 8)->nullable();
+            $table->timestamp('currency_locked_at')->nullable();
             $table->enum('bank_name', ['KBZ', 'AYA', 'CB', 'UAB', 'YOMA', 'OTHER'])->nullable();
             $table->string('account_name')->nullable();
             $table->string('account_number')->nullable();
@@ -22,6 +24,8 @@ return new class extends Migration
                 ->on('users')
                 ->onUpdate('cascade')
                 ->onDelete('restrict');
+
+            $table->index('currency');
         });
     }
 

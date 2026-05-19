@@ -65,6 +65,20 @@ return Application::configure(basePath: dirname(__DIR__))
             ], 422);
         });
 
+        $exceptions->render(function (\DomainException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $e->getMessage(),
+                'data'    => null,
+                'errors'  => [
+                    'domain' => [$e->getMessage()],
+                ],
+            ], 409);
+        });
+
         $exceptions->render(function (\Throwable $exception, Request $request) {
             if (get_class($exception) !== 'Spatie\\Permission\\Exceptions\\UnauthorizedException') {
                 return null;

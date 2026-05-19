@@ -3,18 +3,16 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
-use App\Enums\BankName;
 use App\Enums\Currency;
 use App\Enums\OddSettingUserType;
+use App\Enums\BetStatus;
 use App\Models\Bet;
 use App\Models\BetNumber;
 use App\Models\OddSetting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Bet\BetService;
-use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -22,90 +20,79 @@ class BetApiTransactionTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_create_for_user_rolls_back_parent_and_children_when_child_insert_fails(): void
+    public function test_create_for_user_debits_wallet_and_writes_ledger(): void
     {
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
-        $user = User::factory()->normalUser()->create();
-        $this->createBankInfo($user);
+        $user    = User::factory()->normalUser()->create();
+        $wallet  = $this->createWalletWithBankInfo($user, 50_000);
         $service = app(BetService::class);
 
-        $betsBefore = Bet::query()->count();
-        $betNumbersBefore = BetNumber::query()->count();
-        $insertFailed = false;
+        $bet = $service->createForUser($user->id, [
+            'bet_type'        => '2D',
+            'currency'        => 'MMK',
+            'target_opentime' => '11:00:00',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+        ]);
 
-        try {
-            $service->createForUser($user->id, [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
-                'bet_type' => '2D',
-                'currency' => 'MMK',
-                'transaction_id_last_two_digits' => '45',
-                'bet_numbers' => [
-                    ['number' => 55, 'amount' => 1000],
-                    ['number' => 55, 'amount' => 1000],
-                ],
-            ]);
+        $wallet->refresh();
+        $this->assertEquals(49_000, $wallet->balance);
 
-            $this->fail('Expected duplicate bet numbers to fail child insert.');
-        } catch (QueryException) {
-            $insertFailed = true;
-        }
-
-        $this->assertTrue($insertFailed);
-
-        $this->assertSame($betsBefore, Bet::query()->count());
-        $this->assertSame($betNumbersBefore, BetNumber::query()->count());
-        $this->assertDatabaseCount('bets', $betsBefore);
-        $this->assertDatabaseCount('bet_numbers', $betNumbersBefore);
-        $this->assertDatabaseMissing('bets', [
-            'user_id' => $user->id,
-            'bet_type' => '2D',
-            'currency' => 'MMK',
-            'transaction_id_last_two_digits' => '45',
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id'        => $user->id,
+            'type'           => 'BET_PLACE',
+            'direction'      => 'DEBIT',
+            'amount'         => 1000,
+            'reference_type' => Bet::class,
+            'reference_id'   => $bet->id,
         ]);
     }
 
-    public function test_create_for_user_rejects_out_of_range_numbers_by_bet_type_at_service_layer(): void
+    public function test_create_for_user_rolls_back_bet_when_balance_insufficient(): void
     {
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
-        $this->seedOddSetting(BetType::THREE_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
-        $user = User::factory()->normalUser()->create();
-        $this->createBankInfo($user);
+        $user   = User::factory()->normalUser()->create();
+        $wallet = $this->createWalletWithBankInfo($user, 500);
         $service = app(BetService::class);
 
         $betsBefore = Bet::query()->count();
-        $betNumbersBefore = BetNumber::query()->count();
 
-        $invalidPayloads = [
-            [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
-                'bet_type' => '2D',
-                'currency' => 'MMK',
-                'transaction_id_last_two_digits' => '45',
-                'bet_numbers' => [['number' => 0, 'amount' => 1000]],
-            ],
-            [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
-                'bet_type' => '3D',
-                'currency' => 'MMK',
-                'transaction_id_last_two_digits' => '45',
-                'bet_numbers' => [['number' => 0, 'amount' => 1000]],
-            ],
-        ];
-
-        foreach ($invalidPayloads as $payload) {
-            try {
-                $service->createForUser($user->id, $payload);
-
-                $this->fail('Expected out-of-range bet number to fail service validation.');
-            } catch (ValidationException $exception) {
-                $this->assertArrayHasKey('bet_numbers.0', $exception->errors());
-            }
+        try {
+            $service->createForUser($user->id, [
+                'bet_type'        => '2D',
+                'currency'        => 'MMK',
+                'target_opentime' => '11:00:00',
+                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+            ]);
+            $this->fail('Expected DomainException for insufficient balance.');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('Insufficient', $e->getMessage());
         }
 
         $this->assertSame($betsBefore, Bet::query()->count());
-        $this->assertSame($betNumbersBefore, BetNumber::query()->count());
+        $this->assertDatabaseCount('wallet_transactions', 0);
+
+        $wallet->refresh();
+        $this->assertEquals(500, $wallet->balance);
+    }
+
+    public function test_create_for_user_defaults_status_to_accepted(): void
+    {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
+        $user   = User::factory()->normalUser()->create();
+        $this->createWalletWithBankInfo($user, 50_000);
+        $service = app(BetService::class);
+
+        $bet = $service->createForUser($user->id, [
+            'bet_type'        => '2D',
+            'currency'        => 'MMK',
+            'target_opentime' => '11:00:00',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+        ]);
+
+        $this->assertEquals(BetStatus::ACCEPTED, $bet->status);
     }
 
     public function test_create_for_user_requires_complete_bank_info(): void
@@ -113,68 +100,80 @@ class BetApiTransactionTest extends TestCase
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $user = User::factory()->normalUser()->create();
+        Wallet::factory()->create([
+            'user_id'            => $user->id,
+            'balance'            => 50_000,
+            'currency'           => Currency::MMK,
+            'currency_locked_at' => now(),
+            'bank_name'          => null,
+            'account_name'       => null,
+            'account_number'     => null,
+        ]);
         $service = app(BetService::class);
 
         try {
             $service->createForUser($user->id, [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
-                'bet_type' => '2D',
-                'currency' => 'MMK',
-                'transaction_id_last_two_digits' => '45',
-                'bet_numbers' => [
-                    ['number' => 55, 'amount' => 1000],
-                ],
+                'bet_type'        => '2D',
+                'currency'        => 'MMK',
+                'target_opentime' => '11:00:00',
+                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
-
             $this->fail('Expected missing bank info to fail service validation.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('bank_info', $exception->errors());
         }
     }
 
-    public function test_create_for_user_requires_transaction_id_last_two_digits(): void
+    public function test_create_for_user_requires_wallet_currency_to_be_set(): void
     {
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $user = User::factory()->normalUser()->create();
-        $this->createBankInfo($user);
+        Wallet::factory()->create([
+            'user_id'       => $user->id,
+            'balance'       => 50_000,
+            'currency'      => null,
+            'bank_name'     => 'KBZ',
+            'account_name'  => 'Test',
+            'account_number'=> '1234567890',
+        ]);
         $service = app(BetService::class);
 
         try {
             $service->createForUser($user->id, [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
-                'bet_type' => '2D',
-                'currency' => 'MMK',
-                'bet_numbers' => [
-                    ['number' => 55, 'amount' => 1000],
-                ],
+                'bet_type'        => '2D',
+                'currency'        => 'MMK',
+                'target_opentime' => '11:00:00',
+                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
-
-            $this->fail('Expected missing transaction_id_last_two_digits to fail service validation.');
+            $this->fail('Expected missing wallet currency to fail.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('transaction_id_last_two_digits', $exception->errors());
+            $this->assertArrayHasKey('wallet_currency', $exception->errors());
         }
     }
 
     private function seedOddSetting(BetType $betType, Currency $currency, OddSettingUserType $userType, string $odd): void
     {
         OddSetting::query()->updateOrCreate([
-            'bet_type' => $betType,
-            'currency' => $currency,
+            'bet_type'  => $betType,
+            'currency'  => $currency,
             'user_type' => $userType,
         ], [
-            'odd' => $odd,
+            'odd'       => $odd,
             'is_active' => true,
         ]);
     }
 
-    private function createBankInfo(User $user): void
+    private function createWalletWithBankInfo(User $user, int $balance = 50_000): Wallet
     {
-        Wallet::query()->create([
-            'user_id' => $user->id,
-            'bank_name' => BankName::KBZ->value,
-            'account_name' => 'Main User',
-            'account_number' => '111222333',
+        return Wallet::factory()->create([
+            'user_id'            => $user->id,
+            'balance'            => $balance,
+            'currency'           => Currency::MMK,
+            'currency_locked_at' => now(),
+            'bank_name'          => 'KBZ',
+            'account_name'       => 'Test User',
+            'account_number'     => '1234567890',
         ]);
     }
 }

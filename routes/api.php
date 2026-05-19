@@ -1,6 +1,14 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
+use App\Http\Controllers\Api\V1\AdminBalanceAdjustmentController;
+use App\Http\Controllers\Api\V1\AdminDepositController;
+use App\Http\Controllers\Api\V1\AdminWalletController;
+use App\Http\Controllers\Api\V1\AdminWithdrawalController;
+use App\Http\Controllers\Api\V1\WithdrawalController;
+use App\Http\Controllers\Api\V1\DepositController;
+use App\Http\Controllers\Api\V1\FcmTokenController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\AdminBankSettingController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
@@ -14,6 +22,9 @@ use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
+use App\Http\Controllers\Api\V1\WalletController;
+use App\Http\Controllers\Api\V1\WalletCurrencyController;
+use App\Http\Controllers\Api\V1\WalletTransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -24,6 +35,9 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me/wallet', [WalletController::class, 'show']);
+        Route::put('/me/wallet/currency', [WalletCurrencyController::class, 'set']);
+        Route::get('/me/wallet/transactions', [WalletTransactionController::class, 'index']);
         Route::get('/me/bank-info', [WalletBankInfoController::class, 'show']);
         Route::post('/me/bank-info', [WalletBankInfoController::class, 'store']);
         Route::put('/me/bank-info', [WalletBankInfoController::class, 'update']);
@@ -38,20 +52,50 @@ Route::prefix('v1')->group(function () {
         Route::get('/two-d-results/last-5-days', [TwoDResultController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
+        Route::prefix('deposits')->controller(DepositController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::post('/', 'store');
+            Route::get('/{deposit}', 'show');
+            Route::get('/{deposit}/proof', 'downloadProof')->name('deposits.proof');
+            Route::post('/{deposit}/cancel', 'cancel');
+        });
+
+        Route::prefix('withdrawals')->controller(WithdrawalController::class)->group(function () {
+            Route::get('/', 'index');
+            Route::post('/', 'store');
+            Route::get('/{withdrawal}', 'show');
+            Route::get('/{withdrawal}/proof', 'downloadProof')->name('withdrawals.proof');
+            Route::post('/{withdrawal}/cancel', 'cancel');
+        });
+
         Route::prefix('bets')->controller(BetController::class)->group(function () {
             Route::get('/', 'index');
             Route::get('/accepted-payments', 'acceptedPayments');
             Route::get('/payout-history', 'payoutHistory');
-            Route::get('/{bet}/pay-slip', 'downloadPaySlip')->name('bets.pay-slip');
-            Route::get('/{bet}/payout-proof', 'downloadPayoutProof')->name('bets.payout-proof');
             Route::get('/{bet}', 'show');
             Route::post('/', 'store');
             Route::delete('/{bet}', 'destroy');
         });
 
+        // FCM token management
+        Route::prefix('fcm')->controller(FcmTokenController::class)->group(function () {
+            Route::post('/token', 'store');
+            Route::delete('/token', 'destroy');
+            Route::post('/logout-all', 'logoutAll');
+            Route::get('/tokens', 'index');
+        });
+
+        // Notifications
+        Route::prefix('notifications')->controller(NotificationController::class)->group(function () {
+            Route::post('/test', 'sendTest');
+            Route::get('/logs', 'logs');
+            Route::get('/stats', 'stats');
+        });
+
         Route::prefix('admin')
             ->middleware('role:admin,sanctum')
             ->group(function () {
+                Route::post('/notifications/send', [NotificationController::class, 'send']);
                 Route::get('/dashboard', AdminDashboardController::class);
                 Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
                 Route::put('/app-settings/maintenance', [AppSettingController::class, 'updateMaintenance']);
@@ -74,8 +118,6 @@ Route::prefix('v1')->group(function () {
                 });
                 Route::get('/bets', [BetController::class, 'adminIndex']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
-                Route::post('/bets/{bet}/payout', [BetController::class, 'payout']);
-                Route::post('/bets/{bet}/refund', [BetController::class, 'refund']);
                 Route::prefix('bank-settings')->controller(AdminBankSettingController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{adminBankSetting}', 'show');
@@ -90,6 +132,23 @@ Route::prefix('v1')->group(function () {
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');
                     Route::delete('/{user}', 'destroy');
+                });
+                Route::prefix('users/{user}')->group(function () {
+                    Route::get('/wallet', [AdminWalletController::class, 'show']);
+                    Route::get('/wallet/transactions', [AdminWalletController::class, 'transactions']);
+                    Route::post('/balance-adjustment', [AdminBalanceAdjustmentController::class, 'store']);
+                });
+                Route::prefix('deposits')->controller(AdminDepositController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{deposit}', 'show');
+                    Route::post('/{deposit}/approve', 'approve');
+                    Route::post('/{deposit}/reject', 'reject');
+                });
+                Route::prefix('withdrawals')->controller(AdminWithdrawalController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{withdrawal}', 'show');
+                    Route::post('/{withdrawal}/complete', 'complete');
+                    Route::post('/{withdrawal}/reject', 'reject');
                 });
                 Route::prefix('betting-distribution')
                     ->name('admin.betting-distribution.')

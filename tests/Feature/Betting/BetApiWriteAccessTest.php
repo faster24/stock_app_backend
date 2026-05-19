@@ -3,7 +3,6 @@
 namespace Tests\Feature\Betting;
 
 use App\Enums\BetType;
-use App\Enums\BankName;
 use App\Enums\Currency;
 use App\Enums\OddSettingUserType;
 use App\Models\Bet;
@@ -11,7 +10,6 @@ use App\Models\OddSetting;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -25,17 +23,15 @@ class BetApiWriteAccessTest extends TestCase
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $owner = User::factory()->normalUser()->create();
-        $this->createBankInfo($owner);
+        $this->createWalletWithBankInfo($owner, 50_000);
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $createResponse = $this->withHeader('Authorization', 'Bearer '.$token)
             ->withHeader('Accept', 'application/json')
             ->post('/api/v1/bets', [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1000],
                     ['number' => 22, 'amount' => 1500],
@@ -52,6 +48,7 @@ class BetApiWriteAccessTest extends TestCase
             ->assertJsonPath('data.bet.bet_numbers.0.amount', 1000)
             ->assertJsonPath('data.bet.bet_numbers.0.potential_winning', '80000.00')
             ->assertJsonPath('data.bet.total_amount', '2500.00')
+            ->assertJsonPath('data.bet.status', 'ACCEPTED')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
@@ -59,28 +56,36 @@ class BetApiWriteAccessTest extends TestCase
                 'errors',
             ]);
 
-        $betId = (string) $createResponse->json('data.bet.id');
+        $betId   = (string) $createResponse->json('data.bet.id');
         $betSlip = (string) $createResponse->json('data.bet.bet_slip');
 
         $this->assertTrue(Str::isUuid($betId));
         $this->assertTrue(Str::isUuid($betSlip));
 
         $this->assertDatabaseHas('bets', [
-            'id' => $betId,
-            'user_id' => $owner->id,
-            'bet_slip' => $betSlip,
-            'bet_type' => BetType::TWO_D->value,
-            'currency' => Currency::MMK->value,
+            'id'         => $betId,
+            'user_id'    => $owner->id,
+            'bet_slip'   => $betSlip,
+            'bet_type'   => BetType::TWO_D->value,
+            'currency'   => Currency::MMK->value,
             'target_opentime' => '11:00:00',
-            'transaction_id_last_two_digits' => '45',
             'stock_date' => Carbon::now()->toDateString(),
             'total_amount' => 2500.00,
+            'status'     => 'ACCEPTED',
         ]);
+
         $this->assertDatabaseHas('bet_numbers', [
             'bet_id' => $betId,
             'number' => 11,
             'amount' => 1000,
             'potential_winning' => 80000.00,
+        ]);
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id'   => $owner->id,
+            'type'      => 'BET_PLACE',
+            'direction' => 'DEBIT',
+            'amount'    => 2500,
         ]);
 
         $deleteResponse = $this->withHeader('Authorization', 'Bearer '.$token)
@@ -103,14 +108,14 @@ class BetApiWriteAccessTest extends TestCase
 
     public function test_updating_bet_is_not_allowed_for_owner_non_owner_or_admin(): void
     {
-        $owner = User::factory()->normalUser()->create();
+        $owner     = User::factory()->normalUser()->create();
         $otherUser = User::factory()->normalUser()->create();
-        $admin = User::factory()->admin()->create();
-        $bet = Bet::factory()->for($owner)->create();
+        $admin     = User::factory()->admin()->create();
+        $bet       = Bet::factory()->for($owner)->create();
 
-        $ownerToken = $owner->createToken('auth_token')->plainTextToken;
+        $ownerToken     = $owner->createToken('auth_token')->plainTextToken;
         $otherUserToken = $otherUser->createToken('auth_token')->plainTextToken;
-        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+        $adminToken     = $admin->createToken('auth_token')->plainTextToken;
 
         $this->withHeader('Authorization', 'Bearer '.$ownerToken)
             ->putJson('/api/v1/bets/'.$bet->id, ['target_opentime' => '12:01:00'])
@@ -127,7 +132,7 @@ class BetApiWriteAccessTest extends TestCase
 
     public function test_non_owner_still_gets_404_when_deleting_another_users_bet(): void
     {
-        $owner = User::factory()->normalUser()->create();
+        $owner    = User::factory()->normalUser()->create();
         $nonOwner = User::factory()->normalUser()->create();
         $ownersBet = Bet::factory()->for($owner)->create();
         $token = $nonOwner->createToken('auth_token')->plainTextToken;
@@ -150,17 +155,15 @@ class BetApiWriteAccessTest extends TestCase
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
 
         $owner = User::factory()->normalUser()->create();
-        $this->createBankInfo($owner);
+        $this->createWalletWithBankInfo($owner, 50_000);
         $token = $owner->createToken('auth_token')->plainTextToken;
 
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->withHeader('Accept', 'application/json')
             ->post('/api/v1/bets', [
-                'pay_slip_image' => UploadedFile::fake()->image('pay-slip.jpg'),
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'transaction_id_last_two_digits' => '45',
                 'bet_numbers' => [11, 22],
             ]);
 
@@ -177,22 +180,25 @@ class BetApiWriteAccessTest extends TestCase
     private function seedOddSetting(BetType $betType, Currency $currency, OddSettingUserType $userType, string $odd): void
     {
         OddSetting::query()->updateOrCreate([
-            'bet_type' => $betType,
-            'currency' => $currency,
+            'bet_type'  => $betType,
+            'currency'  => $currency,
             'user_type' => $userType,
         ], [
-            'odd' => $odd,
+            'odd'       => $odd,
             'is_active' => true,
         ]);
     }
 
-    private function createBankInfo(User $user): void
+    private function createWalletWithBankInfo(User $user, int $balance = 50_000): Wallet
     {
-        Wallet::query()->create([
-            'user_id' => $user->id,
-            'bank_name' => BankName::KBZ->value,
-            'account_name' => 'Main User',
-            'account_number' => '111222333',
+        return Wallet::factory()->create([
+            'user_id'            => $user->id,
+            'balance'            => $balance,
+            'currency'           => Currency::MMK,
+            'currency_locked_at' => now(),
+            'bank_name'          => 'KBZ',
+            'account_name'       => 'Test User',
+            'account_number'     => '1234567890',
         ]);
     }
 }

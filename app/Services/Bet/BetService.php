@@ -7,23 +7,26 @@ use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
 use App\Enums\OddSettingUserType;
+use App\Enums\WalletTransactionDirection;
+use App\Enums\WalletTransactionType;
 use App\Models\Bet;
 use App\Models\OddSetting;
 use App\Models\TemporaryOddAdjustment;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Service;
+use App\Services\Wallet\WalletMutator;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 class BetService extends Service
 {
+    public function __construct(private WalletMutator $walletMutator) {}
+
     public const DELETE_RESULT_NOT_FOUND = 'not_found';
 
     public const DELETE_RESULT_DELETED = 'deleted';
@@ -36,7 +39,7 @@ class BetService extends Service
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
-            ->with(['betNumbers', 'media'])
+            ->with(['betNumbers'])
             ->where('user_id', $userId)
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
@@ -49,7 +52,7 @@ class BetService extends Service
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
-            ->with(['betNumbers', 'media'])
+            ->with(['betNumbers'])
             ->where('user_id', $userId)
             ->where('status', BetStatus::ACCEPTED->value)
             ->orderByDesc('updated_at')
@@ -64,7 +67,7 @@ class BetService extends Service
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
-            ->with(['betNumbers', 'media'])
+            ->with(['betNumbers'])
             ->where('user_id', $userId)
             ->where(function ($query): void {
                 $query
@@ -89,7 +92,7 @@ class BetService extends Service
         $resolvedPageSize = min(100, max(1, $pageSize));
 
         return Bet::query()
-            ->with(['betNumbers', 'media', 'user.wallet'])
+            ->with(['betNumbers', 'user.wallet'])
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
             ->get();
@@ -98,7 +101,7 @@ class BetService extends Service
     public function showForUser(string $userId, string $betId): ?Bet
     {
         return Bet::query()
-            ->with(['betNumbers', 'media', 'user.wallet'])
+            ->with(['betNumbers', 'user.wallet'])
             ->where('user_id', $userId)
             ->whereKey($betId)
             ->first();
@@ -106,17 +109,8 @@ class BetService extends Service
 
     public function createForUser(string $userId, array $attributes): Bet
     {
-        $paySlipImage = $attributes['pay_slip_image'] ?? null;
-        unset($attributes['pay_slip_image']);
-
         $this->assertUserHasCompleteBankInfo($userId);
-        $this->assertHasValidTransactionIdLastTwoDigits($attributes);
-
-        if (! $paySlipImage instanceof UploadedFile) {
-            throw ValidationException::withMessages([
-                'pay_slip_image' => ['The pay_slip_image field is required.'],
-            ]);
-        }
+        $this->assertWalletCurrencyMatches($userId, (string) ($attributes['currency'] ?? ''));
 
         $numberEntries = $this->normalizeBetNumberEntries(
             (string) ($attributes['bet_type'] ?? ''),
@@ -140,31 +134,30 @@ class BetService extends Service
         );
         $numberEntries = $this->attachPotentialWinnings($numberEntries, $perNumberOdds, $odd);
 
-        $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
+        $totalAmount = (int) $this->calculateTotalAmount($numberEntries);
+        $attributes['total_amount'] = number_format($totalAmount, 2, '.', '');
         $attributes['stock_date'] = $stockDate;
         $attributes['placed_at'] = Carbon::now();
 
-        $bet = DB::transaction(function () use ($userId, $attributes, $numberEntries): Bet {
+        return DB::transaction(function () use ($userId, $attributes, $numberEntries, $totalAmount): Bet {
             $bet = Bet::query()->create(array_merge($attributes, [
                 'user_id' => $userId,
+                'status'  => BetStatus::ACCEPTED,
             ]));
 
             $this->replaceBetNumbers($bet, $numberEntries);
 
-            return $bet->fresh(['betNumbers', 'media']);
+            $this->walletMutator->mutate(
+                userId: $userId,
+                type: WalletTransactionType::BET_PLACE,
+                direction: WalletTransactionDirection::DEBIT,
+                amount: $totalAmount,
+                reference: $bet,
+                createdByUserId: $userId,
+            );
+
+            return $bet->fresh(['betNumbers']);
         });
-
-        try {
-            $bet->addMedia($paySlipImage)->toMediaCollection('pay_slip');
-        } catch (Throwable $throwable) {
-            $bet->delete();
-
-            throw ValidationException::withMessages([
-                'pay_slip_image' => ['The pay slip image could not be saved.'],
-            ]);
-        }
-
-        return $bet->fresh(['betNumbers', 'media']);
     }
 
     public function updateForUser(string $userId, string $betId, array $attributes): ?Bet
@@ -247,10 +240,10 @@ class BetService extends Service
         return self::DELETE_RESULT_DELETED;
     }
 
-    public function updateReviewStatusForAdmin(string $betId, string $targetStatus): ?Bet
+    public function updateReviewStatusForAdmin(string $betId, string $targetStatus, string $adminUserId): ?Bet
     {
         $bet = Bet::query()
-            ->with(['betNumbers', 'media', 'user.wallet'])
+            ->with(['betNumbers', 'user.wallet'])
             ->whereKey($betId)
             ->first();
 
@@ -281,9 +274,23 @@ class BetService extends Service
             $payload['payout_status'] = BetPayoutStatus::REFUNDED;
         }
 
-        $bet->update($payload);
+        DB::transaction(function () use ($bet, $payload, $resolvedTarget, $adminUserId): void {
+            $bet->update($payload);
 
-        return $bet->fresh(['betNumbers', 'media', 'user.wallet']);
+            if (in_array($resolvedTarget, [BetStatus::REJECTED, BetStatus::REFUNDED], true)) {
+                $this->walletMutator->mutate(
+                    userId: (string) $bet->user_id,
+                    type: WalletTransactionType::BET_REFUND,
+                    direction: WalletTransactionDirection::CREDIT,
+                    amount: (int) $bet->total_amount,
+                    reference: $bet,
+                    createdByUserId: $adminUserId,
+                    note: $resolvedTarget === BetStatus::REJECTED ? 'Bet rejected by admin' : 'Bet refunded by admin',
+                );
+            }
+        });
+
+        return $bet->fresh(['betNumbers', 'user.wallet']);
     }
 
     private function isDeleteRestrictionConflict(QueryException $exception): bool
@@ -451,16 +458,19 @@ class BetService extends Service
         }
     }
 
-    private function assertHasValidTransactionIdLastTwoDigits(array $attributes): void
+    private function assertWalletCurrencyMatches(string $userId, string $currency): void
     {
-        $lastTwoDigits = $attributes['transaction_id_last_two_digits'] ?? null;
+        $wallet = Wallet::query()->where('user_id', $userId)->first();
 
-        $isTwoDigitString = is_string($lastTwoDigits) && preg_match('/^\d{2}$/', $lastTwoDigits) === 1;
-        $isTwoDigitInteger = is_int($lastTwoDigits) && $lastTwoDigits >= 10 && $lastTwoDigits <= 99;
-
-        if (! $isTwoDigitString && ! $isTwoDigitInteger) {
+        if ($wallet === null || $wallet->currency === null) {
             throw ValidationException::withMessages([
-                'transaction_id_last_two_digits' => ['The transaction_id_last_two_digits field must be exactly 2 digits.'],
+                'wallet_currency' => ['Wallet currency is not set.'],
+            ]);
+        }
+
+        if ($wallet->currency->value !== $currency) {
+            throw ValidationException::withMessages([
+                'currency' => ['The requested currency does not match your wallet currency.'],
             ]);
         }
     }

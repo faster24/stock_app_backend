@@ -3,23 +3,19 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Bet\AdminPayoutBetRequest;
 use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
-use App\Models\Bet;
-use App\Services\Bet\BetPayoutService;
 use App\Services\Bet\BetService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 class BetController extends Controller
 {
-    public function __construct(private BetService $betService, private BetPayoutService $betPayoutService) {}
+    public function __construct(private BetService $betService) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -179,182 +175,6 @@ class BetController extends Controller
         return $this->respond('Bet deleted successfully.', null);
     }
 
-    public function downloadPaySlip(Request $request, string $bet): BinaryFileResponse|JsonResponse
-    {
-        $user = $request->user();
-        $userId = (string) $user->id;
-
-        Log::info('Pay slip download requested.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-        $resolvedBet = Bet::query()->with('media')->whereKey($bet)->first();
-
-        if ($resolvedBet === null) {
-            Log::warning('Bet not found on pay slip download.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        if (! $user->hasRole('admin') && $resolvedBet->user_id !== $userId) {
-            Log::warning('Unauthorized pay slip download attempt.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        $media = $resolvedBet->getFirstMedia('pay_slip');
-
-        if ($media === null) {
-            Log::warning('Pay slip media not found.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Pay slip image not found.', null, 404, [
-                'pay_slip_image' => ['No pay slip image is attached to this bet.'],
-            ]);
-        }
-
-        Log::info('Pay slip download served.', ['user_id' => $userId, 'bet_id' => $bet, 'media_id' => $media->id]);
-
-        return response()->download(
-            $media->getPath(),
-            $media->file_name,
-            array_filter([
-                'Content-Type' => $media->mime_type,
-            ])
-        );
-    }
-
-    public function downloadPayoutProof(Request $request, string $bet): BinaryFileResponse|JsonResponse
-    {
-        $user = $request->user();
-        $userId = (string) $user->id;
-
-        Log::info('Payout proof download requested.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-        $resolvedBet = Bet::query()->with('media')->whereKey($bet)->first();
-
-        if ($resolvedBet === null) {
-            Log::warning('Bet not found on payout proof download.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        if (! $user->hasRole('admin') && $resolvedBet->user_id !== $userId) {
-            Log::warning('Unauthorized payout proof download attempt.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        $media = $resolvedBet->getFirstMedia('payout_proof');
-
-        if ($media === null) {
-            Log::warning('Payout proof media not found.', ['user_id' => $userId, 'bet_id' => $bet]);
-
-            return $this->respond('Payout proof not found.', null, 404, [
-                'payout_proof_image' => ['No payout proof is attached to this bet.'],
-            ]);
-        }
-
-        Log::info('Payout proof download served.', ['user_id' => $userId, 'bet_id' => $bet, 'media_id' => $media->id]);
-
-        return response()->download(
-            $media->getPath(),
-            $media->file_name,
-            array_filter([
-                'Content-Type' => $media->mime_type,
-            ])
-        );
-    }
-
-    public function payout(AdminPayoutBetRequest $request, string $bet): JsonResponse
-    {
-        $adminUserId = (string) $request->user()->id;
-        /** @var \Illuminate\Http\UploadedFile $payoutProof */
-        $payoutProof = $request->file('payout_proof_image');
-
-        Log::info('Bet payout requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-        try {
-            $updatedBet = $this->betPayoutService->payoutWinningBet(
-                $bet,
-                $adminUserId,
-                $payoutProof,
-                $request->input('payout_reference'),
-                $request->input('payout_note')
-            );
-        } catch (DomainException $exception) {
-            Log::warning('Bet payout rejected.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'reason' => $exception->getMessage()]);
-
-            return $this->respond($exception->getMessage(), null, 409, [
-                'payout_status' => [$exception->getMessage()],
-            ]);
-        } catch (Throwable $e) {
-            Log::error('Unexpected error processing bet payout.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'error' => $e->getMessage()]);
-            throw $e;
-        }
-
-        if ($updatedBet === null) {
-            Log::warning('Bet not found on payout.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        Log::info('Bet paid out successfully.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-        return $this->respond('Bet paid out successfully.', [
-            'bet' => $updatedBet,
-        ]);
-    }
-
-    public function refund(AdminPayoutBetRequest $request, string $bet): JsonResponse
-    {
-        $adminUserId = (string) $request->user()->id;
-        /** @var \Illuminate\Http\UploadedFile $payoutProof */
-        $payoutProof = $request->file('payout_proof_image');
-
-        Log::info('Bet refund requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-        try {
-            $updatedBet = $this->betPayoutService->refundBet(
-                $bet,
-                $adminUserId,
-                $payoutProof,
-                $request->input('payout_reference'),
-                $request->input('payout_note')
-            );
-        } catch (DomainException $exception) {
-            Log::warning('Bet refund rejected.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'reason' => $exception->getMessage()]);
-
-            return $this->respond($exception->getMessage(), null, 409, [
-                'payout_status' => [$exception->getMessage()],
-            ]);
-        } catch (Throwable $e) {
-            Log::error('Unexpected error processing bet refund.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'error' => $e->getMessage()]);
-            throw $e;
-        }
-
-        if ($updatedBet === null) {
-            Log::warning('Bet not found on refund.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-            return $this->respond('Bet not found.', null, 404, [
-                'bet' => ['The selected bet is invalid.'],
-            ]);
-        }
-
-        Log::info('Bet refunded successfully.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
-
-        return $this->respond('Bet refunded successfully.', [
-            'bet' => $updatedBet,
-        ]);
-    }
-
     public function updateReviewStatus(AdminUpdateBetStatusRequest $request, string $bet): JsonResponse
     {
         $adminUserId = (string) $request->user()->id;
@@ -363,7 +183,7 @@ class BetController extends Controller
         Log::info('Bet review status update requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'target_status' => $targetStatus]);
 
         try {
-            $updatedBet = $this->betService->updateReviewStatusForAdmin($bet, $targetStatus);
+            $updatedBet = $this->betService->updateReviewStatusForAdmin($bet, $targetStatus, $adminUserId);
         } catch (DomainException $exception) {
             Log::warning('Bet review status update rejected.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'target_status' => $targetStatus, 'reason' => $exception->getMessage()]);
 

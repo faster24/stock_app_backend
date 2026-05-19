@@ -14,12 +14,6 @@ class StoreBetRequest extends AuthFormRequest
     public function rules(): array
     {
         return [
-            'pay_slip_image' => [
-                'required',
-                'image',
-                'mimes:jpg,jpeg,png,webp',
-                'max:10240',
-            ],
             'bet_type' => [
                 'required',
                 'string',
@@ -32,8 +26,7 @@ class StoreBetRequest extends AuthFormRequest
             ],
             'target_opentime' => $this->input('bet_type') === BetType::TWO_D->value
                 ? ['required', 'string', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])]
-                : ['prohibited'],
-            'transaction_id_last_two_digits' => ['required', 'regex:/^\d{2}$/'],
+                : ['nullable', 'string'],
             'bet_numbers' => ['required', 'array'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],
@@ -54,6 +47,7 @@ class StoreBetRequest extends AuthFormRequest
                 return;
             }
 
+            $seen = [];
             foreach (array_values($betNumbers) as $index => $entry) {
                 if (! is_array($entry)) {
                     $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be an object with number and amount.');
@@ -79,6 +73,11 @@ class StoreBetRequest extends AuthFormRequest
                 if ($this->input('bet_type') === BetType::THREE_D->value && ($number < 0 || $number > 999)) {
                     $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 0 and 999 when bet type is 3D.');
                 }
+
+                if (isset($seen[$number])) {
+                    $validator->errors()->add('bet_numbers.'.$index, 'Duplicate bet number '.$number.'.');
+                }
+                $seen[$number] = true;
             }
         });
     }

@@ -106,8 +106,6 @@ class BetPayoutHistoryApiTest extends TestCase
                         'paid_out_at',
                         'payout_reference',
                         'payout_note',
-                        'pay_slip',
-                        'payout_proof',
                     ]],
                 ],
                 'errors',

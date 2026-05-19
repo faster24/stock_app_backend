@@ -159,6 +159,32 @@ Seeded statuses include:
 
 Seeder is idempotent and safe to re-run.
 
+## Wallet Invariants
+
+**All balance mutations must go through `App\Services\Wallet\WalletMutator::mutate()`.**
+
+Never write `$wallet->update(['balance' => ...])` or `Wallet::query()->update([...])` anywhere else in the codebase. The mutator is the single chokepoint that:
+
+1. Opens a DB transaction and acquires a pessimistic row lock (`SELECT ... FOR UPDATE`) on the wallet, serializing concurrent writes.
+2. Validates the wallet has a currency set.
+3. Rejects debits that would push balance below zero.
+4. Appends an immutable row to `wallet_transactions` with `balance_after` snapshot, `reference_type`/`reference_id` for audit, and `created_by_user_id`.
+5. Updates `wallets.balance` atomically within the same transaction.
+
+Transaction types:
+
+| Type | Direction | Trigger |
+|------|-----------|---------|
+| `DEPOSIT` | CREDIT | Admin approves a user deposit |
+| `BET_PLACE` | DEBIT | User places a bet |
+| `BET_REFUND` | CREDIT | Admin rejects or refunds a bet |
+| `BET_WIN` | CREDIT | Scheduler settles a winning bet |
+| `WITHDRAWAL` | DEBIT | User submits a withdrawal |
+| `WITHDRAWAL_REFUND` | CREDIT | Admin rejects a withdrawal |
+| `ADJUSTMENT` | CREDIT/DEBIT | Admin manual balance correction |
+
+Wallet currency is set once via `PUT /api/v1/me/wallet/currency` and is immutable thereafter (`currency_locked_at` is stamped at set time).
+
 ## Test Notes
 
 - Feature tests cover auth lifecycle, authorization, announcements, odd settings, and betting schema integrity.

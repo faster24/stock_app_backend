@@ -5,8 +5,10 @@ namespace Tests\Feature\Betting;
 use App\Enums\BetPayoutStatus;
 use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
+use App\Enums\Currency;
 use App\Models\Bet;
 use App\Models\User;
+use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -79,8 +81,11 @@ class BetAdminReviewTest extends TestCase
 
     public function test_admin_can_reject_pending_bet(): void
     {
-        $bet = Bet::factory()->create([
-            'status' => BetStatus::PENDING,
+        $owner = User::factory()->normalUser()->create();
+        $this->createWalletForUser($owner, 5_000);
+        $bet   = Bet::factory()->for($owner)->create([
+            'status'       => BetStatus::PENDING,
+            'total_amount' => '1000.00',
         ]);
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -100,6 +105,13 @@ class BetAdminReviewTest extends TestCase
             'id' => $bet->id,
             'status' => BetStatus::REJECTED->value,
             'bet_result_status' => BetResultStatus::INVALID->value,
+        ]);
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id'   => $owner->id,
+            'type'      => 'BET_REFUND',
+            'direction' => 'CREDIT',
+            'amount'    => 1000,
         ]);
     }
 
@@ -166,17 +178,28 @@ class BetAdminReviewTest extends TestCase
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
 
-        $pendingBet = Bet::factory()->create([
-            'status' => BetStatus::PENDING,
+        $ownerA = User::factory()->normalUser()->create();
+        $this->createWalletForUser($ownerA, 0);
+        $pendingBet = Bet::factory()->for($ownerA)->create([
+            'status'        => BetStatus::PENDING,
             'payout_status' => BetPayoutStatus::PENDING,
+            'total_amount'  => '1000.00',
         ]);
-        $acceptedBet = Bet::factory()->create([
-            'status' => BetStatus::ACCEPTED,
+
+        $ownerB = User::factory()->normalUser()->create();
+        $this->createWalletForUser($ownerB, 0);
+        $acceptedBet = Bet::factory()->for($ownerB)->create([
+            'status'        => BetStatus::ACCEPTED,
             'payout_status' => BetPayoutStatus::PENDING,
+            'total_amount'  => '1000.00',
         ]);
-        $rejectedBet = Bet::factory()->create([
-            'status' => BetStatus::REJECTED,
+
+        $ownerC = User::factory()->normalUser()->create();
+        $this->createWalletForUser($ownerC, 0);
+        $rejectedBet = Bet::factory()->for($ownerC)->create([
+            'status'        => BetStatus::REJECTED,
             'payout_status' => BetPayoutStatus::PENDING,
+            'total_amount'  => '1000.00',
         ]);
 
         foreach ([$pendingBet, $acceptedBet, $rejectedBet] as $bet) {
@@ -274,5 +297,15 @@ class BetAdminReviewTest extends TestCase
             ->assertJsonPath('message', 'Illegal review status transition.')
             ->assertJsonPath('data', null)
             ->assertJsonPath('errors.status.0', 'Illegal review status transition.');
+    }
+
+    private function createWalletForUser(User $user, int $balance = 0): Wallet
+    {
+        return Wallet::factory()->create([
+            'user_id'            => $user->id,
+            'balance'            => $balance,
+            'currency'           => Currency::MMK,
+            'currency_locked_at' => now(),
+        ]);
     }
 }

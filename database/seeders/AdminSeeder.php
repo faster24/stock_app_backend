@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\BankName;
+use App\Enums\Currency;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Database\Seeder;
@@ -24,10 +25,12 @@ class AdminSeeder extends Seeder
         Wallet::query()->updateOrCreate([
             'user_id' => $admin->id,
         ], [
-            'balance' => 0,
-            'bank_name' => BankName::KBZ->value,
-            'account_name' => 'Admin User',
-            'account_number' => '0000000000',
+            'balance'            => 0,
+            'currency'           => Currency::MMK->value,
+            'currency_locked_at' => now(),
+            'bank_name'          => BankName::KBZ->value,
+            'account_name'       => 'Admin User',
+            'account_number'     => '0000000000',
         ]);
     }
 }

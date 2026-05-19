@@ -2,13 +2,18 @@
 
 namespace App\Services\Bet;
 
+use App\Enums\BetPayoutStatus;
 use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
+use App\Enums\WalletTransactionDirection;
+use App\Enums\WalletTransactionType;
+use App\Events\BetWonEvent;
 use App\Models\Bet;
 use App\Models\ThreeDResult;
 use App\Models\TwoDResult;
 use App\Services\Service;
+use App\Services\Wallet\WalletMutator;
 use DomainException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +21,8 @@ use Throwable;
 
 class BetSettlementService extends Service
 {
+    public function __construct(private WalletMutator $walletMutator) {}
+
     private const NOOP_SUMMARY = [
         'settled' => 0,
         'won' => 0,
@@ -202,6 +209,16 @@ class BetSettlementService extends Service
                             $summary['settled'] += $lost;
                         }
                     });
+
+                    if ($winnerIds !== []) {
+                        $this->creditWinningBets($winnerIds, $winningNumber, $historyId, $settledAt);
+
+                        Bet::query()
+                            ->with('user')
+                            ->whereIn('id', $winnerIds)
+                            ->get()
+                            ->each(fn (Bet $bet) => BetWonEvent::dispatch($bet));
+                    }
                 });
 
             $summary['skipped'] = max(0, $totalInScope - $summary['settled']);
@@ -221,6 +238,50 @@ class BetSettlementService extends Service
             $this->rollbackSettlementRun($historyId);
 
             throw $throwable;
+        }
+    }
+
+    private function creditWinningBets(
+        array $winnerIds,
+        int $winningNumber,
+        string $historyId,
+        Carbon $settledAt
+    ): void {
+        $payouts = DB::table('bet_numbers')
+            ->whereIn('bet_id', $winnerIds)
+            ->where('number', $winningNumber)
+            ->groupBy('bet_id')
+            ->selectRaw('bet_id, CAST(COALESCE(SUM(potential_winning), 0) AS UNSIGNED) as total')
+            ->pluck('total', 'bet_id');
+
+        foreach ($winnerIds as $winnerId) {
+            $payout = (int) ($payouts[$winnerId] ?? 0);
+
+            if ($payout <= 0) {
+                continue;
+            }
+
+            $bet = Bet::query()->select(['id', 'user_id'])->find($winnerId);
+
+            if ($bet === null) {
+                continue;
+            }
+
+            DB::transaction(function () use ($bet, $payout, $historyId, $settledAt): void {
+                $this->walletMutator->mutate(
+                    userId: $bet->user_id,
+                    type: WalletTransactionType::BET_WIN,
+                    direction: WalletTransactionDirection::CREDIT,
+                    amount: $payout,
+                    reference: $bet,
+                    createdByUserId: $bet->user_id,
+                    note: "Settlement: {$historyId}",
+                );
+                Bet::where('id', $bet->id)->update([
+                    'payout_status' => BetPayoutStatus::PAID_OUT->value,
+                    'paid_out_at'   => $settledAt,
+                ]);
+            });
         }
     }
 

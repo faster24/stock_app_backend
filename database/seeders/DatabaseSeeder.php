@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Enums\BankName;
+use App\Enums\Currency;
 use App\Models\User;
+use App\Models\Wallet;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -27,11 +30,42 @@ class DatabaseSeeder extends Seeder
 
         $this->call(AdminSeeder::class);
 
-        User::query()->updateOrCreate([
+        $testUser = User::query()->updateOrCreate([
             'email' => 'test@example.com',
         ], [
             'username' => 'testuser',
             'password' => Hash::make('password'),
+        ]);
+
+        Wallet::query()->updateOrCreate([
+            'user_id' => $testUser->id,
+        ], [
+            'balance'            => 100_000,
+            'currency'           => Currency::MMK->value,
+            'currency_locked_at' => now(),
+            'bank_name'          => BankName::KBZ->value,
+            'account_name'       => 'Test User',
+            'account_number'     => '1111111111',
+        ]);
+
+        $vipUser = User::query()->updateOrCreate([
+            'email' => 'vip@example.com',
+        ], [
+            'username' => 'vipuser',
+            'password' => Hash::make('password'),
+        ]);
+
+        $vipUser->syncRoles(['vip']);
+
+        Wallet::query()->updateOrCreate([
+            'user_id' => $vipUser->id,
+        ], [
+            'balance'            => 500_000,
+            'currency'           => Currency::MMK->value,
+            'currency_locked_at' => now(),
+            'bank_name'          => BankName::AYA->value,
+            'account_name'       => 'VIP User',
+            'account_number'     => '2222222222',
         ]);
 
         $this->call(OddSettingSeeder::class);
