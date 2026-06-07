@@ -57,7 +57,7 @@ class DepositService extends Service
     public function listForAdmin(int $page, int $pageSize, ?DepositStatus $status): LengthAwarePaginator
     {
         $query = Deposit::query()
-            ->with(['user', 'adminBankSetting'])
+            ->with(['user', 'adminBankSetting', 'media'])
             ->orderBy('created_at', 'desc');
 
         if ($status !== null) {

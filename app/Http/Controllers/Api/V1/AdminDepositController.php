@@ -10,6 +10,7 @@ use App\Models\Deposit;
 use App\Services\Deposit\DepositService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AdminDepositController extends Controller
 {
@@ -24,7 +25,7 @@ class AdminDepositController extends Controller
         $deposits = $this->depositService->listForAdmin($page, $pageSize, $status);
 
         return $this->respond('Deposits retrieved successfully.', [
-            'deposits'   => $deposits->items(),
+            'deposits'   => collect($deposits->items())->map(fn(Deposit $d) => $this->depositPayload($d))->all(),
             'pagination' => [
                 'current_page' => $deposits->currentPage(),
                 'last_page'    => $deposits->lastPage(),
@@ -72,11 +73,31 @@ class AdminDepositController extends Controller
         ]);
     }
 
+    public function downloadProof(Deposit $deposit): BinaryFileResponse|JsonResponse
+    {
+        $media = $deposit->getFirstMedia('proof_of_payment');
+
+        if ($media === null) {
+            return $this->respond('Proof image not found.', null, 404);
+        }
+
+        return response()->download(
+            $media->getPath(),
+            $media->file_name,
+            array_filter(['Content-Type' => $media->mime_type])
+        );
+    }
+
     private function depositPayload(Deposit $deposit): array
     {
         return [
             'id'                    => $deposit->id,
             'user_id'               => $deposit->user_id,
+            'user'                  => $deposit->user ? [
+                'id'    => $deposit->user->id,
+                'name'  => $deposit->user->name,
+                'email' => $deposit->user->email,
+            ] : null,
             'admin_bank_setting_id' => $deposit->admin_bank_setting_id,
             'currency'              => $deposit->currency?->value,
             'claimed_amount'        => $deposit->claimed_amount,
@@ -87,7 +108,7 @@ class AdminDepositController extends Controller
             'rejection_reason'      => $deposit->rejection_reason,
             'reviewed_by_user_id'   => $deposit->reviewed_by_user_id,
             'reviewed_at'           => $deposit->reviewed_at?->toIso8601String(),
-            'proof_image'           => $deposit->proof_image,
+            'proof_of_payment'      => $deposit->proof_image,
             'created_at'            => $deposit->created_at?->toIso8601String(),
             'updated_at'            => $deposit->updated_at?->toIso8601String(),
         ];

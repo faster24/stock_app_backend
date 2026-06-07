@@ -141,6 +141,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('deposits')->controller(AdminDepositController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{deposit}', 'show');
+                    Route::get('/{deposit}/proof', 'downloadProof');
                     Route::post('/{deposit}/approve', 'approve');
                     Route::post('/{deposit}/reject', 'reject');
                 });
