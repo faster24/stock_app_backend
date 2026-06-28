@@ -17,10 +17,11 @@ class AuthFailureCasesTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/v1/register', [
-            'username' => 'duplicate-user',
-            'email' => 'duplicate@example.com',
-            'password' => 'password123',
+            'username'              => 'duplicate-user',
+            'email'                 => 'duplicate@example.com',
+            'password'              => 'password123',
             'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
         ]);
 
         $response
@@ -32,6 +33,31 @@ class AuthFailureCasesTest extends TestCase
                 'data',
                 'errors' => ['email'],
             ]);
+    }
+
+    public function test_register_missing_currency_returns_422(): void
+    {
+        $response = $this->postJson('/api/v1/register', [
+            'username'              => 'nocurrency',
+            'email'                 => 'nocurrency@example.com',
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['currency']]);
+    }
+
+    public function test_register_invalid_currency_returns_422(): void
+    {
+        $response = $this->postJson('/api/v1/register', [
+            'username'              => 'badcurrency',
+            'email'                 => 'badcurrency@example.com',
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+            'currency'              => 'USD',
+        ]);
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['currency']]);
     }
 
     public function test_invalid_login_password_returns_401_with_credentials_error_envelope(): void

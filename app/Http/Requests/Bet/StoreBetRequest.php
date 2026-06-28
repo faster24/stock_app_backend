@@ -28,6 +28,7 @@ class StoreBetRequest extends AuthFormRequest
                 ? ['required', 'string', Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00'])]
                 : ['nullable', 'string'],
             'bet_numbers' => ['required', 'array'],
+            'security_pin' => ['required', 'string', 'size:6'],
             'status' => ['prohibited'],
             'bet_result_status' => ['prohibited'],
             'payout_status' => ['prohibited'],

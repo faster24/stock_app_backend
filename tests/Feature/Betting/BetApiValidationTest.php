@@ -298,6 +298,7 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => '01', 'amount' => 1000],
                     ['number' => '09', 'amount' => 1000],
@@ -311,6 +312,7 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'bet_type' => '3D',
                 'currency' => Currency::MMK->value,
+                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => '001', 'amount' => 1000],
                     ['number' => '099', 'amount' => 1000],

@@ -90,6 +90,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/test', 'sendTest');
             Route::get('/logs', 'logs');
             Route::get('/stats', 'stats');
+            Route::post('/read-all', 'markAllAsRead');
         });
 
         Route::prefix('admin')
@@ -117,6 +118,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/settlement-runs', 'settlementRuns');
                 });
                 Route::get('/bets', [BetController::class, 'adminIndex']);
+                Route::get('/bets/{bet}', [BetController::class, 'adminShow']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
                 Route::prefix('bank-settings')->controller(AdminBankSettingController::class)->group(function () {
                     Route::get('/', 'index');

@@ -4,12 +4,17 @@ namespace Tests\Feature\Deposit;
 
 use App\Enums\Currency;
 use App\Enums\DepositStatus;
+use App\Events\DepositApprovedEvent;
+use App\Events\DepositRejectedEvent;
+use App\Jobs\SendNotificationJob;
 use App\Models\AdminBankSetting;
 use App\Models\Deposit;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -18,9 +23,13 @@ class DepositApproveRejectTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private string $adminToken;
+
     private User $user;
+
     private Wallet $wallet;
+
     private AdminBankSetting $bankSetting;
 
     protected function setUp(): void
@@ -29,17 +38,17 @@ class DepositApproveRejectTest extends TestCase
 
         Storage::fake('bet_slips');
 
-        $this->admin      = User::factory()->admin()->create();
+        $this->admin = User::factory()->admin()->create();
         $this->adminToken = $this->admin->createToken('test')->plainTextToken;
-        $this->user       = User::factory()->create();
-        $this->wallet     = Wallet::factory()->create([
-            'user_id'            => $this->user->id,
-            'balance'            => 0,
-            'currency'           => Currency::MMK,
+        $this->user = User::factory()->create();
+        $this->wallet = Wallet::factory()->create([
+            'user_id' => $this->user->id,
+            'balance' => 0,
+            'currency' => Currency::MMK,
             'currency_locked_at' => now(),
         ]);
         $this->bankSetting = AdminBankSetting::factory()->create([
-            'currency'  => Currency::MMK,
+            'currency' => Currency::MMK,
             'is_active' => true,
         ]);
     }
@@ -47,11 +56,11 @@ class DepositApproveRejectTest extends TestCase
     private function createPendingDeposit(int $claimedAmount = 50_000): Deposit
     {
         $deposit = Deposit::create([
-            'user_id'               => $this->user->id,
+            'user_id' => $this->user->id,
             'admin_bank_setting_id' => $this->bankSetting->id,
-            'currency'              => 'MMK',
-            'claimed_amount'        => $claimedAmount,
-            'status'                => DepositStatus::PENDING->value,
+            'currency' => 'MMK',
+            'claimed_amount' => $claimedAmount,
+            'status' => DepositStatus::PENDING->value,
         ]);
         $deposit->addMedia(UploadedFile::fake()->image('proof.jpg'))->toMediaCollection('proof_of_payment');
 
@@ -76,10 +85,10 @@ class DepositApproveRejectTest extends TestCase
         $this->assertEquals(50_000, $this->wallet->balance);
 
         $this->assertDatabaseHas('wallet_transactions', [
-            'user_id'  => $this->user->id,
-            'type'     => 'DEPOSIT',
+            'user_id' => $this->user->id,
+            'type' => 'DEPOSIT',
             'direction' => 'CREDIT',
-            'amount'   => 50_000,
+            'amount' => 50_000,
         ]);
     }
 
@@ -188,5 +197,73 @@ class DepositApproveRejectTest extends TestCase
             ['rejection_reason' => 'reason here'],
             ['Authorization' => "Bearer $userToken"]
         )->assertStatus(403);
+    }
+
+    // ── Notification tests ─────────────────────────────────────────────────────
+
+    public function test_approving_deposit_dispatches_deposit_approved_event(): void
+    {
+        Event::fake([DepositApprovedEvent::class, DepositRejectedEvent::class]);
+
+        $deposit = $this->createPendingDeposit(50_000);
+
+        $this->postJson("/api/v1/admin/deposits/{$deposit->id}/approve", [],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Event::assertDispatched(DepositApprovedEvent::class, fn ($event) => $event->deposit->id === $deposit->id);
+        Event::assertNotDispatched(DepositRejectedEvent::class);
+    }
+
+    public function test_rejecting_deposit_dispatches_deposit_rejected_event(): void
+    {
+        Event::fake([DepositApprovedEvent::class, DepositRejectedEvent::class]);
+
+        $deposit = $this->createPendingDeposit(50_000);
+
+        $this->postJson("/api/v1/admin/deposits/{$deposit->id}/reject",
+            ['rejection_reason' => 'Invalid transfer slip.'],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Event::assertDispatched(DepositRejectedEvent::class, fn ($event) => $event->deposit->id === $deposit->id);
+        Event::assertNotDispatched(DepositApprovedEvent::class);
+    }
+
+    public function test_approving_deposit_queues_push_notification_job(): void
+    {
+        Bus::fake([SendNotificationJob::class]);
+
+        $deposit = $this->createPendingDeposit(50_000);
+
+        $this->postJson("/api/v1/admin/deposits/{$deposit->id}/approve", [],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Bus::assertDispatched(
+            SendNotificationJob::class,
+            fn ($job) => $job->user->id === $this->user->id
+                && $job->notificationType === 'deposit_approved'
+                && $job->data['deposit_id'] === $deposit->id
+        );
+    }
+
+    public function test_rejecting_deposit_queues_push_notification_job(): void
+    {
+        Bus::fake([SendNotificationJob::class]);
+
+        $deposit = $this->createPendingDeposit(50_000);
+
+        $this->postJson("/api/v1/admin/deposits/{$deposit->id}/reject",
+            ['rejection_reason' => 'Invalid transfer slip.'],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Bus::assertDispatched(
+            SendNotificationJob::class,
+            fn ($job) => $job->user->id === $this->user->id
+                && $job->notificationType === 'deposit_rejected'
+                && $job->data['deposit_id'] === $deposit->id
+        );
     }
 }

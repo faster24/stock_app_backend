@@ -107,8 +107,20 @@ class BetService extends Service
             ->first();
     }
 
+    public function showForAdmin(string $betId): ?Bet
+    {
+        return Bet::query()
+            ->with(['betNumbers', 'user.wallet'])
+            ->whereKey($betId)
+            ->first();
+    }
+
     public function createForUser(string $userId, array $attributes): Bet
     {
+        $user = User::findOrFail($userId);
+        $this->assertPinIsValid($user, (string) ($attributes['security_pin'] ?? ''));
+        unset($attributes['security_pin']);
+
         $this->assertUserHasCompleteBankInfo($userId);
         $this->assertWalletCurrencyMatches($userId, (string) ($attributes['currency'] ?? ''));
 
@@ -517,6 +529,19 @@ class BetService extends Service
                 'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
             ];
         }, array_values($numberEntries));
+    }
+
+    private function assertPinIsValid(User $user, string $pin): void
+    {
+        if ($user->security_pin === null) {
+            throw new DomainException('Please set a security PIN before placing bets.');
+        }
+
+        if (! \Illuminate\Support\Facades\Hash::check($pin, $user->security_pin)) {
+            throw ValidationException::withMessages([
+                'security_pin' => ['Invalid security PIN.'],
+            ]);
+        }
     }
 
     private function refreshStoredBetNumberPotentialWinnings(Bet $bet, string $defaultOdd): void

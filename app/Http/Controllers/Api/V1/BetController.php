@@ -89,6 +89,27 @@ class BetController extends Controller
         ]);
     }
 
+    public function adminShow(Request $request, string $bet): JsonResponse
+    {
+        $adminUserId = (string) $request->user()->id;
+
+        Log::info('Admin bet show requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
+
+        $resolvedBet = $this->betService->showForAdmin($bet);
+
+        if ($resolvedBet === null) {
+            Log::warning('Bet not found on admin show.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
+
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        return $this->respond('Bet retrieved successfully.', [
+            'bet' => $resolvedBet,
+        ]);
+    }
+
     public function store(StoreBetRequest $request): JsonResponse
     {
         $userId = (string) $request->user()->id;

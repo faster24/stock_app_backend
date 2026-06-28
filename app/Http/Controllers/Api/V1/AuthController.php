@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\Currency;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
@@ -20,10 +21,14 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
+        $currency = $request->filled('currency') ? Currency::from($request->string('currency')->toString()) : null;
+
         $payload = $this->authService->register(
             $request->string('username')->toString(),
             $request->string('email')->toString(),
             $request->string('password')->toString(),
+            $currency,
+            $request->string('pin')->toString(),
         );
 
         return $this->respond('Registration successful.', $payload, 201);

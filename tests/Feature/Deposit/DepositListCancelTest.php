@@ -3,13 +3,15 @@
 namespace Tests\Feature\Deposit;
 
 use App\Enums\Currency;
-use App\Enums\DepositStatus;
+use App\Events\DepositApprovedEvent;
+use App\Events\DepositRejectedEvent;
 use App\Models\AdminBankSetting;
 use App\Models\Deposit;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -18,10 +20,15 @@ class DepositListCancelTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private string $adminToken;
+
     private User $user;
+
     private string $userToken;
+
     private Wallet $wallet;
+
     private AdminBankSetting $bankSetting;
 
     protected function setUp(): void
@@ -30,18 +37,18 @@ class DepositListCancelTest extends TestCase
 
         Storage::fake('bet_slips');
 
-        $this->admin      = User::factory()->admin()->create();
+        $this->admin = User::factory()->admin()->create();
         $this->adminToken = $this->admin->createToken('test')->plainTextToken;
-        $this->user       = User::factory()->create();
-        $this->userToken  = $this->user->createToken('test')->plainTextToken;
-        $this->wallet     = Wallet::factory()->create([
-            'user_id'            => $this->user->id,
-            'balance'            => 0,
-            'currency'           => Currency::MMK,
+        $this->user = User::factory()->create();
+        $this->userToken = $this->user->createToken('test')->plainTextToken;
+        $this->wallet = Wallet::factory()->create([
+            'user_id' => $this->user->id,
+            'balance' => 0,
+            'currency' => Currency::MMK,
             'currency_locked_at' => now(),
         ]);
         $this->bankSetting = AdminBankSetting::factory()->create([
-            'currency'  => Currency::MMK,
+            'currency' => Currency::MMK,
             'is_active' => true,
         ]);
     }
@@ -49,11 +56,11 @@ class DepositListCancelTest extends TestCase
     private function createDeposit(string $userId, string $status = 'PENDING', int $amount = 10_000): Deposit
     {
         $deposit = Deposit::create([
-            'user_id'               => $userId,
+            'user_id' => $userId,
             'admin_bank_setting_id' => $this->bankSetting->id,
-            'currency'              => 'MMK',
-            'claimed_amount'        => $amount,
-            'status'                => $status,
+            'currency' => 'MMK',
+            'claimed_amount' => $amount,
+            'status' => $status,
         ]);
         $deposit->addMedia(UploadedFile::fake()->image('proof.jpg'))->toMediaCollection('proof_of_payment');
 
@@ -127,7 +134,7 @@ class DepositListCancelTest extends TestCase
 
     public function test_user_cannot_show_others_deposit(): void
     {
-        $other   = User::factory()->create();
+        $other = User::factory()->create();
         $deposit = $this->createDeposit($other->id);
 
         $this->getJson("/api/v1/deposits/{$deposit->id}",
@@ -139,6 +146,8 @@ class DepositListCancelTest extends TestCase
 
     public function test_user_can_cancel_own_pending_deposit(): void
     {
+        Event::fake([DepositApprovedEvent::class, DepositRejectedEvent::class]);
+
         $deposit = $this->createDeposit($this->user->id);
 
         $response = $this->postJson("/api/v1/deposits/{$deposit->id}/cancel",
@@ -151,6 +160,10 @@ class DepositListCancelTest extends TestCase
         $response->assertJsonPath('data.deposit.rejection_reason', 'Cancelled by user.');
 
         $this->assertDatabaseCount('wallet_transactions', 0);
+
+        // Self-cancellation is not an admin review action — it must not fire a push notification.
+        Event::assertNotDispatched(DepositApprovedEvent::class);
+        Event::assertNotDispatched(DepositRejectedEvent::class);
     }
 
     public function test_cancel_non_pending_deposit_returns_409(): void
@@ -165,7 +178,7 @@ class DepositListCancelTest extends TestCase
 
     public function test_user_cannot_cancel_another_users_deposit(): void
     {
-        $other   = User::factory()->create();
+        $other = User::factory()->create();
         $deposit = $this->createDeposit($other->id);
 
         $this->postJson("/api/v1/deposits/{$deposit->id}/cancel",

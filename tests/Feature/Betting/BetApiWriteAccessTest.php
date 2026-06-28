@@ -32,6 +32,7 @@ class BetApiWriteAccessTest extends TestCase
                 'bet_type' => BetType::TWO_D->value,
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => 11, 'amount' => 1000],
                     ['number' => 22, 'amount' => 1500],

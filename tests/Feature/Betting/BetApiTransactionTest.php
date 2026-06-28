@@ -32,6 +32,7 @@ class BetApiTransactionTest extends TestCase
             'bet_type'        => '2D',
             'currency'        => 'MMK',
             'target_opentime' => '11:00:00',
+            'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
         ]);
 
@@ -63,7 +64,8 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+                'security_pin'    => '123456',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected DomainException for insufficient balance.');
         } catch (\DomainException $e) {
@@ -89,6 +91,7 @@ class BetApiTransactionTest extends TestCase
             'bet_type'        => '2D',
             'currency'        => 'MMK',
             'target_opentime' => '11:00:00',
+            'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
         ]);
 
@@ -116,7 +119,8 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+                'security_pin'    => '123456',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected missing bank info to fail service validation.');
         } catch (ValidationException $exception) {
@@ -144,7 +148,8 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+                'security_pin'    => '123456',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected missing wallet currency to fail.');
         } catch (ValidationException $exception) {

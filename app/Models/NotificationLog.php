@@ -16,11 +16,13 @@ class NotificationLog extends Model
         'status',
         'error_message',
         'sent_at',
+        'read_at',
     ];
 
     protected $casts = [
         'data' => 'array',
         'sent_at' => 'datetime',
+        'read_at' => 'datetime',
     ];
 
     public function user(): BelongsTo
@@ -46,5 +48,15 @@ class NotificationLog extends Model
     public function scopeSent($query)
     {
         return $query->where('status', 'sent');
+    }
+
+    public function scopeUnread($query)
+    {
+        return $query->whereNull('read_at');
+    }
+
+    public function scopeRead($query)
+    {
+        return $query->whereNotNull('read_at');
     }
 }

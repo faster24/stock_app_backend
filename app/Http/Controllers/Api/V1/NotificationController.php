@@ -104,11 +104,22 @@ class NotificationController extends Controller
                 'total' => $user->notificationLogs()->count(),
                 'sent' => $user->notificationLogs()->sent()->count(),
                 'failed' => $user->notificationLogs()->failed()->count(),
+                'unread' => $user->notificationLogs()->unread()->count(),
                 'by_type' => $user->notificationLogs()
                     ->selectRaw('notification_type, count(*) as count')
                     ->groupBy('notification_type')
                     ->get(),
             ],
+        ]);
+    }
+
+    public function markAllAsRead(): JsonResponse
+    {
+        $updated = auth()->user()->notificationLogs()->unread()->update(['read_at' => now()]);
+
+        return response()->json([
+            'message' => 'All notifications marked as read.',
+            'updated_count' => $updated,
         ]);
     }
 }

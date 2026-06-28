@@ -29,6 +29,8 @@ class User extends Authenticatable
         'username',
         'email',
         'password',
+        'security_pin',
+        'security_pin_set_at',
     ];
 
     public function wallet(): HasOne
@@ -64,6 +66,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'security_pin',
     ];
 
     /**
@@ -76,8 +79,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'security_pin' => 'hashed',
             'is_banned' => 'boolean',
             'banned_at' => 'datetime',
+            'security_pin_set_at' => 'datetime',
             'deleted_at' => 'datetime',
         ];
     }

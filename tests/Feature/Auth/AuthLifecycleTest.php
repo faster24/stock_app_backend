@@ -18,10 +18,13 @@ class AuthLifecycleTest extends TestCase
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
 
         $response = $this->postJson('/api/v1/register', [
-            'username' => 'janedoe',
-            'email' => 'jane@example.com',
-            'password' => 'password123',
+            'username'              => 'janedoe',
+            'email'                 => 'jane@example.com',
+            'password'              => 'password123',
             'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
+            'pin'                   => '123456',
+            'pin_confirmation'      => '123456',
         ]);
 
         $response
@@ -38,6 +41,11 @@ class AuthLifecycleTest extends TestCase
 
         $this->assertIsString($response->json('data.token'));
         $this->assertNotEmpty($response->json('data.token'));
+        $this->assertDatabaseHas('wallets', [
+            'user_id'  => $response->json('data.user.id'),
+            'currency' => 'MMK',
+            'balance'  => 0,
+        ]);
         $this->assertDatabaseHas('model_has_roles', [
             'role_id' => call_user_func(['Spatie\\Permission\\Models\\Role', 'findByName'], 'user', $guard)->id,
             'model_id' => $response->json('data.user.id'),

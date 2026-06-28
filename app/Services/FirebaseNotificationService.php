@@ -69,7 +69,8 @@ class FirebaseNotificationService extends Service
 
     public function sendToToken(string $token, string $title, string $body, array $data = []): void
     {
-        $message = CloudMessage::withTarget('token', $token)
+        $message = CloudMessage::new()
+            ->withToken($token)
             ->withNotification(Notification::create($title, $body))
             ->withData($data);
 
@@ -80,7 +81,8 @@ class FirebaseNotificationService extends Service
 
     public function sendToTopic(string $topic, string $title, string $body, array $data = []): void
     {
-        $message = CloudMessage::withTarget('topic', $topic)
+        $message = CloudMessage::new()
+            ->withTopic($topic)
             ->withNotification(Notification::create($title, $body))
             ->withData($data);
 
@@ -89,12 +91,12 @@ class FirebaseNotificationService extends Service
 
     public function subscribeToTopic(string $token, string $topic): void
     {
-        $this->messaging()->subscribeToTopic([$token], $topic);
+        $this->messaging()->subscribeToTopic($topic, [$token]);
     }
 
     public function unsubscribeFromTopic(string $token, string $topic): void
     {
-        $this->messaging()->unsubscribeFromTopic([$token], $topic);
+        $this->messaging()->unsubscribeFromTopic($topic, [$token]);
     }
 
     private function logNotification(

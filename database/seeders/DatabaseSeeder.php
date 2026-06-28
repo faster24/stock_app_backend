@@ -69,5 +69,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(OddSettingSeeder::class);
+        $this->call(AdminBankSettingSeeder::class);
     }
 }

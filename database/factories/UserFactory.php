@@ -18,6 +18,10 @@ class UserFactory extends Factory
      */
     protected static ?string $password;
 
+    protected static ?string $securityPin;
+
+    public const TEST_PIN = '123456';
+
     /**
      * Define the model's default state.
      *
@@ -30,6 +34,8 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'security_pin' => static::$securityPin ??= Hash::make(self::TEST_PIN),
+            'security_pin_set_at' => now(),
             'remember_token' => Str::random(10),
         ];
     }

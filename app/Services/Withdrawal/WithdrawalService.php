@@ -6,6 +6,7 @@ use App\Enums\Currency;
 use App\Enums\WalletTransactionDirection;
 use App\Enums\WalletTransactionType;
 use App\Enums\WithdrawalStatus;
+use App\Events\WithdrawalCompletedEvent;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
 use App\Services\Service;
@@ -112,6 +113,8 @@ class WithdrawalService extends Service
             ]);
 
             $withdrawal->addMedia($proofImage)->toMediaCollection('payout_proof');
+
+            WithdrawalCompletedEvent::dispatch($withdrawal->refresh());
 
             return $withdrawal->refresh();
         });

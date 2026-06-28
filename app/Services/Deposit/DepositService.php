@@ -6,6 +6,8 @@ use App\Enums\Currency;
 use App\Enums\DepositStatus;
 use App\Enums\WalletTransactionDirection;
 use App\Enums\WalletTransactionType;
+use App\Events\DepositApprovedEvent;
+use App\Events\DepositRejectedEvent;
 use App\Models\Deposit;
 use App\Models\Wallet;
 use App\Services\Service;
@@ -25,12 +27,12 @@ class DepositService extends Service
         $this->assertWalletCurrencyMatches($userId, Currency::from($validated['currency']));
 
         $deposit = Deposit::create([
-            'user_id'               => $userId,
+            'user_id' => $userId,
             'admin_bank_setting_id' => $validated['admin_bank_setting_id'],
-            'currency'              => $validated['currency'],
-            'claimed_amount'        => $validated['claimed_amount'],
-            'transfer_note'         => $validated['transfer_note'] ?? null,
-            'status'                => DepositStatus::PENDING->value,
+            'currency' => $validated['currency'],
+            'claimed_amount' => $validated['claimed_amount'],
+            'transfer_note' => $validated['transfer_note'] ?? null,
+            'status' => DepositStatus::PENDING->value,
         ]);
 
         $deposit->addMedia($proofImage)->toMediaCollection('proof_of_payment');
@@ -88,11 +90,11 @@ class DepositService extends Service
             }
 
             $deposit->update([
-                'status'              => DepositStatus::APPROVED->value,
-                'approved_amount'     => $finalAmount,
-                'admin_note'          => $adminNote,
+                'status' => DepositStatus::APPROVED->value,
+                'approved_amount' => $finalAmount,
+                'admin_note' => $adminNote,
                 'reviewed_by_user_id' => $adminUserId,
-                'reviewed_at'         => now(),
+                'reviewed_at' => now(),
             ]);
 
             $this->walletMutator->mutate(
@@ -104,6 +106,8 @@ class DepositService extends Service
                 createdByUserId: $adminUserId,
                 note: $adminNote,
             );
+
+            DepositApprovedEvent::dispatch($deposit);
 
             return $deposit->refresh();
         });
@@ -122,11 +126,13 @@ class DepositService extends Service
             }
 
             $deposit->update([
-                'status'              => DepositStatus::REJECTED->value,
-                'rejection_reason'    => $rejectionReason,
+                'status' => DepositStatus::REJECTED->value,
+                'rejection_reason' => $rejectionReason,
                 'reviewed_by_user_id' => $adminUserId,
-                'reviewed_at'         => now(),
+                'reviewed_at' => now(),
             ]);
+
+            DepositRejectedEvent::dispatch($deposit);
 
             return $deposit->refresh();
         });
@@ -150,10 +156,10 @@ class DepositService extends Service
             }
 
             $deposit->update([
-                'status'              => DepositStatus::REJECTED->value,
-                'rejection_reason'    => 'Cancelled by user.',
+                'status' => DepositStatus::REJECTED->value,
+                'rejection_reason' => 'Cancelled by user.',
                 'reviewed_by_user_id' => $userId,
-                'reviewed_at'         => now(),
+                'reviewed_at' => now(),
             ]);
 
             return $deposit->refresh();
