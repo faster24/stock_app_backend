@@ -10,10 +10,12 @@ use App\Enums\OddSettingUserType;
 use App\Enums\WalletTransactionDirection;
 use App\Enums\WalletTransactionType;
 use App\Models\Bet;
+use App\Models\NumberControl;
 use App\Models\OddSetting;
 use App\Models\TemporaryOddAdjustment;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\BettingDistribution\NumberControlService;
 use App\Services\Service;
 use App\Services\Wallet\WalletMutator;
 use DomainException;
@@ -25,7 +27,10 @@ use Illuminate\Validation\ValidationException;
 
 class BetService extends Service
 {
-    public function __construct(private WalletMutator $walletMutator) {}
+    public function __construct(
+        private WalletMutator $walletMutator,
+        private NumberControlService $numberControlService,
+    ) {}
 
     public const DELETE_RESULT_NOT_FOUND = 'not_found';
 
@@ -151,10 +156,18 @@ class BetService extends Service
         $attributes['stock_date'] = $stockDate;
         $attributes['placed_at'] = Carbon::now();
 
-        return DB::transaction(function () use ($userId, $attributes, $numberEntries, $totalAmount): Bet {
+        return DB::transaction(function () use ($userId, $attributes, $numberEntries, $totalAmount, $stockDate): Bet {
+            $this->assertNumbersNotClosedOrOverLimit(
+                $numberEntries,
+                (string) ($attributes['bet_type'] ?? ''),
+                (string) ($attributes['currency'] ?? ''),
+                $attributes['target_opentime'] ?? null,
+                $stockDate,
+            );
+
             $bet = Bet::query()->create(array_merge($attributes, [
                 'user_id' => $userId,
-                'status'  => BetStatus::ACCEPTED,
+                'status' => BetStatus::ACCEPTED,
             ]));
 
             $this->replaceBetNumbers($bet, $numberEntries);
@@ -215,7 +228,18 @@ class BetService extends Service
             $attributes['total_amount'] = $this->calculateTotalAmountFromStoredBetNumbers($bet);
         }
 
-        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd): Bet {
+        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd, $resolvedBetType, $resolvedCurrency): Bet {
+            if ($hasBetNumbers) {
+                $this->assertNumbersNotClosedOrOverLimit(
+                    $numberEntries,
+                    $resolvedBetType,
+                    $resolvedCurrency,
+                    $bet->target_opentime,
+                    $bet->stock_date->toDateString(),
+                    excludeBetId: $bet->id,
+                );
+            }
+
             $bet->update($attributes);
 
             if ($hasBetNumbers) {
@@ -332,6 +356,97 @@ class BetService extends Service
         );
 
         $bet->betNumbers()->createMany($rows);
+    }
+
+    /**
+     * Reject the whole bet when any of its numbers is closed or would push the
+     * period's sold volume past an admin-set sales limit.
+     *
+     * Must run as the FIRST statement inside the caller's DB transaction: the
+     * lockForUpdate below serializes concurrent bets on controlled numbers, and
+     * the sold-volume SUM only sees other transactions' committed rows because
+     * no earlier consistent read has pinned the InnoDB snapshot yet.
+     */
+    private function assertNumbersNotClosedOrOverLimit(
+        array $numberEntries,
+        string $betType,
+        string $currency,
+        ?string $opentime,
+        string $stockDate,
+        ?string $excludeBetId = null,
+    ): void {
+        $opentimeKey = (string) $opentime;
+
+        $controls = NumberControl::query()
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
+            ->where('target_opentime', $opentimeKey)
+            ->where('stock_date', $stockDate)
+            ->whereIn('number', array_column($numberEntries, 'number'))
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('number');
+
+        if ($controls->isEmpty()) {
+            return;
+        }
+
+        $incomingByNumber = [];
+        foreach ($numberEntries as $entry) {
+            $number = (int) $entry['number'];
+            $incomingByNumber[$number] = ($incomingByNumber[$number] ?? 0) + (int) $entry['amount'];
+        }
+
+        $errors = [];
+
+        $limitedNumbers = $controls
+            ->filter(fn (NumberControl $control): bool => ! $control->is_closed && $control->sales_limit !== null)
+            ->keys()
+            ->all();
+
+        $soldByNumber = $this->numberControlService->soldVolumesByNumber(
+            $stockDate,
+            $opentimeKey,
+            $betType,
+            $currency,
+            $limitedNumbers,
+            $excludeBetId,
+        );
+
+        foreach ($incomingByNumber as $number => $incomingAmount) {
+            $control = $controls->get($number);
+
+            if ($control === null) {
+                continue;
+            }
+
+            if ($control->is_closed) {
+                $errors[] = "Number {$number} is closed for this period.";
+
+                continue;
+            }
+
+            if ($control->sales_limit === null) {
+                continue;
+            }
+
+            $sold = (float) ($soldByNumber[$number] ?? 0.0);
+            $remaining = max(0, (float) $control->sales_limit - $sold);
+
+            if ($sold + $incomingAmount > (float) $control->sales_limit) {
+                $errors[] = sprintf(
+                    'Number %d exceeds the sales limit for this period (remaining: %s).',
+                    $number,
+                    number_format($remaining, 2, '.', ''),
+                );
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages([
+                'bet_numbers' => $errors,
+            ]);
+        }
     }
 
     private function normalizeBetNumberEntries(string $betType, array $betNumbers): array
@@ -566,5 +681,4 @@ class BetService extends Service
             ]);
         });
     }
-
 }

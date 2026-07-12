@@ -89,6 +89,18 @@ class FirebaseNotificationService extends Service
         $this->messaging()->send($message);
     }
 
+    public function sendDataToTopic(string $topic, array $data): void
+    {
+        // Data-only (no notification block) so clients handle it silently;
+        // highest priority so Android delivers it while the app is backgrounded.
+        $message = CloudMessage::new()
+            ->withTopic($topic)
+            ->withData(array_map(strval(...), $data))
+            ->withHighestPossiblePriority();
+
+        $this->messaging()->send($message);
+    }
+
     public function subscribeToTopic(string $token, string $topic): void
     {
         $this->messaging()->subscribeToTopic($topic, [$token]);

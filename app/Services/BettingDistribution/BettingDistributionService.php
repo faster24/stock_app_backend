@@ -32,6 +32,8 @@ class BettingDistributionService extends Service
         $rows = DB::table('bet_numbers')
             ->join('bets', 'bets.id', '=', 'bet_numbers.bet_id')
             ->whereDate('bets.stock_date', $date)
+            ->where('bets.bet_type', $betType)
+            ->where('bets.currency', $currency)
             ->whereIn('bets.status', [BetStatus::PENDING->value, BetStatus::ACCEPTED->value])
             ->select([
                 'bet_numbers.number',
@@ -59,15 +61,39 @@ class BettingDistributionService extends Service
 
         $adjustedNumbers = array_keys($tempOddMap);
 
+        // Lookup: number → period → {is_closed, sales_limit}
+        $controls = DB::table('number_controls')
+            ->where('stock_date', $date)
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
+            ->select(['number', 'target_opentime', 'is_closed', 'sales_limit'])
+            ->get();
+
+        $controlMap = [];
+        foreach ($controls as $row) {
+            $controlMap[$row->number][$row->target_opentime] = [
+                'is_closed' => (bool) $row->is_closed,
+                'sales_limit' => $row->sales_limit !== null
+                    ? number_format((float) $row->sales_limit, 2, '.', '')
+                    : null,
+            ];
+        }
+
+        $controlledNumbers = array_keys($controlMap);
+
         $matrix = [];
         for ($i = 0; $i <= 99; $i++) {
             $periodData = [];
             foreach (self::VALID_PERIODS as $period) {
                 $periodKey = self::PERIOD_KEYS[$period];
+                $control = $controlMap[$i][$period] ?? null;
                 $periodData[$periodKey] = [
                     'count' => 0,
                     'volume' => '0.00',
                     'odd' => $tempOddMap[$i][$period] ?? $baseOdd,
+                    'is_closed' => $control['is_closed'] ?? false,
+                    'sales_limit' => $control['sales_limit'] ?? null,
+                    'remaining' => $control['sales_limit'] ?? null,
                 ];
             }
 
@@ -78,6 +104,7 @@ class BettingDistributionService extends Service
                     'total_count' => 0,
                     'total_volume' => '0.00',
                     'has_adjustment' => in_array($i, $adjustedNumbers, true),
+                    'has_control' => in_array($i, $controlledNumbers, true),
                 ]
             );
         }
@@ -103,6 +130,15 @@ class BettingDistributionService extends Service
             foreach (self::PERIOD_KEYS as $periodKey) {
                 $totalCount += $item[$periodKey]['count'];
                 $totalVolume += (float) $item[$periodKey]['volume'];
+
+                if ($item[$periodKey]['sales_limit'] !== null) {
+                    $item[$periodKey]['remaining'] = number_format(
+                        max(0, (float) $item[$periodKey]['sales_limit'] - (float) $item[$periodKey]['volume']),
+                        2,
+                        '.',
+                        ''
+                    );
+                }
             }
             $item['total_count'] = $totalCount;
             $item['total_volume'] = number_format($totalVolume, 2, '.', '');
@@ -126,7 +162,7 @@ class BettingDistributionService extends Service
         ];
     }
 
-    public function getPeriodsForToday(): array
+    public function getPeriodsForToday(string $betType = '2D', string $currency = 'THB'): array
     {
         $now = Carbon::now('Asia/Bangkok');
         $today = $now->toDateString();
@@ -134,6 +170,8 @@ class BettingDistributionService extends Service
         $periodRows = DB::table('bet_numbers')
             ->join('bets', 'bets.id', '=', 'bet_numbers.bet_id')
             ->whereDate('bets.stock_date', $today)
+            ->where('bets.bet_type', $betType)
+            ->where('bets.currency', $currency)
             ->whereIn('bets.status', [BetStatus::PENDING->value, BetStatus::ACCEPTED->value])
             ->select([
                 'bets.target_opentime',
@@ -148,6 +186,8 @@ class BettingDistributionService extends Service
         $popularRows = DB::table('bet_numbers')
             ->join('bets', 'bets.id', '=', 'bet_numbers.bet_id')
             ->whereDate('bets.stock_date', $today)
+            ->where('bets.bet_type', $betType)
+            ->where('bets.currency', $currency)
             ->whereIn('bets.status', [BetStatus::PENDING->value, BetStatus::ACCEPTED->value])
             ->select([
                 'bets.target_opentime',
@@ -162,6 +202,8 @@ class BettingDistributionService extends Service
 
         $tempOddCounts = DB::table('temporary_odd_adjustments')
             ->where('stock_date', $today)
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
             ->select(['target_opentime', DB::raw('COUNT(*) as cnt')])
             ->groupBy('target_opentime')
             ->get()
@@ -169,6 +211,8 @@ class BettingDistributionService extends Service
 
         $betCountRows = DB::table('bets')
             ->whereDate('stock_date', $today)
+            ->where('bet_type', $betType)
+            ->where('currency', $currency)
             ->whereIn('status', [BetStatus::PENDING->value, BetStatus::ACCEPTED->value])
             ->select(['target_opentime', DB::raw('COUNT(*) as cnt')])
             ->groupBy('target_opentime')
@@ -198,6 +242,11 @@ class BettingDistributionService extends Service
         }
 
         return $result;
+    }
+
+    public function currentActivePeriod(): string
+    {
+        return $this->determineActivePeriod(Carbon::now('Asia/Bangkok'));
     }
 
     private function determineActivePeriod(Carbon $now): string

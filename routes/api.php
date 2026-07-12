@@ -2,22 +2,21 @@
 
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\AdminBalanceAdjustmentController;
-use App\Http\Controllers\Api\V1\AdminDepositController;
-use App\Http\Controllers\Api\V1\AdminWalletController;
-use App\Http\Controllers\Api\V1\AdminWithdrawalController;
-use App\Http\Controllers\Api\V1\WithdrawalController;
-use App\Http\Controllers\Api\V1\DepositController;
-use App\Http\Controllers\Api\V1\FcmTokenController;
-use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\AdminBankSettingController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
+use App\Http\Controllers\Api\V1\AdminDepositController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
 use App\Http\Controllers\Api\V1\AdminUserController;
+use App\Http\Controllers\Api\V1\AdminWalletController;
+use App\Http\Controllers\Api\V1\AdminWithdrawalController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AppSettingController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
 use App\Http\Controllers\Api\V1\BettingDistributionController;
+use App\Http\Controllers\Api\V1\DepositController;
+use App\Http\Controllers\Api\V1\FcmTokenController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
@@ -25,6 +24,7 @@ use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\V1\WalletCurrencyController;
 use App\Http\Controllers\Api\V1\WalletTransactionController;
+use App\Http\Controllers\Api\V1\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -52,6 +52,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/two-d-results/last-5-days', [TwoDResultController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
+        Route::get('/closed-numbers', [BettingDistributionController::class, 'getClosedNumbers']);
         Route::prefix('deposits')->controller(DepositController::class)->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'store');
@@ -162,6 +163,9 @@ Route::prefix('v1')->group(function () {
                         Route::post('/adjust-odds', 'adjustOdds')->name('adjust-odds');
                         Route::get('/temp-odds/{date}/{targetOpentime}', 'getTempOdds')->name('temp-odds');
                         Route::post('/reset-odds/{date}/{targetOpentime}', 'resetOdds')->name('reset-odds');
+                        Route::post('/number-controls', 'setNumberControls')->name('number-controls.set');
+                        Route::post('/number-controls/reopen', 'reopenNumberControls')->name('number-controls.reopen');
+                        Route::get('/number-controls/{date}/{targetOpentime}', 'getNumberControls')->name('number-controls.index');
                         Route::get('/{date}/{targetOpentime}', 'getDistributionForPeriod')->name('show');
                     });
             });

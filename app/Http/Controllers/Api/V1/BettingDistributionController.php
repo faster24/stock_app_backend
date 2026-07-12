@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BettingDistribution\AdjustOddsRequest;
+use App\Http\Requests\BettingDistribution\ReopenNumberControlsRequest;
+use App\Http\Requests\BettingDistribution\SetNumberControlsRequest;
 use App\Services\BettingDistribution\BettingDistributionService;
+use App\Services\BettingDistribution\NumberControlService;
 use App\Services\BettingDistribution\TemporaryOddAdjustmentService;
 use DomainException;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -18,6 +21,7 @@ class BettingDistributionController extends Controller
     public function __construct(
         private readonly BettingDistributionService $distributionService,
         private readonly TemporaryOddAdjustmentService $oddAdjustmentService,
+        private readonly NumberControlService $numberControlService,
     ) {}
 
     public function getCurrentDistribution(Request $request): JsonResponse
@@ -57,14 +61,119 @@ class BettingDistributionController extends Controller
         }
     }
 
-    public function getPeriodsForToday(): JsonResponse
+    public function getPeriodsForToday(Request $request): JsonResponse
     {
-        $periods = $this->distributionService->getPeriodsForToday();
+        ['bet_type' => $betType, 'currency' => $currency] = $this->validateBetTypeAndCurrency($request, required: false);
+
+        $periods = $this->distributionService->getPeriodsForToday($betType, $currency);
 
         return $this->respond("Today's betting periods retrieved successfully.", [
             'date' => now('Asia/Bangkok')->toDateString(),
             'periods' => $periods,
         ]);
+    }
+
+    public function setNumberControls(SetNumberControlsRequest $request): JsonResponse
+    {
+        try {
+            $result = $this->numberControlService->setControls(
+                $request->validated('stock_date'),
+                $this->resolveOpentime($request->validated('bet_type'), $request->validated('target_opentime')),
+                $request->validated('bet_type'),
+                $request->validated('currency'),
+                $request->validated('controls'),
+                (string) $request->user()->id,
+            );
+
+            return $this->respond('Number controls updated successfully.', $result);
+        } catch (DomainException $e) {
+            return $this->respond($e->getMessage(), null, 409, ['period' => [$e->getMessage()]]);
+        }
+    }
+
+    public function reopenNumberControls(ReopenNumberControlsRequest $request): JsonResponse
+    {
+        try {
+            $result = $this->numberControlService->reopen(
+                $request->validated('stock_date'),
+                $this->resolveOpentime($request->validated('bet_type'), $request->validated('target_opentime')),
+                $request->validated('bet_type'),
+                $request->validated('currency'),
+                $request->validated('numbers'),
+            );
+
+            return $this->respond('Numbers reopened successfully.', $result);
+        } catch (DomainException $e) {
+            return $this->respond($e->getMessage(), null, 409, ['period' => [$e->getMessage()]]);
+        }
+    }
+
+    public function getNumberControls(Request $request, string $date, string $targetOpentime): JsonResponse
+    {
+        $this->validatePeriodParams($date, $targetOpentime);
+        ['bet_type' => $betType, 'currency' => $currency] = $this->validateBetTypeAndCurrency($request);
+
+        $controls = $this->numberControlService->listControls($date, $targetOpentime, $betType, $currency);
+
+        return $this->respond('Number controls retrieved successfully.', [
+            'period' => [
+                'target_opentime' => $targetOpentime,
+                'stock_date' => $date,
+            ],
+            'controls' => $controls,
+            'total_controls' => count($controls),
+        ]);
+    }
+
+    public function getClosedNumbers(Request $request): JsonResponse
+    {
+        ['bet_type' => $betType, 'currency' => $currency] = $this->validateBetTypeAndCurrency($request, required: false);
+
+        $date = (string) $request->query('stock_date', now('Asia/Bangkok')->toDateString());
+        $opentime = $betType === '3D'
+            ? ''
+            : (string) $request->query('target_opentime', $this->distributionService->currentActivePeriod());
+
+        if ($opentime !== '' && ! in_array($opentime, ['11:00:00', '12:01:00', '15:00:00', '16:30:00'], true)) {
+            return $this->respond('The given data was invalid.', null, 422, [
+                'target_opentime' => ['The selected target opentime is invalid.'],
+            ]);
+        }
+
+        $controls = $this->numberControlService->listControls($date, $opentime, $betType, $currency);
+
+        $closed = [];
+        $limited = [];
+        foreach ($controls as $control) {
+            if ($control['status'] === 'closed') {
+                $closed[] = $control['number'];
+
+                continue;
+            }
+
+            $limited[] = [
+                'number' => $control['number'],
+                'sales_limit' => $control['sales_limit'],
+                'remaining' => $control['remaining'],
+            ];
+        }
+
+        return $this->respond('Closed numbers retrieved successfully.', [
+            'period' => [
+                'target_opentime' => $opentime,
+                'stock_date' => $date,
+            ],
+            'bet_type' => $betType,
+            'currency' => $currency,
+            'closed' => $closed,
+            'limited' => $limited,
+            'updated_at' => now('Asia/Bangkok')->toIso8601String(),
+        ]);
+    }
+
+    private function resolveOpentime(string $betType, ?string $targetOpentime): string
+    {
+        return $betType === '3D' ? '' : (string) $targetOpentime;
     }
 
     public function getTempOdds(Request $request, string $date, string $targetOpentime): JsonResponse
@@ -122,11 +231,11 @@ class BettingDistributionController extends Controller
 
     private function validateBetTypeAndCurrency(Request $request, bool $required = true): array
     {
-        if (!$required) {
+        if (! $required) {
             $betType = $request->query('bet_type', '2D');
             $currency = $request->query('currency', 'THB');
 
-            if (!in_array($betType, ['2D', '3D'], true)) {
+            if (! in_array($betType, ['2D', '3D'], true)) {
                 throw new HttpResponseException(response()->json([
                     'message' => 'The given data was invalid.',
                     'data' => null,
@@ -134,7 +243,7 @@ class BettingDistributionController extends Controller
                 ], 422));
             }
 
-            if (!in_array($currency, ['MMK', 'THB'], true)) {
+            if (! in_array($currency, ['MMK', 'THB'], true)) {
                 throw new HttpResponseException(response()->json([
                     'message' => 'The given data was invalid.',
                     'data' => null,
