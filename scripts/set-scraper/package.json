@@ -1,0 +1,14 @@
+{
+  "name": "set-scraper",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Headless-browser scraper for the SET index API (bypasses Incapsula). Invoked by the Laravel set:capture command.",
+  "scripts": {
+    "capture": "node set-capture.mjs",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

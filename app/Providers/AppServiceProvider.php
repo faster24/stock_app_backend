@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\SetScraper;
 use App\Contracts\TwoDLiveProvider;
 use App\Events\BetPaidOutEvent;
 use App\Events\BetWonEvent;
@@ -15,6 +16,7 @@ use App\Listeners\SendDepositApprovedNotification;
 use App\Listeners\SendDepositRejectedNotification;
 use App\Listeners\SendSettlementRevertedNotification;
 use App\Listeners\SendWithdrawalCompletedNotification;
+use App\Services\Set\NodeSetScraper;
 use App\Services\TwoD\TwoDLiveProviderManager;
 use App\Support\RealSleeper;
 use App\Support\Sleeper;
@@ -31,6 +33,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             TwoDLiveProvider::class,
             fn ($app) => $app->make(TwoDLiveProviderManager::class)->driver(),
+        );
+
+        $this->app->bind(
+            SetScraper::class,
+            fn ($app) => new NodeSetScraper((array) $app['config']->get('set', [])),
         );
     }
 
