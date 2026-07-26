@@ -121,6 +121,9 @@ Route::prefix('v1')->group(function () {
                 Route::get('/bets', [BetController::class, 'adminIndex']);
                 Route::get('/bets/{bet}', [BetController::class, 'adminShow']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
+                // Winning-bet payout approval (bulk route first so it is not shadowed by {bet}).
+                Route::post('/bets/payout/bulk', [BetController::class, 'approvePayoutBulk']);
+                Route::post('/bets/{bet}/payout', [BetController::class, 'approvePayout']);
                 Route::prefix('bank-settings')->controller(AdminBankSettingController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{adminBankSetting}', 'show');

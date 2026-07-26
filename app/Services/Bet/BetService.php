@@ -91,13 +91,28 @@ class BetService extends Service
             ->get();
     }
 
-    public function listForAdmin(int $page = 1, int $pageSize = 10): Collection
+    /**
+     * @param  array<string, string>  $filters  any of: status, bet_result_status,
+     *                                          payout_status, bet_type, target_opentime, stock_date
+     */
+    public function listForAdmin(int $page = 1, int $pageSize = 10, array $filters = []): Collection
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
 
-        return Bet::query()
-            ->with(['betNumbers', 'user.wallet'])
+        $query = Bet::query()->with(['betNumbers', 'user.wallet']);
+
+        foreach (['status', 'bet_result_status', 'payout_status', 'bet_type', 'target_opentime'] as $column) {
+            if (! empty($filters[$column])) {
+                $query->where($column, $filters[$column]);
+            }
+        }
+
+        if (! empty($filters['stock_date'])) {
+            $query->whereDate('stock_date', $filters['stock_date']);
+        }
+
+        return $query
             ->latest()
             ->forPage($resolvedPage, $resolvedPageSize)
             ->get();

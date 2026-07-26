@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
+use App\Http\Requests\Bet\ApproveBetPayoutRequest;
+use App\Http\Requests\Bet\BulkApproveBetPayoutRequest;
 use App\Http\Requests\Bet\StoreBetRequest;
 use App\Http\Requests\Bet\UpdateBetRequest;
+use App\Services\Bet\BetPayoutService;
 use App\Services\Bet\BetService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -15,7 +18,10 @@ use Throwable;
 
 class BetController extends Controller
 {
-    public function __construct(private BetService $betService) {}
+    public function __construct(
+        private BetService $betService,
+        private BetPayoutService $betPayoutService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -35,10 +41,15 @@ class BetController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
-        Log::info('Admin bet list requested.', ['admin_user_id' => (string) $request->user()->id, 'page' => $page, 'page_size' => $pageSize]);
+        $filters = array_filter(
+            $request->only(['status', 'bet_result_status', 'payout_status', 'bet_type', 'stock_date', 'target_opentime']),
+            fn ($value) => $value !== null && $value !== '',
+        );
+
+        Log::info('Admin bet list requested.', ['admin_user_id' => (string) $request->user()->id, 'page' => $page, 'page_size' => $pageSize, 'filters' => $filters]);
 
         return $this->respond('Bets retrieved successfully.', [
-            'bets' => $this->betService->listForAdmin($page, $pageSize),
+            'bets' => $this->betService->listForAdmin($page, $pageSize, $filters),
         ]);
     }
 
@@ -228,6 +239,68 @@ class BetController extends Controller
 
         return $this->respond('Bet status updated successfully.', [
             'bet' => $updatedBet,
+        ]);
+    }
+
+    public function approvePayout(ApproveBetPayoutRequest $request, string $bet): JsonResponse
+    {
+        $adminUserId = (string) $request->user()->id;
+        $validated = $request->validated();
+
+        $model = $this->betService->showForAdmin($bet);
+
+        if ($model === null) {
+            return $this->respond('Bet not found.', null, 404, [
+                'bet' => ['The selected bet is invalid.'],
+            ]);
+        }
+
+        Log::info('Bet payout approval requested.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
+
+        try {
+            $paidBet = $this->betPayoutService->approve(
+                $model,
+                $adminUserId,
+                $validated['payout_reference'] ?? null,
+                $validated['payout_note'] ?? null,
+            );
+        } catch (DomainException $exception) {
+            Log::warning('Bet payout approval rejected.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'reason' => $exception->getMessage()]);
+
+            return $this->respond($exception->getMessage(), null, 409, [
+                'payout' => [$exception->getMessage()],
+            ]);
+        }
+
+        Log::info('Bet payout approved.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet]);
+
+        return $this->respond('Bet payout approved successfully.', [
+            'bet' => $paidBet,
+        ]);
+    }
+
+    public function approvePayoutBulk(BulkApproveBetPayoutRequest $request): JsonResponse
+    {
+        $adminUserId = (string) $request->user()->id;
+        $validated = $request->validated();
+
+        Log::info('Bulk bet payout approval requested.', [
+            'admin_user_id' => $adminUserId,
+            'stock_date' => $validated['stock_date'],
+            'target_opentime' => $validated['target_opentime'],
+        ]);
+
+        $summary = $this->betPayoutService->approveBulk(
+            (string) $validated['stock_date'],
+            (string) $validated['target_opentime'],
+            $adminUserId,
+            $validated['note'] ?? null,
+        );
+
+        Log::info('Bulk bet payout approval completed.', ['admin_user_id' => $adminUserId, 'summary' => $summary]);
+
+        return $this->respond('Bet payouts approved.', [
+            'summary' => $summary,
         ]);
     }
 
