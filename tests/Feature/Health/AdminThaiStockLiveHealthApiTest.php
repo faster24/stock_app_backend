@@ -2,14 +2,28 @@
 
 namespace Tests\Feature\Health;
 
+use App\Contracts\TwoDLiveProvider;
+use App\Exceptions\TwoDProviderException;
 use App\Models\User;
+use App\Support\TwoD\TwoDSnapshotMapper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
+use Tests\Support\FakeTwoDLiveProvider;
 use Tests\TestCase;
 
 class AdminThaiStockLiveHealthApiTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function fakeProviderReturning(array $payload, int $status): void
+    {
+        $snapshot = $this->app->make(TwoDSnapshotMapper::class)->map($payload, $status);
+        $this->app->instance(TwoDLiveProvider::class, new FakeTwoDLiveProvider($snapshot));
+    }
+
+    private function fakeProviderThrowing(TwoDProviderException $exception): void
+    {
+        $this->app->instance(TwoDLiveProvider::class, FakeTwoDLiveProvider::throwing($exception));
+    }
 
     public function test_guest_request_returns_401_envelope(): void
     {
@@ -34,11 +48,7 @@ class AdminThaiStockLiveHealthApiTest extends TestCase
 
     public function test_admin_gets_200_when_upstream_is_healthy(): void
     {
-        Http::fake([
-            'https://api.thaistock2d.com/live' => Http::response([
-                'result' => [],
-            ], 200),
-        ]);
+        $this->fakeProviderReturning(['result' => []], 200);
 
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -56,11 +66,7 @@ class AdminThaiStockLiveHealthApiTest extends TestCase
 
     public function test_admin_gets_503_when_upstream_is_non_2xx(): void
     {
-        Http::fake([
-            'https://api.thaistock2d.com/live' => Http::response([
-                'message' => 'upstream error',
-            ], 500),
-        ]);
+        $this->fakeProviderThrowing(new TwoDProviderException('Upstream returned HTTP 500.', 500));
 
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -76,11 +82,7 @@ class AdminThaiStockLiveHealthApiTest extends TestCase
 
     public function test_admin_gets_503_when_upstream_payload_is_invalid(): void
     {
-        Http::fake([
-            'https://api.thaistock2d.com/live' => Http::response([
-                'foo' => 'bar',
-            ], 200),
-        ]);
+        $this->fakeProviderReturning(['foo' => 'bar'], 200);
 
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -96,9 +98,7 @@ class AdminThaiStockLiveHealthApiTest extends TestCase
 
     public function test_admin_gets_503_when_request_throws_exception(): void
     {
-        Http::fake(function (): never {
-            throw new \RuntimeException('connection refused');
-        });
+        $this->fakeProviderThrowing(new TwoDProviderException('Request failed: connection refused', null));
 
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;

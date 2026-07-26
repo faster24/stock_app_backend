@@ -2,12 +2,18 @@
 
 namespace App\Console\Commands;
 
+use App\Contracts\TwoDLiveProvider;
+use App\Exceptions\TwoDProviderException;
 use App\Models\TwoDResult;
 use App\Services\Bet\BetSettlementService;
+use App\Services\TwoD\TwoDResultWriter;
 use App\Support\Sleeper;
+use App\Support\TwoD\TwoDLiveData;
+use App\Support\TwoD\TwoDLiveSnapshot;
+use App\Support\TwoD\TwoDPayloadNormalizer;
+use App\Support\TwoD\TwoDResultData;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -23,11 +29,12 @@ class FetchAndSettleTwoDCommand extends Command
 
     protected $description = 'Fetch 2D live results with time-based retry, then settle bets for the given open_time slot.';
 
-    private const HTTP_TIMEOUT_SECONDS = 20;
-
     public function __construct(
         private readonly BetSettlementService $settlementService,
         private readonly Sleeper $sleeper,
+        private readonly TwoDLiveProvider $provider,
+        private readonly TwoDResultWriter $writer,
+        private readonly TwoDPayloadNormalizer $normalizer,
     ) {
         parent::__construct();
     }
@@ -48,11 +55,11 @@ class FetchAndSettleTwoDCommand extends Command
         }
 
         if ($fetched['type'] === 'live') {
-            if (! $this->persistLiveFallback($fetched['payload']['live'], $openTime)) {
+            if (! $this->persistLiveFallback($fetched['snapshot']->live, $openTime)) {
                 return self::FAILURE;
             }
         } else {
-            if (! $this->persistResults($fetched['payload'])) {
+            if (! $this->persistResults($fetched['snapshot'])) {
                 return self::FAILURE;
             }
         }
@@ -60,32 +67,29 @@ class FetchAndSettleTwoDCommand extends Command
         return $this->settle($openTime, $chunkSize);
     }
 
+    /**
+     * @return array{type: string, snapshot: TwoDLiveSnapshot}|null
+     */
     private function fetchWithRetry(string $openTime, int $timeoutMinutes, int $retryInterval, int $maxAttempts = 0): ?array
     {
         $deadline = now()->addMinutes($timeoutMinutes);
         $attempt = 0;
-        $lastPayload = null;
+        $lastSnapshot = null;
 
         while (true) {
             $attempt++;
             $remainingMinutes = (int) now()->diffInMinutes($deadline, false);
-            $this->info("Attempt {$attempt}: fetching from thaistock2d... ({$remainingMinutes}m remaining)");
+            $this->info("Attempt {$attempt}: fetching from 2D provider... ({$remainingMinutes}m remaining)");
 
-            $payload = $this->tryFetch();
+            $snapshot = $this->tryFetch();
 
-            if ($payload !== null) {
-                $lastPayload = $payload;
+            if ($snapshot !== null) {
+                $lastSnapshot = $snapshot;
 
-                $hasResult = collect($payload['result'] ?? [])->contains(
-                    fn ($item) => str_starts_with($item['open_time'] ?? '', $openTime)
-                        && ! empty($item['history_id'])
-                        && ($item['twod'] ?? '--') !== '--'
-                );
-
-                if ($hasResult) {
+                if ($snapshot->hasResultFor($openTime)) {
                     $this->info("Fetch succeeded on attempt {$attempt}.");
 
-                    return ['type' => 'result', 'payload' => $payload];
+                    return ['type' => 'result', 'snapshot' => $snapshot];
                 }
 
                 $this->info("Result for open_time={$openTime} not yet in payload.");
@@ -106,19 +110,21 @@ class FetchAndSettleTwoDCommand extends Command
             $this->sleeper->sleep($wait);
         }
 
+        $live = $lastSnapshot?->live;
+
         if (! $this->option('no-live-fallback')
-            && $lastPayload !== null
-            && ! empty($lastPayload['live']['twod'])
-            && ($lastPayload['live']['twod'] ?? '--') !== '--'
-            && $this->liveTimeMatchesSlot($lastPayload['live']['time'] ?? '', $openTime)) {
+            && $live !== null
+            && $live->twod !== null
+            && $live->twod !== '--'
+            && $this->liveTimeMatchesSlot($live->time ?? '', $openTime)) {
             $this->warn("Timeout reached after {$timeoutMinutes}m ({$attempt} attempts). Falling back to live data.");
             Log::warning('twod:fetch-and-settle: using live fallback', [
                 'open_time' => $openTime,
                 'attempts' => $attempt,
-                'live' => $lastPayload['live'],
+                'live' => $live->raw,
             ]);
 
-            return ['type' => 'live', 'payload' => $lastPayload];
+            return ['type' => 'live', 'snapshot' => $lastSnapshot];
         }
 
         Log::critical('twod:fetch-and-settle timed out with no usable data.', [
@@ -131,31 +137,15 @@ class FetchAndSettleTwoDCommand extends Command
         return null;
     }
 
-    private function tryFetch(): ?array
+    private function tryFetch(): ?TwoDLiveSnapshot
     {
         try {
-            $response = Http::acceptJson()->timeout(self::HTTP_TIMEOUT_SECONDS)->get('https://api.thaistock2d.com/live');
-        } catch (Throwable $e) {
-            $this->error("Request exception: {$e->getMessage()}");
+            return $this->provider->fetch();
+        } catch (TwoDProviderException $e) {
+            $this->error("Fetch failed: {$e->getMessage()}");
 
             return null;
         }
-
-        if (! $response->successful()) {
-            $this->error("HTTP {$response->status()} response.");
-
-            return null;
-        }
-
-        $payload = $response->json();
-
-        if (! is_array($payload) || (empty($payload['result']) && ! isset($payload['live']))) {
-            $this->error('Invalid payload: no result array and no live data.');
-
-            return null;
-        }
-
-        return $payload;
     }
 
     private function liveTimeMatchesSlot(string $liveTime, string $openTime): bool
@@ -172,43 +162,16 @@ class FetchAndSettleTwoDCommand extends Command
         }
     }
 
-    private function persistResults(array $payload): bool
+    private function persistResults(TwoDLiveSnapshot $snapshot): bool
     {
-        $fetched = count($payload['result']);
+        $fetched = count($snapshot->results);
         $saved = 0;
         $skipped = 0;
         $failed = 0;
 
-        foreach ($payload['result'] as $item) {
-            if (! is_array($item)) {
-                $failed++;
-
-                continue;
-            }
-
-            $historyId = $this->normalizeString($item['history_id'] ?? null);
-
-            if ($historyId === null) {
-                $failed++;
-
-                continue;
-            }
-
+        foreach ($snapshot->results as $result) {
             try {
-                $result = TwoDResult::updateOrCreate(
-                    ['history_id' => $historyId],
-                    [
-                        'stock_date' => $this->parseDate($item['stock_date'] ?? null),
-                        'stock_datetime' => $this->parseDateTime($item['stock_datetime'] ?? null),
-                        'open_time' => $this->parseTime($item['open_time'] ?? null),
-                        'twod' => $this->normalizeString($item['twod'] ?? null),
-                        'set_index' => $this->normalizeString($item['set'] ?? null),
-                        'value' => $this->normalizeString($item['value'] ?? null),
-                        'payload' => $item,
-                    ]
-                );
-
-                if ($result->wasRecentlyCreated || $result->wasChanged()) {
+                if ($this->writer->write($result)) {
                     $saved++;
                 } else {
                     $skipped++;
@@ -225,7 +188,7 @@ class FetchAndSettleTwoDCommand extends Command
             Log::warning('twod:fetch-and-settle: partial persist failures', ['failed' => $failed]);
         }
 
-        if ($failed === $fetched) {
+        if ($fetched > 0 && $failed === $fetched) {
             $this->error('All rows failed during persistence. Aborting settlement.');
 
             return false;
@@ -234,28 +197,32 @@ class FetchAndSettleTwoDCommand extends Command
         return true;
     }
 
-    private function persistLiveFallback(array $live, string $openTime): bool
+    private function persistLiveFallback(?TwoDLiveData $live, string $openTime): bool
     {
-        $date = $this->parseDate($live['date'] ?? null)
-            ?? $this->parseDate($live['time'] ?? null);
+        if ($live === null) {
+            $this->error('Live fallback requested but no live data is available.');
 
-        $historyId = '2d-live-'.($date ?? now('Asia/Yangon')->toDateString()).'-'.str_replace(':', '', $openTime);
+            return false;
+        }
+
+        $historyDate = $live->date ?? now('Asia/Yangon')->toDateString();
+        $historyId = '2d-live-'.$historyDate.'-'.str_replace(':', '', $openTime);
+
+        $data = new TwoDResultData(
+            historyId: $historyId,
+            stockDate: $live->date,
+            stockDateTime: $live->dateTime,
+            openTime: $this->normalizer->time($openTime),
+            twod: $live->twod,
+            setIndex: $live->set,
+            value: $live->value,
+            raw: $live->raw,
+        );
 
         try {
-            TwoDResult::updateOrCreate(
-                ['history_id' => $historyId],
-                [
-                    'stock_date' => $date,
-                    'stock_datetime' => $this->parseDateTime($live['time'] ?? null),
-                    'open_time' => $this->parseTime($openTime),
-                    'twod' => $this->normalizeString($live['twod'] ?? null),
-                    'set_index' => $this->normalizeString($live['set'] ?? null),
-                    'value' => $this->normalizeString($live['value'] ?? null),
-                    'payload' => $live,
-                ]
-            );
+            $this->writer->write($data);
 
-            $this->warn("Live fallback persisted: history_id={$historyId}, twod={$live['twod']}");
+            $this->warn("Live fallback persisted: history_id={$historyId}, twod={$live->twod}");
 
             return true;
         } catch (Throwable $e) {
@@ -300,61 +267,5 @@ class FetchAndSettleTwoDCommand extends Command
         $this->info("Settlement — Settled: {$summary['settled']}, Won: {$summary['won']}, Lost: {$summary['lost']}, Skipped: {$summary['skipped']}");
 
         return self::SUCCESS;
-    }
-
-    private function normalizeString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        $normalized = trim((string) $value);
-
-        return $normalized === '' ? null : $normalized;
-    }
-
-    private function parseDate(mixed $value): ?string
-    {
-        $normalized = $this->normalizeString($value);
-
-        if ($normalized === null) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($normalized)->toDateString();
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    private function parseDateTime(mixed $value): ?string
-    {
-        $normalized = $this->normalizeString($value);
-
-        if ($normalized === null) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($normalized)->toDateTimeString();
-        } catch (Throwable) {
-            return null;
-        }
-    }
-
-    private function parseTime(mixed $value): ?string
-    {
-        $normalized = $this->normalizeString($value);
-
-        if ($normalized === null) {
-            return null;
-        }
-
-        try {
-            return Carbon::parse($normalized)->format('H:i:s');
-        } catch (Throwable) {
-            return null;
-        }
     }
 }
