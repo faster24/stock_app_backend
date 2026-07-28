@@ -23,6 +23,8 @@ class UpdateThreeDResultRequest extends AuthFormRequest
                 'required',
                 'digits:3',
             ],
+            'confirm_revert' => ['sometimes', 'boolean'],
+            'reason' => ['required_if:confirm_revert,true', 'string', 'max:500'],
         ];
     }
 }

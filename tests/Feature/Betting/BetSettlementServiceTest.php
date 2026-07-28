@@ -185,73 +185,74 @@ class BetSettlementServiceTest extends TestCase
         ]);
     }
 
-    public function test_settlement_credits_wallet_and_marks_payout_for_winning_bet(): void
+    public function test_settlement_marks_winner_won_and_pending_without_crediting(): void
     {
         $user = User::factory()->normalUser()->create();
         $wallet = Wallet::factory()->create([
-            'user_id'            => $user->id,
-            'balance'            => 50_000,
-            'currency'           => Currency::MMK,
+            'user_id' => $user->id,
+            'balance' => 50_000,
+            'currency' => Currency::MMK,
             'currency_locked_at' => now(),
         ]);
 
         $winningBet = Bet::factory()->for($user)->create([
-            'bet_type'          => BetType::TWO_D,
-            'status'            => BetStatus::ACCEPTED,
+            'bet_type' => BetType::TWO_D,
+            'status' => BetStatus::ACCEPTED,
             'bet_result_status' => BetResultStatus::OPEN,
-            'target_opentime'   => '11:00:00',
-            'stock_date'        => '2026-03-19',
+            'target_opentime' => '11:00:00',
+            'stock_date' => '2026-03-19',
         ]);
         $winningBet->betNumbers()->create([
-            'number'           => 12,
-            'amount'           => 1000,
+            'number' => 12,
+            'amount' => 1000,
             'potential_winning' => 85_000,
         ]);
 
         $losingBet = Bet::factory()->for($user)->create([
-            'bet_type'          => BetType::TWO_D,
-            'status'            => BetStatus::ACCEPTED,
+            'bet_type' => BetType::TWO_D,
+            'status' => BetStatus::ACCEPTED,
             'bet_result_status' => BetResultStatus::OPEN,
-            'target_opentime'   => '11:00:00',
-            'stock_date'        => '2026-03-19',
+            'target_opentime' => '11:00:00',
+            'stock_date' => '2026-03-19',
         ]);
         $losingBet->betNumbers()->create([
-            'number'           => 55,
-            'amount'           => 1000,
+            'number' => 55,
+            'amount' => 1000,
             'potential_winning' => 85_000,
         ]);
 
         $result = TwoDResult::query()->create([
-            'history_id'      => 'history-credit-test',
-            'stock_date'      => '2026-03-19',
-            'stock_datetime'  => '2026-03-19 11:00:00',
-            'open_time'       => '11:00:00',
-            'twod'            => '12',
-            'payload'         => [],
+            'history_id' => 'history-credit-test',
+            'stock_date' => '2026-03-19',
+            'stock_datetime' => '2026-03-19 11:00:00',
+            'open_time' => '11:00:00',
+            'twod' => '12',
+            'payload' => [],
         ]);
 
         app(BetSettlementService::class)->settleTwoDResult($result);
 
+        // Settlement decides the result but does NOT pay: the winner is WON and
+        // payout_status stays PENDING, un-credited, awaiting admin approval.
         $this->assertDatabaseHas('bets', [
-            'id'               => $winningBet->id,
+            'id' => $winningBet->id,
             'bet_result_status' => BetResultStatus::WON->value,
-            'payout_status'    => BetPayoutStatus::PAID_OUT->value,
+            'payout_status' => BetPayoutStatus::PENDING->value,
         ]);
 
-        $this->assertDatabaseHas('wallet_transactions', [
-            'user_id'   => $user->id,
-            'type'      => WalletTransactionType::BET_WIN->value,
+        $this->assertDatabaseMissing('wallet_transactions', [
+            'user_id' => $user->id,
+            'type' => WalletTransactionType::BET_WIN->value,
             'direction' => WalletTransactionDirection::CREDIT->value,
-            'amount'    => 85_000,
         ]);
 
         $wallet->refresh();
-        $this->assertSame('135000', (string) (int) $wallet->balance);
+        $this->assertSame('50000', (string) (int) $wallet->balance);
 
         $this->assertDatabaseHas('bets', [
-            'id'               => $losingBet->id,
+            'id' => $losingBet->id,
             'bet_result_status' => BetResultStatus::LOST->value,
-            'payout_status'    => BetPayoutStatus::PENDING->value,
+            'payout_status' => BetPayoutStatus::PENDING->value,
         ]);
     }
 }

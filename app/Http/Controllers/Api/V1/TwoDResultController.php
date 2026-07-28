@@ -2,14 +2,23 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\SettlementRevertRequiredException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\TwoDResult\StoreTwoDResultRequest;
+use App\Http\Requests\TwoDResult\UpdateTwoDResultRequest;
+use App\Models\TwoDResult;
+use App\Services\Bet\SettlementRecoveryService;
 use App\Services\TwoDResult\TwoDResultService;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TwoDResultController extends Controller
 {
-    public function __construct(private readonly TwoDResultService $twoDResultService) {}
+    public function __construct(
+        private readonly TwoDResultService $twoDResultService,
+        private readonly SettlementRecoveryService $settlementRecoveryService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -38,6 +47,55 @@ class TwoDResultController extends Controller
     {
         return $this->respond('Last 5 days 2D results retrieved successfully.', [
             'two_d_results' => $this->twoDResultService->lastFiveDays(),
+        ]);
+    }
+
+    public function store(StoreTwoDResultRequest $request): JsonResponse
+    {
+        try {
+            $outcome = $this->settlementRecoveryService->createManualTwoDResult(
+                $request->validated(),
+                (string) $request->user()->id
+            );
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'result' => [$exception->getMessage()],
+            ]);
+        }
+
+        return $this->respond('2D result saved and settled successfully.', [
+            'two_d_result' => $outcome['result']->fresh(),
+            'settlement_summary' => $outcome['summary'],
+        ], 201);
+    }
+
+    public function update(UpdateTwoDResultRequest $request, TwoDResult $twoDResult): JsonResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $outcome = $this->settlementRecoveryService->correctTwoDResult(
+                $twoDResult,
+                (string) $validated['twod'],
+                (string) $request->user()->id,
+                $validated['reason'] ?? null,
+                (bool) ($validated['confirm_revert'] ?? false)
+            );
+        } catch (SettlementRevertRequiredException $exception) {
+            return $this->respond($exception->getMessage(), [
+                'requires_revert' => true,
+                'history_id' => $exception->historyId,
+            ], 409, ['result' => [$exception->getMessage()]]);
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'result' => [$exception->getMessage()],
+            ]);
+        }
+
+        return $this->respond('2D result corrected and re-settled successfully.', [
+            'two_d_result' => $outcome['result']->fresh(),
+            'reversal' => $outcome['reversal'],
+            'settlement_summary' => $outcome['summary'],
         ]);
     }
 

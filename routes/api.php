@@ -3,9 +3,11 @@
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\AdminBalanceAdjustmentController;
 use App\Http\Controllers\Api\V1\AdminBankSettingController;
+use App\Http\Controllers\Api\V1\AdminBetReportController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminDepositController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
+use App\Http\Controllers\Api\V1\AdminSettlementRunController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\AdminWalletController;
 use App\Http\Controllers\Api\V1\AdminWithdrawalController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\AppSettingController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BetController;
+use App\Http\Controllers\Api\V1\BetPauseController;
 use App\Http\Controllers\Api\V1\BettingDistributionController;
 use App\Http\Controllers\Api\V1\DepositController;
 use App\Http\Controllers\Api\V1\FcmTokenController;
@@ -53,6 +56,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
         Route::get('/closed-numbers', [BettingDistributionController::class, 'getClosedNumbers']);
+        Route::get('/bet-pauses', [BetPauseController::class, 'index']);
         Route::prefix('deposits')->controller(DepositController::class)->group(function () {
             Route::get('/', 'index');
             Route::post('/', 'store');
@@ -101,12 +105,21 @@ Route::prefix('v1')->group(function () {
                 Route::get('/dashboard', AdminDashboardController::class);
                 Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
                 Route::put('/app-settings/maintenance', [AppSettingController::class, 'updateMaintenance']);
+                Route::get('/bet-pauses', [BetPauseController::class, 'index']);
+                Route::put('/bet-pauses', [BetPauseController::class, 'update']);
                 Route::post('/announcements', [AnnouncementController::class, 'store']);
                 Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update']);
                 Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
                 Route::post('/odd-settings', [OddSettingController::class, 'store']);
                 Route::put('/odd-settings/{oddSetting}', [OddSettingController::class, 'update']);
                 Route::delete('/odd-settings/{oddSetting}', [OddSettingController::class, 'destroy']);
+                Route::post('/two-d-results', [TwoDResultController::class, 'store']);
+                Route::put('/two-d-results/{twoDResult}', [TwoDResultController::class, 'update']);
+                Route::prefix('settlement-runs')->controller(AdminSettlementRunController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{historyId}/revert-preview', 'revertPreview')->where('historyId', '[A-Za-z0-9:._\-]+');
+                    Route::post('/{historyId}/revert', 'revert')->where('historyId', '[A-Za-z0-9:._\-]+');
+                });
                 Route::post('/three-d-results', [ThreeDResultController::class, 'store']);
                 Route::put('/three-d-results/{threeDResult}', [ThreeDResultController::class, 'update']);
                 Route::delete('/three-d-results/{threeDResult}', [ThreeDResultController::class, 'destroy']);
@@ -118,9 +131,16 @@ Route::prefix('v1')->group(function () {
                     Route::get('/top-numbers', 'topNumbers');
                     Route::get('/settlement-runs', 'settlementRuns');
                 });
+                Route::prefix('reports')->controller(AdminBetReportController::class)->group(function () {
+                    Route::get('/bets', 'index');
+                    Route::get('/bets/export', 'export');
+                });
                 Route::get('/bets', [BetController::class, 'adminIndex']);
                 Route::get('/bets/{bet}', [BetController::class, 'adminShow']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
+                // Winning-bet payout approval (bulk route first so it is not shadowed by {bet}).
+                Route::post('/bets/payout/bulk', [BetController::class, 'approvePayoutBulk']);
+                Route::post('/bets/{bet}/payout', [BetController::class, 'approvePayout']);
                 Route::prefix('bank-settings')->controller(AdminBankSettingController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{adminBankSetting}', 'show');

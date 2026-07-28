@@ -2,18 +2,14 @@
 
 namespace App\Services\Bet;
 
-use App\Enums\BetPayoutStatus;
 use App\Enums\BetResultStatus;
 use App\Enums\BetStatus;
 use App\Enums\BetType;
-use App\Enums\WalletTransactionDirection;
-use App\Enums\WalletTransactionType;
 use App\Events\BetWonEvent;
 use App\Models\Bet;
 use App\Models\ThreeDResult;
 use App\Models\TwoDResult;
 use App\Services\Service;
-use App\Services\Wallet\WalletMutator;
 use DomainException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -21,8 +17,6 @@ use Throwable;
 
 class BetSettlementService extends Service
 {
-    public function __construct(private WalletMutator $walletMutator) {}
-
     private const NOOP_SUMMARY = [
         'settled' => 0,
         'won' => 0,
@@ -211,8 +205,9 @@ class BetSettlementService extends Service
                     });
 
                     if ($winnerIds !== []) {
-                        $this->creditWinningBets($winnerIds, $winningNumber, $historyId, $settledAt);
-
+                        // Winners are left WON + payout_status PENDING (un-credited).
+                        // Payout is now a deliberate admin action via BetPayoutService::approve;
+                        // settlement never moves money. Only the "you won" notice is sent here.
                         Bet::query()
                             ->with('user')
                             ->whereIn('id', $winnerIds)
@@ -238,50 +233,6 @@ class BetSettlementService extends Service
             $this->rollbackSettlementRun($historyId);
 
             throw $throwable;
-        }
-    }
-
-    private function creditWinningBets(
-        array $winnerIds,
-        int $winningNumber,
-        string $historyId,
-        Carbon $settledAt
-    ): void {
-        $payouts = DB::table('bet_numbers')
-            ->whereIn('bet_id', $winnerIds)
-            ->where('number', $winningNumber)
-            ->groupBy('bet_id')
-            ->selectRaw('bet_id, CAST(COALESCE(SUM(potential_winning), 0) AS UNSIGNED) as total')
-            ->pluck('total', 'bet_id');
-
-        foreach ($winnerIds as $winnerId) {
-            $payout = (int) ($payouts[$winnerId] ?? 0);
-
-            if ($payout <= 0) {
-                continue;
-            }
-
-            $bet = Bet::query()->select(['id', 'user_id'])->find($winnerId);
-
-            if ($bet === null) {
-                continue;
-            }
-
-            DB::transaction(function () use ($bet, $payout, $historyId, $settledAt): void {
-                $this->walletMutator->mutate(
-                    userId: $bet->user_id,
-                    type: WalletTransactionType::BET_WIN,
-                    direction: WalletTransactionDirection::CREDIT,
-                    amount: $payout,
-                    reference: $bet,
-                    createdByUserId: $bet->user_id,
-                    note: "Settlement: {$historyId}",
-                );
-                Bet::where('id', $bet->id)->update([
-                    'payout_status' => BetPayoutStatus::PAID_OUT->value,
-                    'paid_out_at'   => $settledAt,
-                ]);
-            });
         }
     }
 
@@ -463,8 +414,9 @@ class BetSettlementService extends Service
 
     private function resolveWinningNumber(mixed $value): ?int
     {
+        // 0 is valid: 2D "00" resolves to 0.
         if (is_int($value)) {
-            return $value >= 1 && $value <= 999 ? $value : null;
+            return $value >= 0 && $value <= 999 ? $value : null;
         }
 
         if (! is_string($value)) {
@@ -479,6 +431,6 @@ class BetSettlementService extends Service
 
         $resolved = (int) $trimmed;
 
-        return $resolved >= 1 && $resolved <= 999 ? $resolved : null;
+        return $resolved >= 0 && $resolved <= 999 ? $resolved : null;
     }
 }

@@ -18,7 +18,7 @@ class SendBetWonNotification implements ShouldQueue
         SendNotificationJob::dispatch(
             $bet->user,
             'Congratulations! Bet Won!',
-            "Your bet #{$bet->id} has won! Check your wallet for the payout.",
+            "Your bet #{$bet->id} has won! Your payout is being reviewed and will be credited once approved.",
             [
                 'type' => 'bet_won',
                 'bet_id' => $bet->id,
