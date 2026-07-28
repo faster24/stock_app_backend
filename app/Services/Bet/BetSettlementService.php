@@ -414,8 +414,9 @@ class BetSettlementService extends Service
 
     private function resolveWinningNumber(mixed $value): ?int
     {
+        // 0 is valid: 2D "00" resolves to 0.
         if (is_int($value)) {
-            return $value >= 1 && $value <= 999 ? $value : null;
+            return $value >= 0 && $value <= 999 ? $value : null;
         }
 
         if (! is_string($value)) {
@@ -430,6 +431,6 @@ class BetSettlementService extends Service
 
         $resolved = (int) $trimmed;
 
-        return $resolved >= 1 && $resolved <= 999 ? $resolved : null;
+        return $resolved >= 0 && $resolved <= 999 ? $resolved : null;
     }
 }

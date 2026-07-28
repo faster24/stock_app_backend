@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\SettlementRevertRequiredException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ThreeDResult\StoreThreeDResultRequest;
 use App\Http\Requests\ThreeDResult\UpdateThreeDResultRequest;
 use App\Models\ThreeDResult;
 use App\Services\Bet\BetSettlementService;
+use App\Services\Bet\SettlementRecoveryService;
 use App\Services\ThreeDResult\ThreeDResultService;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +18,8 @@ class ThreeDResultController extends Controller
 {
     public function __construct(
         private readonly ThreeDResultService $threeDResultService,
-        private readonly BetSettlementService $betSettlementService
+        private readonly BetSettlementService $betSettlementService,
+        private readonly SettlementRecoveryService $settlementRecoveryService
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -54,14 +58,31 @@ class ThreeDResultController extends Controller
 
     public function update(UpdateThreeDResultRequest $request, ThreeDResult $threeDResult): JsonResponse
     {
-        $updatedResult = $this->threeDResultService->update($threeDResult, $request->validated());
+        $validated = $request->validated();
 
-        if ($updatedResult->wasChanged()) {
-            $this->betSettlementService->settleThreeDResult($updatedResult);
+        try {
+            $outcome = $this->settlementRecoveryService->correctThreeDResult(
+                $threeDResult,
+                array_intersect_key($validated, array_flip(['stock_date', 'threed'])),
+                (string) $request->user()->id,
+                $validated['reason'] ?? null,
+                (bool) ($validated['confirm_revert'] ?? false)
+            );
+        } catch (SettlementRevertRequiredException $exception) {
+            return $this->respond($exception->getMessage(), [
+                'requires_revert' => true,
+                'history_id' => $exception->historyId,
+            ], 409, ['result' => [$exception->getMessage()]]);
+        } catch (DomainException $exception) {
+            return $this->respond($exception->getMessage(), null, 409, [
+                'result' => [$exception->getMessage()],
+            ]);
         }
 
         return $this->respond('3D result updated successfully.', [
-            'three_d_result' => $updatedResult->fresh(),
+            'three_d_result' => $outcome['result']->fresh(),
+            'reversal' => $outcome['reversal'],
+            'settlement_summary' => $outcome['summary'],
         ]);
     }
 

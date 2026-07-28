@@ -131,7 +131,7 @@ class NumberControlEnforcementTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath(
                 'errors.bet_numbers.0',
-                'Number 45 exceeds the sales limit for this period (remaining: 4000.00).'
+                'Number 45 exceeds the sales limit for this period.'
             );
 
         $this->withHeader('Authorization', 'Bearer '.$token)

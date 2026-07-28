@@ -30,6 +30,7 @@ class BetService extends Service
     public function __construct(
         private WalletMutator $walletMutator,
         private NumberControlService $numberControlService,
+        private BetPauseService $betPauseService,
     ) {}
 
     public const DELETE_RESULT_NOT_FOUND = 'not_found';
@@ -93,7 +94,7 @@ class BetService extends Service
 
     /**
      * @param  array<string, string>  $filters  any of: status, bet_result_status,
-     *                                          payout_status, bet_type, target_opentime, stock_date
+     *                                           payout_status, bet_type, target_opentime, stock_date
      */
     public function listForAdmin(int $page = 1, int $pageSize = 10, array $filters = []): Collection
     {
@@ -143,6 +144,7 @@ class BetService extends Service
 
         $this->assertUserHasCompleteBankInfo($userId);
         $this->assertWalletCurrencyMatches($userId, (string) ($attributes['currency'] ?? ''));
+        $this->betPauseService->assertBettingNotPaused((string) ($attributes['bet_type'] ?? ''));
 
         $numberEntries = $this->normalizeBetNumberEntries(
             (string) ($attributes['bet_type'] ?? ''),
@@ -214,6 +216,7 @@ class BetService extends Service
         $hasBetNumbers = array_key_exists('bet_numbers', $attributes);
         $resolvedBetType = (string) ($attributes['bet_type'] ?? $bet->bet_type->value);
         $resolvedCurrency = (string) ($attributes['currency'] ?? $bet->currency?->value ?? '');
+        $this->betPauseService->assertBettingNotPaused($resolvedBetType);
         $hasOddContextChange = array_key_exists('bet_type', $attributes) || array_key_exists('currency', $attributes);
 
         $numberEntries = $hasBetNumbers
@@ -446,14 +449,9 @@ class BetService extends Service
             }
 
             $sold = (float) ($soldByNumber[$number] ?? 0.0);
-            $remaining = max(0, (float) $control->sales_limit - $sold);
 
             if ($sold + $incomingAmount > (float) $control->sales_limit) {
-                $errors[] = sprintf(
-                    'Number %d exceeds the sales limit for this period (remaining: %s).',
-                    $number,
-                    number_format($remaining, 2, '.', ''),
-                );
+                $errors[] = "Number {$number} exceeds the sales limit for this period.";
             }
         }
 

@@ -73,7 +73,10 @@ class BetPayoutService extends Service
                 amount: $payout,
                 reference: $locked,
                 createdByUserId: $adminUserId,
-                note: $note ?? "Payout approved: {$locked->settled_result_history_id}",
+                // Deterministic ledger note keyed on the settlement run so a later
+                // SettlementReversal can identify and claw back this payout. The
+                // admin's free-text note is stored on the bet (payout_note), not here.
+                note: "Settlement: {$locked->settled_result_history_id}",
             );
 
             $locked->forceFill([
