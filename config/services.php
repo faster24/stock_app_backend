@@ -35,4 +35,23 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | 2D Result Provider
+    |--------------------------------------------------------------------------
+    |
+    | The source of 2D lottery results used for settlement. `driver` selects the
+    | active provider (see App\Services\TwoD\TwoDLiveProviderManager). Switching
+    | vendors is an env change — no code deploy.
+    |
+    */
+
+    'twod' => [
+        'driver' => env('TWOD_DRIVER', 'thaistock2d'),
+        'thaistock2d' => [
+            'url' => env('THAISTOCK2D_URL', 'https://api.thaistock2d.com/live'),
+            'timeout' => (int) env('THAISTOCK2D_TIMEOUT', 20),
+        ],
+    ],
+
 ];
