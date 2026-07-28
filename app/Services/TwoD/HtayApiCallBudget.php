@@ -56,6 +56,6 @@ class HtayApiCallBudget
     {
         $now = Carbon::now('Asia/Bangkok');
 
-        return $now->diffInSeconds($now->copy()->endOfDay()) + 1;
+        return (int) $now->diffInSeconds($now->copy()->endOfDay()) + 1;
     }
 }
