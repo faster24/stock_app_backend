@@ -12,6 +12,8 @@ use App\Models\BetNumber;
 use App\Models\User;
 use App\Support\NoopSleeper;
 use App\Support\Sleeper;
+use App\Support\TwoD\TwoDLiveSnapshot;
+use App\Support\TwoD\TwoDResultData;
 use App\Support\TwoD\TwoDSnapshotMapper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\FakeTwoDLiveProvider;
@@ -289,5 +291,66 @@ class FetchAndSettleTwoDCommandTest extends TestCase
         ])->assertExitCode(1);
 
         $this->assertDatabaseMissing('two_d_results', ['open_time' => '16:30:00']);
+    }
+
+    // -------------------------------------------------------------------------
+    // HtayApi-shaped snapshot — proves the command has no provider-specific
+    // logic: any TwoDLiveProvider implementation, including one shaped like
+    // HtayApiProvider's output (a synthetic historyId, no live data), settles
+    // correctly through the exact same command.
+    // -------------------------------------------------------------------------
+
+    public function test_htayapi_shaped_snapshot_via_fake_provider_persists_and_settles(): void
+    {
+        // settle() looks up today's TwoDResult via now('Asia/Yangon'), so this
+        // snapshot's stockDate (and the bet's stock_date below) must be
+        // "today" rather than a fixed past date, unlike the other fixtures in
+        // this file which hardcode 2026-05-05.
+        $today = now('Asia/Yangon')->toDateString();
+
+        $snapshot = new TwoDLiveSnapshot(
+            upstreamStatus: 200,
+            results: [
+                new TwoDResultData(
+                    historyId: "htayapi-{$today}-evening",
+                    stockDate: $today,
+                    stockDateTime: null,
+                    openTime: '16:30',
+                    twod: '05',
+                    setIndex: null,
+                    value: null,
+                    raw: ['2d' => '05'],
+                ),
+            ],
+            live: null,
+            raw: [],
+        );
+
+        $this->app->instance(TwoDLiveProvider::class, new FakeTwoDLiveProvider($snapshot));
+
+        $user = User::factory()->normalUser()->create();
+        $bet = Bet::factory()->for($user)->create([
+            'bet_type' => BetType::TWO_D,
+            'status' => BetStatus::ACCEPTED,
+            'bet_result_status' => BetResultStatus::OPEN,
+            'target_opentime' => '16:30:00',
+            'stock_date' => $today,
+        ]);
+        BetNumber::factory()->forBetWithNumber($bet, 5)->create();
+
+        $this->artisan('twod:fetch-and-settle', [
+            'open_time' => '16:30',
+            '--timeout-minutes' => 1,
+            '--retry-interval' => 10,
+        ])->assertExitCode(0);
+
+        $this->assertDatabaseHas('two_d_results', [
+            'history_id' => "htayapi-{$today}-evening",
+            'open_time' => '16:30:00',
+            'twod' => '05',
+        ]);
+
+        $bet->refresh();
+        $this->assertSame(BetResultStatus::WON, $bet->bet_result_status);
     }
 }

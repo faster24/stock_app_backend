@@ -52,6 +52,16 @@ return [
             'url' => env('THAISTOCK2D_URL', 'https://api.thaistock2d.com/live'),
             'timeout' => (int) env('THAISTOCK2D_TIMEOUT', 20),
         ],
+        // Opt-in only — TWOD_DRIVER stays thaistock2d until manually flipped.
+        // The test key is capped at 100 requests/day; daily_limit is an
+        // internal safety ceiling enforced by HtayApiCallBudget, well under
+        // that real quota.
+        'htayapi' => [
+            'url' => env('HTAYAPI_URL', 'https://htayapi.com/mm-twod/thai/2dlive'),
+            'key' => env('HTAYAPI_KEY'),
+            'timeout' => (int) env('HTAYAPI_TIMEOUT', 20),
+            'daily_limit' => (int) env('HTAYAPI_DAILY_LIMIT', 25),
+        ],
     ],
 
 ];
