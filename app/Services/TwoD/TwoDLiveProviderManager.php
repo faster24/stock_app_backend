@@ -2,6 +2,7 @@
 
 namespace App\Services\TwoD;
 
+use App\Support\TwoD\HtayApiSnapshotMapper;
 use App\Support\TwoD\TwoDSnapshotMapper;
 use Illuminate\Support\Manager;
 
@@ -37,5 +38,18 @@ class TwoDLiveProviderManager extends Manager
     protected function createSetDriver(): SetIndexProvider
     {
         return $this->container->make(SetIndexProvider::class);
+    }
+
+    protected function createHtayapiDriver(): HtayApiProvider
+    {
+        $config = $this->config->get('services.twod.htayapi', []);
+
+        return new HtayApiProvider(
+            (string) ($config['url'] ?? ''),
+            (string) ($config['key'] ?? ''),
+            (int) ($config['timeout'] ?? 20),
+            new HtayApiCallBudget((int) ($config['daily_limit'] ?? 25)),
+            $this->container->make(HtayApiSnapshotMapper::class),
+        );
     }
 }
