@@ -29,4 +29,13 @@ class TwoDLiveProviderManager extends Manager
             $this->container->make(TwoDSnapshotMapper::class),
         );
     }
+
+    /**
+     * SET-index-derived provider. Reads set_session_results (populated by the
+     * scheduled set:capture command); it never scrapes on the settlement path.
+     */
+    protected function createSetDriver(): SetIndexProvider
+    {
+        return $this->container->make(SetIndexProvider::class);
+    }
 }
