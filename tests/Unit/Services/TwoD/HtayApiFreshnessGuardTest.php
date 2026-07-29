@@ -13,9 +13,10 @@ class HtayApiFreshnessGuardTest extends TestCase
 {
     use RefreshDatabase;
 
-    // 2026-07-29 is a Wednesday. The 12:01 MMT slot publishes at 12:31 Bangkok;
+    // 2026-07-22 is a Wednesday and not a SET closure. The 12:01 MMT slot
+    // publishes at 12:31 Bangkok;
     // the 16:30 MMT slot at 17:00 Bangkok.
-    private const TRADING_DAY = '2026-07-29';
+    private const TRADING_DAY = '2026-07-22';
 
     protected function tearDown(): void
     {
@@ -63,7 +64,7 @@ class HtayApiFreshnessGuardTest extends TestCase
 
     public function test_a_value_matching_the_stored_one_is_carryover_within_the_grace_window(): void
     {
-        $this->seedResult('2026-07-27', '12:01:00', '85');
+        $this->seedResult('2026-07-20', '12:01:00', '85');
         $this->freezeBangkok(self::TRADING_DAY.' 12:35');
 
         $this->assertFalse($this->guard()->isFresh('12:01', '85'));
@@ -71,7 +72,7 @@ class HtayApiFreshnessGuardTest extends TestCase
 
     public function test_a_value_differing_from_the_stored_one_is_fresh_within_the_grace_window(): void
     {
-        $this->seedResult('2026-07-27', '12:01:00', '85');
+        $this->seedResult('2026-07-20', '12:01:00', '85');
         $this->freezeBangkok(self::TRADING_DAY.' 12:35');
 
         $this->assertTrue($this->guard()->isFresh('12:01', '07'));
@@ -86,7 +87,7 @@ class HtayApiFreshnessGuardTest extends TestCase
      */
     public function test_a_value_matching_the_stored_one_is_fresh_once_the_grace_window_passes(): void
     {
-        $this->seedResult('2026-07-27', '12:01:00', '85');
+        $this->seedResult('2026-07-20', '12:01:00', '85');
         $this->freezeBangkok(self::TRADING_DAY.' 12:45');
 
         $this->assertTrue($this->guard()->isFresh('12:01', '85'));

@@ -61,16 +61,43 @@ return [
     |
     | Y-m-d strings. Weekends are handled in code; list ONLY weekday holidays
     | when the exchange is shut. MUST be maintained yearly against the official
-    | SET holiday calendar (https://www.set.or.th) — the entries below are a
-    | starting point and are NOT authoritative. `marketStatus` is the runtime
-    | backstop if a holiday is missing here.
+    | SET holiday calendar (https://www.set.or.th) — `SET_HOLIDAYS` overrides
+    | this list wholesale, so a missing year can be patched without a deploy.
+    | `marketStatus` is the runtime backstop if a holiday is missing here.
+    |
+    | Why this matters: on a no-draw day the upstream 2D feeds do NOT report
+    | "--". thaistock2d backfills every slot with the current live value and
+    | htayapi keeps serving the last trading day's block, so an unlisted
+    | holiday shows up as a real-looking result — the 2026-07-29 Asarnha Bucha
+    | closure published the same number (73) against all four slots.
+    |
+    | 2026: 19 full closures, cross-checked against the published SET calendar
+    | and the Thai public-holiday dates. Note Khao Phansa (2026-07-30) is a
+    | national holiday but NOT a SET closure — the exchange trades that day.
     |
     */
 
     'holidays' => array_filter(explode(',', (string) env('SET_HOLIDAYS', '')))
         ?: [
-            // TODO: replace with the verified official SET calendar for the year.
             '2026-01-01', // New Year's Day
+            '2026-01-02', // New Year's Day holiday
+            '2026-03-03', // Makha Bucha Day
+            '2026-04-06', // Chakri Memorial Day
+            '2026-04-13', // Songkran Festival
+            '2026-04-14', // Songkran Festival
+            '2026-04-15', // Songkran Festival
+            '2026-05-01', // National Labour Day
+            '2026-05-04', // Coronation Day
+            '2026-06-01', // Substitution for Visakha Bucha Day
+            '2026-06-03', // H.M. Queen Suthida's Birthday
+            '2026-07-28', // H.M. King Maha Vajiralongkorn's Birthday
+            '2026-07-29', // Asarnha Bucha Day
+            '2026-08-12', // H.M. Queen Sirikit The Queen Mother's Birthday
+            '2026-10-13', // H.M. King Bhumibol Adulyadej The Great Memorial Day
+            '2026-10-23', // Chulalongkorn Day
+            '2026-12-07', // Substitution for H.M. King Bhumibol Adulyadej's Birthday
+            '2026-12-10', // Constitution Day
+            '2026-12-31', // New Year's Eve
         ],
 
 ];
