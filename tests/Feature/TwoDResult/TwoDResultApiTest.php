@@ -298,6 +298,41 @@ class TwoDResultApiTest extends TestCase
             ->assertJsonPath('data.two_d_results.1.twod', '85');
     }
 
+    /**
+     * Regression: `stock_date` used a bare `'date'` cast, which serializes as a
+     * full UTC datetime. Under the production Asia/Bangkok timezone, midnight
+     * on the 29th became "2026-07-28T17:00:00Z" — clients formatting in UTC read
+     * the previous calendar day. The whole suite runs at UTC, where the bug is
+     * invisible, so this test pins the app timezone to reproduce production.
+     */
+    public function test_stock_date_serializes_as_a_plain_day_under_a_non_utc_timezone(): void
+    {
+        $original = date_default_timezone_get();
+        date_default_timezone_set('Asia/Bangkok');
+
+        try {
+            TwoDResult::query()->create([
+                'history_id' => 'htayapi-2026-07-29-morning',
+                'stock_date' => '2026-07-29',
+                'stock_datetime' => '2026-07-29 12:01:00',
+                'open_time' => '12:01:00',
+                'twod' => '85',
+                'payload' => [],
+            ]);
+
+            $user = User::factory()->normalUser()->create();
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->getJson('/api/v1/two-d-results/latest')
+                ->assertOk()
+                ->assertJsonPath('data.two_d_result.stock_date', '2026-07-29')
+                ->assertJsonPath('data.two_d_result.twod', '85');
+        } finally {
+            date_default_timezone_set($original);
+        }
+    }
+
     public function test_guest_cannot_read_two_d_results(): void
     {
         $this->getJson('/api/v1/two-d-results')
