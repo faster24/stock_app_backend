@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OddSettingController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
+use App\Http\Controllers\Api\V1\TwoDSideNumberController;
 use App\Http\Controllers\Api\V1\WalletBankInfoController;
 use App\Http\Controllers\Api\V1\WalletController;
 use App\Http\Controllers\Api\V1\WalletCurrencyController;
@@ -53,6 +54,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/two-d-results', [TwoDResultController::class, 'index']);
         Route::get('/two-d-results/latest', [TwoDResultController::class, 'latest']);
         Route::get('/two-d-results/last-5-days', [TwoDResultController::class, 'lastFiveDays']);
+        Route::get('/two-d-side-numbers/last-5-days', [TwoDSideNumberController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
         Route::get('/closed-numbers', [BettingDistributionController::class, 'getClosedNumbers']);
