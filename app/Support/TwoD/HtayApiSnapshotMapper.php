@@ -37,6 +37,7 @@ class HtayApiSnapshotMapper
     {
         $date = Carbon::now('Asia/Bangkok')->toDateString();
         $results = [];
+        $recognisedBlocks = 0;
 
         foreach (self::SLOTS as $label => $openTime) {
             $block = $payload[$label] ?? null;
@@ -44,6 +45,8 @@ class HtayApiSnapshotMapper
             if (! is_array($block)) {
                 continue;
             }
+
+            $recognisedBlocks++;
 
             $twod = $this->normalizer->string($block['2d'] ?? null);
 
@@ -72,6 +75,11 @@ class HtayApiSnapshotMapper
             results: $results,
             live: null,
             raw: $payload,
+            // Shape is judged on the slot blocks being present, independently of
+            // whether their values passed the freshness guard — a correctly
+            // shaped payload read before publication is healthy, just not usable
+            // yet.
+            payloadRecognised: $recognisedBlocks > 0,
         );
     }
 }

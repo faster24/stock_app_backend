@@ -2173,6 +2173,13 @@ components:
         service:
           type: string
           example: thaistock2d_live
+        driver:
+          type: string
+          description: >-
+            The active 2D provider (TWOD_DRIVER) that was actually probed.
+            `url` follows this, so both change when the driver is switched.
+          enum: [thaistock2d, htayapi]
+          example: htayapi
         url:
           type: string
           format: uri

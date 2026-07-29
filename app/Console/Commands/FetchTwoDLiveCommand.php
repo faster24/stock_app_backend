@@ -31,8 +31,8 @@ class FetchTwoDLiveCommand extends Command
             return self::FAILURE;
         }
 
-        if (! $snapshot->hasResultArray()) {
-            $this->error('Invalid payload: missing result array.');
+        if (! $snapshot->hasRecognisedPayload()) {
+            $this->error('Invalid payload: shape not recognised by the active 2D provider.');
 
             return self::FAILURE;
         }
