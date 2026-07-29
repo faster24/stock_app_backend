@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
-use App\Models\TwoDResult;
-use App\Models\ThreeDResult;
 
 class Bet extends Model
 {
@@ -87,7 +85,11 @@ class Bet extends Model
             'bet_type' => BetType::class,
             'currency' => Currency::class,
             'target_opentime' => 'string',
-            'stock_date' => 'date',
+            // 'date:Y-m-d' rather than 'date': a bare 'date' cast serializes as a
+            // full UTC datetime, and with APP_TIMEZONE=Asia/Bangkok midnight
+            // becomes 17:00Z the PREVIOUS day — clients formatting in UTC read
+            // the wrong calendar day.
+            'stock_date' => 'date:Y-m-d',
             'total_amount' => 'decimal:2',
             'status' => BetStatus::class,
             'bet_result_status' => BetResultStatus::class,
