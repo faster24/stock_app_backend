@@ -58,7 +58,7 @@ class ThaiStock2dProviderTest extends TestCase
         $snapshot = $this->provider()->fetch();
 
         $this->assertSame(200, $snapshot->upstreamStatus);
-        $this->assertTrue($snapshot->hasResultArray());
+        $this->assertTrue($snapshot->hasRecognisedPayload());
         $this->assertTrue($snapshot->hasResultFor('16:30'));
 
         $this->assertCount(1, $snapshot->results);
@@ -86,7 +86,7 @@ class ThaiStock2dProviderTest extends TestCase
         $snapshot = $this->provider()->fetch();
 
         $this->assertSame([], $snapshot->results);
-        $this->assertTrue($snapshot->hasResultArray());
+        $this->assertTrue($snapshot->hasRecognisedPayload());
         $this->assertFalse($snapshot->hasResultFor('16:30'));
     }
 

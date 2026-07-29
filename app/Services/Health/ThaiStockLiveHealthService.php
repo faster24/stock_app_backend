@@ -14,13 +14,19 @@ class ThaiStockLiveHealthService extends Service
     public function checkThaiStock2dLive(): array
     {
         $checkedAt = Carbon::now()->toISOString();
-        $url = (string) config('services.twod.thaistock2d.url');
+
+        // The bound TwoDLiveProvider follows TWOD_DRIVER, so the reported URL
+        // has to follow it too — reporting the thaistock2d endpoint while
+        // actually probing htayapi describes a check that never ran.
+        $driver = (string) config('services.twod.driver');
+        $url = (string) config("services.twod.{$driver}.url");
 
         try {
             $snapshot = $this->provider->fetch();
         } catch (TwoDProviderException $exception) {
             return [
                 'service' => 'thaistock2d_live',
+                'driver' => $driver,
                 'url' => $url,
                 'healthy' => false,
                 'upstream_status' => $exception->upstreamStatus(),
@@ -29,10 +35,11 @@ class ThaiStockLiveHealthService extends Service
             ];
         }
 
-        $healthy = $snapshot->hasResultArray();
+        $healthy = $snapshot->hasRecognisedPayload();
 
         return [
             'service' => 'thaistock2d_live',
+            'driver' => $driver,
             'url' => $url,
             'healthy' => $healthy,
             'upstream_status' => $snapshot->upstreamStatus,

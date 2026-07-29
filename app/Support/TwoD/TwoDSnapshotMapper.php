@@ -20,6 +20,9 @@ class TwoDSnapshotMapper
             results: $this->mapResults($payload['result'] ?? []),
             live: $this->mapLive($payload['live'] ?? null),
             raw: $payload,
+            // thaistock2d always carries a `result` array, empty or not; its
+            // absence means the shape is not what this mapper expects.
+            payloadRecognised: array_key_exists('result', $payload) && is_array($payload['result']),
         );
     }
 

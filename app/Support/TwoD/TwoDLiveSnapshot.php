@@ -13,12 +13,17 @@ final class TwoDLiveSnapshot
 {
     /**
      * @param  TwoDResultData[]  $results
+     * @param  bool  $payloadRecognised  Whether the upstream payload matched the
+     *                                   producing provider's expected shape. Set
+     *                                   by whoever builds the snapshot, since
+     *                                   only they know that provider's contract.
      */
     public function __construct(
         public readonly int $upstreamStatus,
         public readonly array $results,
         public readonly ?TwoDLiveData $live,
         public readonly array $raw,
+        public readonly bool $payloadRecognised = true,
     ) {}
 
     /**
@@ -43,13 +48,17 @@ final class TwoDLiveSnapshot
     }
 
     /**
-     * Whether the upstream payload carried a `result` array at all.
+     * Whether the upstream payload matched the provider's expected shape.
      *
-     * Used by the health check to distinguish a structurally valid response
-     * (even with zero rows) from an unexpected payload shape.
+     * Used by the health check and `twod:fetch-live` to distinguish a
+     * structurally valid response (even with zero rows) from an unexpected
+     * payload shape. This deliberately does NOT inspect `raw` itself: the
+     * previous implementation looked for a thaistock2d-style `result` array,
+     * which no other provider sends, so every htayapi response was reported
+     * unhealthy regardless of its actual content.
      */
-    public function hasResultArray(): bool
+    public function hasRecognisedPayload(): bool
     {
-        return array_key_exists('result', $this->raw) && is_array($this->raw['result']);
+        return $this->payloadRecognised;
     }
 }

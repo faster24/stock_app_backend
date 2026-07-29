@@ -176,4 +176,23 @@ class HtayApiSnapshotMapperTest extends TestCase
 
         $this->assertSame([], $this->mapper()->map($this->fullPayload(), 200)->results);
     }
+
+    public function test_a_payload_with_slot_blocks_is_recognised_even_when_every_row_is_withheld(): void
+    {
+        // Before publication the guard withholds both slots, but the payload
+        // shape is fine — the health check must not read that as unhealthy.
+        Carbon::setTestNow(Carbon::parse('2026-07-29 11:00', 'Asia/Bangkok'));
+
+        $snapshot = $this->mapper()->map($this->fullPayload(), 200);
+
+        $this->assertSame([], $snapshot->results);
+        $this->assertTrue($snapshot->hasRecognisedPayload());
+    }
+
+    public function test_a_payload_without_slot_blocks_is_not_recognised(): void
+    {
+        $snapshot = $this->mapper()->map(['taiwan' => ['2d' => '96']], 200);
+
+        $this->assertFalse($snapshot->hasRecognisedPayload());
+    }
 }
