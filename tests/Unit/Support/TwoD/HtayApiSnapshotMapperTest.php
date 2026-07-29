@@ -3,6 +3,7 @@
 namespace Tests\Unit\Support\TwoD;
 
 use App\Models\TwoDResult;
+use App\Services\Set\TradingCalendar;
 use App\Services\TwoD\HtayApiFreshnessGuard;
 use App\Support\TwoD\HtayApiSnapshotMapper;
 use App\Support\TwoD\TwoDPayloadNormalizer;
@@ -14,9 +15,29 @@ class HtayApiSnapshotMapperTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * A Wednesday, past both slots' publication times (12:31 and 17:00 Bangkok)
+     * and past the freshness guard's carry-over grace window, so mapping is
+     * exercised without the guard's time gate rejecting rows. Tests that care
+     * about the gate itself re-freeze the clock.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-29 17:30', 'Asia/Bangkok'));
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
     private function mapper(): HtayApiSnapshotMapper
     {
-        return new HtayApiSnapshotMapper(new TwoDPayloadNormalizer, new HtayApiFreshnessGuard);
+        return new HtayApiSnapshotMapper(new TwoDPayloadNormalizer, new HtayApiFreshnessGuard(new TradingCalendar));
     }
 
     private function fullPayload(): array
@@ -37,8 +58,6 @@ class HtayApiSnapshotMapperTest extends TestCase
 
     public function test_maps_morning_and_evening_using_only_the_2d_field(): void
     {
-        Carbon::setTestNow('2026-07-29 13:00:00');
-
         $snapshot = $this->mapper()->map($this->fullPayload(), 200);
 
         $this->assertSame(200, $snapshot->upstreamStatus);
@@ -60,8 +79,6 @@ class HtayApiSnapshotMapperTest extends TestCase
         $this->assertSame("htayapi-{$today}-evening", $evening->historyId);
         $this->assertSame('16:30', $evening->openTime);
         $this->assertSame('73', $evening->twod);
-
-        Carbon::setTestNow();
     }
 
     public function test_never_surfaces_modern_internet_key_or_taiwan_values(): void
@@ -112,13 +129,15 @@ class HtayApiSnapshotMapperTest extends TestCase
         $this->assertSame([], $snapshot->results);
     }
 
-    public function test_stale_carryover_value_excludes_that_slot(): void
+    public function test_stale_carryover_value_excludes_that_slot_within_the_grace_window(): void
     {
-        Carbon::setTestNow('2026-07-29 13:00:00');
+        // 12:35 Bangkok — just past the 12:01 MMT slot's 12:31 publication, so
+        // an identical value is still treated as upstream carry-over.
+        Carbon::setTestNow(Carbon::parse('2026-07-29 12:35', 'Asia/Bangkok'));
 
         TwoDResult::query()->create([
-            'history_id' => 'htayapi-2026-07-28-morning',
-            'stock_date' => '2026-07-28',
+            'history_id' => 'htayapi-2026-07-27-morning',
+            'stock_date' => '2026-07-27',
             'open_time' => '12:01:00',
             'twod' => '85', // identical to today's fixture morning.2d
             'payload' => [],
@@ -129,8 +148,32 @@ class HtayApiSnapshotMapperTest extends TestCase
         $openTimes = array_map(fn ($r) => $r->openTime, $snapshot->results);
 
         $this->assertNotContains('12:01', $openTimes);
-        $this->assertContains('16:30', $openTimes);
+        // 16:30 has not published yet at 12:35, so it is withheld too.
+        $this->assertNotContains('16:30', $openTimes);
+    }
 
-        Carbon::setTestNow();
+    public function test_a_repeated_value_is_accepted_once_the_grace_window_passes(): void
+    {
+        TwoDResult::query()->create([
+            'history_id' => 'htayapi-2026-07-27-morning',
+            'stock_date' => '2026-07-27',
+            'open_time' => '12:01:00',
+            'twod' => '85',
+            'payload' => [],
+        ]);
+
+        $snapshot = $this->mapper()->map($this->fullPayload(), 200);
+
+        $openTimes = array_map(fn ($r) => $r->openTime, $snapshot->results);
+
+        $this->assertContains('12:01', $openTimes);
+        $this->assertContains('16:30', $openTimes);
+    }
+
+    public function test_slots_are_withheld_before_their_publication_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-29 11:00', 'Asia/Bangkok'));
+
+        $this->assertSame([], $this->mapper()->map($this->fullPayload(), 200)->results);
     }
 }
