@@ -25,7 +25,7 @@ class HtayApiSnapshotMapperTest extends TestCase
     {
         parent::setUp();
 
-        Carbon::setTestNow(Carbon::parse('2026-07-29 17:30', 'Asia/Bangkok'));
+        Carbon::setTestNow(Carbon::parse('2026-07-22 17:30', 'Asia/Bangkok'));
     }
 
     protected function tearDown(): void
@@ -49,7 +49,7 @@ class HtayApiSnapshotMapperTest extends TestCase
             'copyright' => 'Legal action will be taken if any unauthorized use of our API is found.',
             'data' => '0',
             'live' => ['set' => '??', 'val' => '??', 'live' => '73'],
-            'date' => '2026-07-29 00:43:55 +0630',
+            'date' => '2026-07-22 00:43:55 +0630',
             'morning' => ['modern' => '39', 'internet' => '07', '2d' => '85', 'key' => '485'],
             'evening' => ['modern' => '69', 'internet' => '06', '2d' => '73', 'key' => '473'],
             'taiwan' => ['2d' => '96'],
@@ -137,11 +137,11 @@ class HtayApiSnapshotMapperTest extends TestCase
     {
         // 12:35 Bangkok — just past the 12:01 MMT slot's 12:31 publication, so
         // an identical value is still treated as upstream carry-over.
-        Carbon::setTestNow(Carbon::parse('2026-07-29 12:35', 'Asia/Bangkok'));
+        Carbon::setTestNow(Carbon::parse('2026-07-22 12:35', 'Asia/Bangkok'));
 
         TwoDResult::query()->create([
-            'history_id' => 'htayapi-2026-07-27-morning',
-            'stock_date' => '2026-07-27',
+            'history_id' => 'htayapi-2026-07-20-morning',
+            'stock_date' => '2026-07-20',
             'open_time' => '12:01:00',
             'twod' => '85', // identical to today's fixture morning.2d
             'payload' => [],
@@ -159,8 +159,8 @@ class HtayApiSnapshotMapperTest extends TestCase
     public function test_a_repeated_value_is_accepted_once_the_grace_window_passes(): void
     {
         TwoDResult::query()->create([
-            'history_id' => 'htayapi-2026-07-27-morning',
-            'stock_date' => '2026-07-27',
+            'history_id' => 'htayapi-2026-07-20-morning',
+            'stock_date' => '2026-07-20',
             'open_time' => '12:01:00',
             'twod' => '85',
             'payload' => [],
@@ -176,7 +176,7 @@ class HtayApiSnapshotMapperTest extends TestCase
 
     public function test_slots_are_withheld_before_their_publication_time(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-29 11:00', 'Asia/Bangkok'));
+        Carbon::setTestNow(Carbon::parse('2026-07-22 11:00', 'Asia/Bangkok'));
 
         $this->assertSame([], $this->mapper()->map($this->fullPayload(), 200)->results);
     }
@@ -185,7 +185,7 @@ class HtayApiSnapshotMapperTest extends TestCase
     {
         // Before publication the guard withholds both slots, but the payload
         // shape is fine — the health check must not read that as unhealthy.
-        Carbon::setTestNow(Carbon::parse('2026-07-29 11:00', 'Asia/Bangkok'));
+        Carbon::setTestNow(Carbon::parse('2026-07-22 11:00', 'Asia/Bangkok'));
 
         $snapshot = $this->mapper()->map($this->fullPayload(), 200);
 

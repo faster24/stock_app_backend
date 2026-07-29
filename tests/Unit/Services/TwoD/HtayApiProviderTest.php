@@ -7,6 +7,7 @@ use App\Exceptions\TwoDProviderException;
 use App\Services\TwoD\HtayApiCallBudget;
 use App\Services\TwoD\HtayApiProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -24,9 +25,22 @@ class HtayApiProviderTest extends TestCase
     {
         parent::setUp();
 
+        // Pin the clock to the payload's trading day, past both slots'
+        // publication times. Without this the mapper's freshness guard is
+        // judged against the real date, so the suite would pass or fail
+        // depending on the day it ran — a SET closure withholds every row.
+        Carbon::setTestNow(Carbon::parse('2026-07-22 17:30', 'Asia/Bangkok'));
+
         // The daily budget's cache key is date-only (not per-limit), so reset
         // it before each test to avoid cross-test accumulation within a run.
         (new HtayApiCallBudget(25))->reset();
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     private function provider(): HtayApiProvider
@@ -56,7 +70,7 @@ class HtayApiProviderTest extends TestCase
             'copyright' => 'Legal action will be taken if any unauthorized use of our API is found.',
             'data' => '0',
             'live' => ['set' => '??', 'val' => '??', 'live' => '73'],
-            'date' => '2026-07-29 00:43:55 +0630',
+            'date' => '2026-07-22 00:43:55 +0630',
             'morning' => ['modern' => '39', 'internet' => '07', '2d' => '85', 'key' => '485'],
             'evening' => ['modern' => '69', 'internet' => '06', '2d' => '73', 'key' => '473'],
             'taiwan' => ['2d' => '96'],

@@ -13,9 +13,13 @@ class CaptureSetSessionCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * A Wednesday that is not a SET closure — the first Wednesday after
+     * 2026-06-01 is the Queen's Birthday, on which the exchange is shut.
+     */
     private function weekday(): string
     {
-        return Carbon::parse('2026-06-01')->next(Carbon::WEDNESDAY)->toDateString();
+        return '2026-06-10';
     }
 
     private function saturday(): string
