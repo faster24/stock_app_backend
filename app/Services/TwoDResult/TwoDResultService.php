@@ -4,10 +4,28 @@ namespace App\Services\TwoDResult;
 
 use App\Models\TwoDResult;
 use App\Services\Service;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class TwoDResultService extends Service
 {
+    /**
+     * Newest slot first.
+     *
+     * Ordering deliberately avoids `stock_datetime`: it is nullable, and a
+     * provider that omits it (htayapi did) sank every one of its rows below
+     * every other row regardless of date, since MySQL sorts NULLs last on a
+     * DESC sort. `stock_date` + `open_time` are always populated and express
+     * the same intent directly.
+     */
+    private function newestFirst(Builder $query): Builder
+    {
+        return $query
+            ->orderByDesc('stock_date')
+            ->orderByDesc('open_time')
+            ->orderByDesc('id');
+    }
+
     public function list(
         int $page = 1,
         int $pageSize = 20,
@@ -18,7 +36,7 @@ class TwoDResultService extends Service
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
 
-        return TwoDResult::query()
+        $query = TwoDResult::query()
             ->when($stockDate !== null && $stockDate !== '', function ($query) use ($stockDate): void {
                 $query->whereDate('stock_date', $stockDate);
             })
@@ -27,19 +45,16 @@ class TwoDResultService extends Service
             })
             ->when($historyId !== null && $historyId !== '', function ($query) use ($historyId): void {
                 $query->where('history_id', $historyId);
-            })
-            ->orderByDesc('stock_datetime')
-            ->orderByDesc('id')
+            });
+
+        return $this->newestFirst($query)
             ->forPage($resolvedPage, $resolvedPageSize)
             ->get();
     }
 
     public function latest(): ?TwoDResult
     {
-        return TwoDResult::query()
-            ->orderByDesc('stock_datetime')
-            ->orderByDesc('id')
-            ->first();
+        return $this->newestFirst(TwoDResult::query())->first();
     }
 
     public function lastFiveDays(): Collection
@@ -51,10 +66,8 @@ class TwoDResultService extends Service
             ->limit(5)
             ->pluck('stock_date');
 
-        return TwoDResult::query()
-            ->whereIn('stock_date', $latestFiveStockDates)
-            ->orderByDesc('stock_datetime')
-            ->orderByDesc('id')
-            ->get();
+        return $this->newestFirst(
+            TwoDResult::query()->whereIn('stock_date', $latestFiveStockDates)
+        )->get();
     }
 }

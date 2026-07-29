@@ -72,6 +72,9 @@ class HtayApiSnapshotMapperTest extends TestCase
         $this->assertSame('12:01', $morning->openTime);
         $this->assertSame('85', $morning->twod);
         $this->assertSame($today, $morning->stockDate);
+        // Must not be null: ordering downstream keys on it, and a null sorted
+        // every htayapi row beneath every older row.
+        $this->assertSame("{$today} 12:01:00", $morning->stockDateTime);
         $this->assertNull($morning->setIndex);
         $this->assertNull($morning->value);
 
@@ -79,6 +82,7 @@ class HtayApiSnapshotMapperTest extends TestCase
         $this->assertSame("htayapi-{$today}-evening", $evening->historyId);
         $this->assertSame('16:30', $evening->openTime);
         $this->assertSame('73', $evening->twod);
+        $this->assertSame("{$today} 16:30:00", $evening->stockDateTime);
     }
 
     public function test_never_surfaces_modern_internet_key_or_taiwan_values(): void

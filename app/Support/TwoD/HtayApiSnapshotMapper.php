@@ -61,7 +61,12 @@ class HtayApiSnapshotMapper
             $results[] = new TwoDResultData(
                 historyId: "htayapi-{$date}-{$label}",
                 stockDate: $date,
-                stockDateTime: null,
+                // HtayApi carries no per-slot timestamp, so this is the slot's
+                // own instant — matching how thaistock2d rows store it (an
+                // open_time of 12:01 against a stock_datetime of 12:01:0x).
+                // Leaving it null sorted every htayapi row beneath every
+                // thaistock2d row, because MySQL orders NULLs last on DESC.
+                stockDateTime: "{$date} {$openTime}:00",
                 openTime: $openTime,
                 twod: $twod,
                 setIndex: null,
