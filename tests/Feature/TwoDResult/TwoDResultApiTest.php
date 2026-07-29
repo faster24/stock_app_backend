@@ -235,6 +235,69 @@ class TwoDResultApiTest extends TestCase
         $this->assertNotContains($excluded->id, $resultIds);
     }
 
+    /**
+     * Regression: ordering keyed on the nullable `stock_datetime`, and MySQL
+     * sorts NULLs last on a DESC sort — so htayapi rows (which carried no
+     * timestamp) sank beneath every older row, and a day's two slots came back
+     * reversed on the `id` tie-break. The web client read the evening number as
+     * the morning one.
+     */
+    public function test_rows_without_a_stock_datetime_still_order_newest_slot_first(): void
+    {
+        TwoDResult::query()->create([
+            'history_id' => 'thaistock-older',
+            'stock_date' => '2026-03-20',
+            'stock_datetime' => '2026-03-20 16:30:00',
+            'open_time' => '16:30:00',
+            'twod' => '78',
+            'payload' => [],
+        ]);
+
+        // Newest day, no timestamp, and the evening row inserted BEFORE the
+        // morning row so a fallback to `id` would reverse the pair.
+        $evening = TwoDResult::query()->create([
+            'history_id' => 'htayapi-2026-03-21-evening',
+            'stock_date' => '2026-03-21',
+            'stock_datetime' => null,
+            'open_time' => '16:30:00',
+            'twod' => '73',
+            'payload' => [],
+        ]);
+
+        $morning = TwoDResult::query()->create([
+            'history_id' => 'htayapi-2026-03-21-morning',
+            'stock_date' => '2026-03-21',
+            'stock_datetime' => null,
+            'open_time' => '12:01:00',
+            'twod' => '85',
+            'payload' => [],
+        ]);
+
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/two-d-results')
+            ->assertOk()
+            ->assertJsonPath('data.two_d_results.0.id', $evening->id)
+            ->assertJsonPath('data.two_d_results.0.twod', '73')
+            ->assertJsonPath('data.two_d_results.1.id', $morning->id)
+            ->assertJsonPath('data.two_d_results.1.twod', '85');
+
+        // ...and the newest day wins `latest()` despite the null timestamp.
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/two-d-results/latest')
+            ->assertOk()
+            ->assertJsonPath('data.two_d_result.id', $evening->id)
+            ->assertJsonPath('data.two_d_result.twod', '73');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/two-d-results/last-5-days')
+            ->assertOk()
+            ->assertJsonPath('data.two_d_results.0.twod', '73')
+            ->assertJsonPath('data.two_d_results.1.twod', '85');
+    }
+
     public function test_guest_cannot_read_two_d_results(): void
     {
         $this->getJson('/api/v1/two-d-results')
