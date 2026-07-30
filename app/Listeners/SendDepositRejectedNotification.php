@@ -4,26 +4,27 @@ namespace App\Listeners;
 
 use App\Events\DepositRejectedEvent;
 use App\Jobs\SendNotificationJob;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Listeners\Concerns\NeverFailsTheCaller;
 
-class SendDepositRejectedNotification implements ShouldQueue
+class SendDepositRejectedNotification
 {
-    use InteractsWithQueue;
+    use NeverFailsTheCaller;
 
     public function handle(DepositRejectedEvent $event): void
     {
-        $deposit = $event->deposit;
+        $this->withoutFailing('deposit_rejected', function () use ($event) {
+            $deposit = $event->deposit;
 
-        SendNotificationJob::dispatch(
-            $deposit->user,
-            'Deposit Rejected',
-            "Your deposit request of {$deposit->claimed_amount} {$deposit->currency->value} was rejected. Reason: {$deposit->rejection_reason}",
-            [
-                'type' => 'deposit_rejected',
-                'deposit_id' => $deposit->id,
-            ],
-            'deposit_rejected'
-        );
+            SendNotificationJob::dispatch(
+                $deposit->user,
+                'Deposit Rejected',
+                "Your deposit request of {$deposit->claimed_amount} {$deposit->currency->value} was rejected. Reason: {$deposit->rejection_reason}",
+                [
+                    'type' => 'deposit_rejected',
+                    'deposit_id' => $deposit->id,
+                ],
+                'deposit_rejected'
+            )->afterCommit();
+        });
     }
 }

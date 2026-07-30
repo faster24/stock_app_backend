@@ -2,6 +2,8 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -99,3 +101,19 @@ foreach ([
         ->dailyAt($at)
         ->appendOutputTo(storage_path('logs/set-capture.log'));
 }
+
+// ---------------------------------------------------------------------------
+// Queue-worker heartbeat. Notification delivery depends entirely on a worker
+// consuming the `notifications` queue; when that worker dies, pushes stop
+// silently while everything else (balances, API responses) keeps working. This
+// turns that silent failure into a log line.
+// ---------------------------------------------------------------------------
+Schedule::call(function () {
+    $depth = DB::table('jobs')->count();
+    $oldestAvailableAt = DB::table('jobs')->min('available_at');
+    $oldestAgeSeconds = $oldestAvailableAt !== null ? now()->timestamp - (int) $oldestAvailableAt : 0;
+
+    if ($depth > 50 || $oldestAgeSeconds > 300) {
+        Log::error("Queue backlog: {$depth} job(s), oldest {$oldestAgeSeconds}s old — is the queue worker running?");
+    }
+})->everyFiveMinutes()->name('queue-backlog-check')->withoutOverlapping();

@@ -4,26 +4,27 @@ namespace App\Listeners;
 
 use App\Events\SettlementRevertedEvent;
 use App\Jobs\SendNotificationJob;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Listeners\Concerns\NeverFailsTheCaller;
 
-class SendSettlementRevertedNotification implements ShouldQueue
+class SendSettlementRevertedNotification
 {
-    use InteractsWithQueue;
+    use NeverFailsTheCaller;
 
     public function handle(SettlementRevertedEvent $event): void
     {
-        $bet = $event->bet;
+        $this->withoutFailing('settlement_reverted', function () use ($event) {
+            $bet = $event->bet;
 
-        SendNotificationJob::dispatch(
-            $bet->user,
-            'Result Correction',
-            "A draw result was corrected. Bet #{$bet->id} was re-opened and {$event->debitedAmount} was reversed from your wallet. It will be settled again with the corrected result.",
-            [
-                'type' => 'settlement_reverted',
-                'bet_id' => $bet->id,
-            ],
-            'settlement_reverted'
-        );
+            SendNotificationJob::dispatch(
+                $bet->user,
+                'Result Correction',
+                "A draw result was corrected. Bet #{$bet->id} was re-opened and {$event->debitedAmount} was reversed from your wallet. It will be settled again with the corrected result.",
+                [
+                    'type' => 'settlement_reverted',
+                    'bet_id' => $bet->id,
+                ],
+                'settlement_reverted'
+            )->afterCommit();
+        });
     }
 }

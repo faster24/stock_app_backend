@@ -10,12 +10,15 @@ use App\Events\DepositApprovedEvent;
 use App\Events\DepositRejectedEvent;
 use App\Events\SettlementRevertedEvent;
 use App\Events\WithdrawalCompletedEvent;
+use App\Events\WithdrawalRejectedEvent;
 use App\Listeners\SendBetPaidOutNotification;
 use App\Listeners\SendBetWonNotification;
 use App\Listeners\SendDepositApprovedNotification;
 use App\Listeners\SendDepositRejectedNotification;
 use App\Listeners\SendSettlementRevertedNotification;
 use App\Listeners\SendWithdrawalCompletedNotification;
+use App\Listeners\SendWithdrawalRejectedNotification;
+use App\Services\FirebaseNotificationService;
 use App\Services\Set\NodeSetScraper;
 use App\Services\TwoD\TwoDLiveProviderManager;
 use App\Support\RealSleeper;
@@ -28,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(Sleeper::class, RealSleeper::class);
+
+        // Singleton so a queue worker performs the Google OAuth token exchange
+        // once per process instead of once per notification.
+        $this->app->singleton(FirebaseNotificationService::class);
 
         $this->app->singleton(TwoDLiveProviderManager::class);
         $this->app->bind(
@@ -51,6 +58,7 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(DepositApprovedEvent::class, SendDepositApprovedNotification::class);
         Event::listen(DepositRejectedEvent::class, SendDepositRejectedNotification::class);
         Event::listen(WithdrawalCompletedEvent::class, SendWithdrawalCompletedNotification::class);
+        Event::listen(WithdrawalRejectedEvent::class, SendWithdrawalRejectedNotification::class);
         Event::listen(SettlementRevertedEvent::class, SendSettlementRevertedNotification::class);
     }
 }
