@@ -30,3 +30,8 @@ jobs:
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
+            # The queue worker is a long-lived systemd process. Without this it
+            # keeps executing the previous release's code and cached config
+            # until --max-time recycles it, up to an hour after deploy.
+            # Must run after config:cache so workers restart onto fresh config.
+            php artisan queue:restart
