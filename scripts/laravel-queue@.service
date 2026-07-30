@@ -1,0 +1,51 @@
+# Laravel queue worker (systemd template unit).
+#
+# Install on the VPS:
+#   sudo cp scripts/laravel-queue@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now laravel-queue@1 laravel-queue@2
+#
+# Every flag below is load-bearing — read the comments before changing one.
+
+[Unit]
+Description=Laravel queue worker %i (stock_app_backend)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Must match the owner of storage/logs and firebase-key.json, or the worker
+# dies on its first write.
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/stock_app_backend
+
+# --queue=notifications,default : comma order is strict priority. SendNotificationJob
+#     pins itself to `notifications`; a worker without this flag consumes only
+#     `default` and strands every push indefinitely.
+# --sleep=1 : on the database driver this bounds idle pickup latency. The default
+#     of 3 adds up to 3s of dead time to every notification. Never use 0 — it
+#     busy-polls MySQL.
+# --timeout=60 : must stay BELOW config/queue.php retry_after (90), otherwise a
+#     slow job gets re-reserved while still running and the user is notified twice.
+# --max-time / --max-jobs : process recycling; also the backstop if a deploy ever
+#     misses `queue:restart`.
+ExecStart=/usr/bin/php /var/www/stock_app_backend/artisan queue:work database \
+    --queue=notifications,default \
+    --sleep=1 \
+    --tries=3 \
+    --backoff=10 \
+    --timeout=60 \
+    --max-time=3600 \
+    --max-jobs=1000
+
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+# Lets an in-flight FCM call finish instead of being killed mid-send.
+TimeoutStopSec=90
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

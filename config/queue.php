@@ -40,7 +40,11 @@ return [
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
-            'after_commit' => false,
+            // Safety net: notification listeners run inside the money-path
+            // transactions, so a worker must never pick a job up before the
+            // balance change commits. Dispatch sites also call ->afterCommit()
+            // explicitly; the two are compatible.
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [
