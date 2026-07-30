@@ -4,11 +4,13 @@ namespace Tests\Feature\Withdrawal;
 
 use App\Enums\Currency;
 use App\Enums\WithdrawalStatus;
+use App\Jobs\SendNotificationJob;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -168,6 +170,48 @@ class WithdrawalCompleteRejectTest extends TestCase
             ['rejection_reason' => 'some reason'],
             ['Authorization' => "Bearer $userToken"]
         )->assertStatus(403);
+    }
+
+    // ── Notification tests ─────────────────────────────────────────────────────
+
+    public function test_completing_withdrawal_queues_push_notification_job(): void
+    {
+        Bus::fake([SendNotificationJob::class]);
+
+        $withdrawal = $this->createPendingWithdrawal(20_000);
+
+        $this->postJson(
+            "/api/v1/admin/withdrawals/{$withdrawal->id}/complete",
+            ['payout_proof' => UploadedFile::fake()->image('proof.jpg')],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Bus::assertDispatched(
+            SendNotificationJob::class,
+            fn ($job) => $job->user->id === $this->user->id
+                && $job->notificationType === 'withdrawal_completed'
+                && $job->data['withdrawal_id'] === $withdrawal->id
+        );
+    }
+
+    public function test_rejecting_withdrawal_queues_push_notification_job(): void
+    {
+        Bus::fake([SendNotificationJob::class]);
+
+        $withdrawal = $this->createPendingWithdrawal(20_000);
+
+        $this->postJson(
+            "/api/v1/admin/withdrawals/{$withdrawal->id}/reject",
+            ['rejection_reason' => 'Account details mismatch.'],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        Bus::assertDispatched(
+            SendNotificationJob::class,
+            fn ($job) => $job->user->id === $this->user->id
+                && $job->notificationType === 'withdrawal_rejected'
+                && $job->data['withdrawal_id'] === $withdrawal->id
+        );
     }
 
     // ── User cancel tests ──────────────────────────────────────────────────────

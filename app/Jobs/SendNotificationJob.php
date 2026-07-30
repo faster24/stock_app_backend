@@ -17,7 +17,8 @@ class SendNotificationJob implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $backoff = 60;
+    /** Escalating backoff — a transient FCM 5xx shouldn't cost the user a flat minute. */
+    public array $backoff = [5, 30, 120];
 
     public function __construct(
         public User $user,

@@ -4,26 +4,27 @@ namespace App\Listeners;
 
 use App\Events\WithdrawalCompletedEvent;
 use App\Jobs\SendNotificationJob;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Listeners\Concerns\NeverFailsTheCaller;
 
-class SendWithdrawalCompletedNotification implements ShouldQueue
+class SendWithdrawalCompletedNotification
 {
-    use InteractsWithQueue;
+    use NeverFailsTheCaller;
 
     public function handle(WithdrawalCompletedEvent $event): void
     {
-        $withdrawal = $event->withdrawal;
+        $this->withoutFailing('withdrawal_completed', function () use ($event) {
+            $withdrawal = $event->withdrawal;
 
-        SendNotificationJob::dispatch(
-            $withdrawal->user,
-            'Withdrawal Completed!',
-            "Your withdrawal of {$withdrawal->amount} {$withdrawal->currency->value} has been processed successfully.",
-            [
-                'type' => 'withdrawal_completed',
-                'withdrawal_id' => $withdrawal->id,
-            ],
-            'withdrawal_completed'
-        );
+            SendNotificationJob::dispatch(
+                $withdrawal->user,
+                'Withdrawal Completed!',
+                "Your withdrawal of {$withdrawal->amount} {$withdrawal->currency->value} has been processed successfully.",
+                [
+                    'type' => 'withdrawal_completed',
+                    'withdrawal_id' => $withdrawal->id,
+                ],
+                'withdrawal_completed'
+            )->afterCommit();
+        });
     }
 }
