@@ -85,11 +85,23 @@ class HtayApiSnapshotMapperTest extends TestCase
         $this->assertSame("{$today} 16:30:00", $evening->stockDateTime);
     }
 
-    public function test_never_surfaces_modern_internet_key_or_taiwan_values(): void
+    /**
+     * The settlement rows carry ONLY the `2d` field.
+     *
+     * `modern`/`internet` are now read — but exclusively by
+     * {@see \App\Services\TwoD\TwoDSideNumberCaptureService}, which writes them
+     * to the separate two_d_side_numbers table and never settles a bet. This
+     * test is what keeps those two paths from converging: a settlement row must
+     * never carry an indicator number as its winning value.
+     */
+    public function test_settlement_rows_never_surface_modern_internet_key_or_taiwan_values(): void
     {
         $snapshot = $this->mapper()->map($this->fullPayload(), 200);
 
         $twodValues = array_map(fn ($r) => $r->twod, $snapshot->results);
+
+        // The positive contract: the `2d` field, and nothing else, settles.
+        $this->assertSame(['85', '73'], $twodValues);
 
         $this->assertNotContains('39', $twodValues); // morning.modern
         $this->assertNotContains('07', $twodValues); // morning.internet

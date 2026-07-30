@@ -35,6 +35,36 @@ if (config('services.twod.driver') === 'htayapi') {
         ->withoutOverlapping(30)
         ->dailyAt('17:00')
         ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+    // ----------------------------------------------------------------------
+    // Side numbers (modern/internet). Display only — these never settle bets.
+    // htayapi-only: no other provider carries these fields.
+    //
+    // Same MMT+30 rule as above, plus 2 minutes so attempt 1 lands just PAST
+    // publication rather than exactly on it. Attempts fall at +0/+5/+10 min, so
+    // the last one clears the freshness guard's 10-minute carry-over grace and
+    // a legitimately repeated pair is still picked up.
+    //
+    // Budget: 3 attempts each, worst case 6/day, on top of the settlement
+    // slots' 8 — 14 of the 25/day ceiling, leaving 11 for the health check and
+    // manual re-fetches. In practice both loops exit on the first success.
+    // ----------------------------------------------------------------------
+
+    // 09:30 MMT side numbers — triggers at 10:02 Bangkok
+    Schedule::command('twod:capture-side-numbers morning --max-attempts=3 --retry-interval=300')
+        ->timezone('Asia/Bangkok')
+        ->weekdays()
+        ->withoutOverlapping(20)
+        ->dailyAt('10:02')
+        ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+    // 14:00 MMT side numbers — triggers at 14:32 Bangkok
+    Schedule::command('twod:capture-side-numbers evening --max-attempts=3 --retry-interval=300')
+        ->timezone('Asia/Bangkok')
+        ->weekdays()
+        ->withoutOverlapping(20)
+        ->dailyAt('14:32')
+        ->appendOutputTo(storage_path('logs/scheduler.log'));
 } else {
     // 12:01 MMT slot — triggers at 12:31 Bangkok, 60-minute timeout, live fallback enabled
     Schedule::command('twod:fetch-and-settle 12:01 --timeout-minutes=60 --retry-interval=60')

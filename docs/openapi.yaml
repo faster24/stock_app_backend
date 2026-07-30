@@ -17,6 +17,7 @@ tags:
   - name: AppSetting
   - name: OddSetting
   - name: TwoDResult
+  - name: TwoDSideNumber
   - name: ThreeDResult
   - name: Admin
   - name: AdminBankSetting
@@ -551,6 +552,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TwoDResultListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /two-d-side-numbers/last-5-days:
+    get:
+      tags: [TwoDSideNumber]
+      summary: List modern/internet side numbers for latest 5 dates (authenticated)
+      description: >
+        Display-only indicator numbers published at 09:30 and 14:00 MMT.
+        These never settle bets — see /two-d-results for settlement values.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 2D side numbers from last 5 dates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TwoDSideNumberListResponse'
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
@@ -2113,6 +2133,59 @@ components:
               allOf:
                 - $ref: '#/components/schemas/TwoDResult'
               nullable: true
+        errors:
+          type: object
+          nullable: true
+
+    TwoDSideNumber:
+      type: object
+      description: >
+        A day's modern/internet pair for one side slot. Display only —
+        raw_payload is deliberately not exposed.
+      properties:
+        id:
+          type: integer
+        result_date:
+          type: string
+          format: date
+        slot:
+          type: string
+          enum: [morning, evening]
+          description: Upstream payload key. `evening` publishes at 14:00 MMT.
+        modern:
+          type: string
+          nullable: true
+          example: '39'
+        internet:
+          type: string
+          nullable: true
+          example: '07'
+        display_time:
+          type: string
+          example: '09:30:00'
+        captured_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TwoDSideNumberListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            two_d_side_numbers:
+              type: array
+              items:
+                $ref: '#/components/schemas/TwoDSideNumber'
         errors:
           type: object
           nullable: true
