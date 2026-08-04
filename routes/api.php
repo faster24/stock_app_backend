@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\DepositController;
 use App\Http\Controllers\Api\V1\FcmTokenController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OddSettingController;
+use App\Http\Controllers\Api\V1\PopupAdController;
 use App\Http\Controllers\Api\V1\ThreeDResultController;
 use App\Http\Controllers\Api\V1\TwoDResultController;
 use App\Http\Controllers\Api\V1\TwoDSideNumberController;
@@ -46,6 +47,8 @@ Route::prefix('v1')->group(function () {
         Route::put('/me/bank-info', [WalletBankInfoController::class, 'update']);
         Route::delete('/me/bank-info', [WalletBankInfoController::class, 'destroy']);
         Route::get('/bank-settings', [AdminBankSettingController::class, 'userIndex']);
+        Route::get('/popup-ads', [PopupAdController::class, 'userIndex']);
+        Route::get('/popup-ads/{popupAd}/image', [PopupAdController::class, 'downloadImage'])->name('popup-ads.image');
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
         Route::get('/odd-settings', [OddSettingController::class, 'index']);
@@ -148,6 +151,15 @@ Route::prefix('v1')->group(function () {
                     Route::post('/', 'store');
                     Route::put('/{adminBankSetting}', 'update');
                     Route::delete('/{adminBankSetting}', 'destroy');
+                });
+                Route::prefix('popup-ads')->controller(PopupAdController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/{popupAd}', 'show');
+                    Route::post('/', 'store');
+                    // Sent as POST + _method=PUT from the dashboard: PHP does not
+                    // populate $_FILES on a real PUT, so the image would never arrive.
+                    Route::put('/{popupAd}', 'update');
+                    Route::delete('/{popupAd}', 'destroy');
                 });
                 Route::prefix('users')->controller(AdminUserController::class)->group(function () {
                     Route::get('/', 'index');

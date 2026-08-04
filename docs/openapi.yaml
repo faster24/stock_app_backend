@@ -21,6 +21,7 @@ tags:
   - name: ThreeDResult
   - name: Admin
   - name: AdminBankSetting
+  - name: PopupAd
 
 paths:
   /register:
@@ -1415,6 +1416,184 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /popup-ads:
+    get:
+      tags: [PopupAd]
+      summary: List active popup ads (client)
+      description: >
+        Active ads only, newest first. The client shows them as a modal queue on
+        the home tab.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active popup ads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopupAdListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /popup-ads/{popupAd}/image:
+    get:
+      tags: [PopupAd]
+      summary: Download a popup ad image
+      description: >
+        Streams the artwork. The media disk has no public URL, so this route is the
+        only way to read it. Returns 404 once the ad is deactivated.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PopupAdId'
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Not found, or the ad is inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/popup-ads:
+    get:
+      tags: [PopupAd]
+      summary: List all popup ads (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Popup ads list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopupAdListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [PopupAd]
+      summary: Create popup ad
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StorePopupAdRequest'
+      responses:
+        '201':
+          description: Popup ad created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopupAdItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/popup-ads/{popupAd}:
+    get:
+      tags: [PopupAd]
+      summary: Get popup ad by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PopupAdId'
+      responses:
+        '200':
+          description: Popup ad retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopupAdItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [PopupAd]
+      summary: Update popup ad
+      description: >
+        Send as POST with a `_method=PUT` field when replacing the image — PHP does
+        not populate $_FILES on a real PUT. A JSON PUT is fine for metadata-only
+        changes such as the active toggle.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PopupAdId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdatePopupAdRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePopupAdRequest'
+      responses:
+        '200':
+          description: Popup ad updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PopupAdItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [PopupAd]
+      summary: Delete popup ad
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PopupAdId'
+      responses:
+        '200':
+          description: Popup ad deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /admin/bets:
     get:
       tags: [Bet]
@@ -1639,6 +1818,14 @@ components:
       required: true
       schema:
         type: integer
+
+    PopupAdId:
+      name: popupAd
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
 
   responses:
     Unauthenticated:
@@ -3079,6 +3266,116 @@ components:
           properties:
             admin_bank_setting:
               $ref: '#/components/schemas/AdminBankSetting'
+        errors:
+          type: object
+          nullable: true
+
+    PopupAdImage:
+      type: object
+      description: >
+        Media descriptor. download_url points at /popup-ads/{popupAd}/image, which
+        requires a bearer token — the file is not publicly readable.
+      properties:
+        exists:
+          type: boolean
+        download_url:
+          type: string
+          nullable: true
+        file_name:
+          type: string
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+        size:
+          type: integer
+          nullable: true
+
+    PopupAd:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          description: Admin-facing label. Never rendered to players.
+        link_url:
+          type: string
+          nullable: true
+          description: Optional tap-through target. Null means the ad is not clickable.
+        is_active:
+          type: boolean
+        image:
+          $ref: '#/components/schemas/PopupAdImage'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StorePopupAdRequest:
+      type: object
+      required: [title, image]
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        link_url:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+        image:
+          type: string
+          format: binary
+          description: Image file, max 10 MB.
+
+    UpdatePopupAdRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        link_url:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+        image:
+          type: string
+          format: binary
+          description: Optional. When present it replaces the current artwork.
+
+    PopupAdListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            popup_ads:
+              type: array
+              items:
+                $ref: '#/components/schemas/PopupAd'
+        errors:
+          type: object
+          nullable: true
+
+    PopupAdItemResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            popup_ad:
+              $ref: '#/components/schemas/PopupAd'
         errors:
           type: object
           nullable: true
