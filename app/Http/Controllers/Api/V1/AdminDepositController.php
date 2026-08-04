@@ -21,8 +21,9 @@ class AdminDepositController extends Controller
         $page     = $request->integer('page', 1);
         $pageSize = $request->integer('page_size', 15);
         $status   = $request->filled('status') ? DepositStatus::tryFrom($request->input('status')) : null;
+        $userId   = $request->filled('user_id') ? (string) $request->input('user_id') : null;
 
-        $deposits = $this->depositService->listForAdmin($page, $pageSize, $status);
+        $deposits = $this->depositService->listForAdmin($page, $pageSize, $status, $userId);
 
         return $this->respond('Deposits retrieved successfully.', [
             'deposits'   => collect($deposits->items())->map(fn(Deposit $d) => $this->depositPayload($d))->all(),

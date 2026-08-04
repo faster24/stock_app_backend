@@ -94,7 +94,8 @@ class BetService extends Service
 
     /**
      * @param  array<string, string>  $filters  any of: status, bet_result_status,
-     *                                           payout_status, bet_type, target_opentime, stock_date
+     *                                          payout_status, bet_type, target_opentime,
+     *                                          stock_date, user_id
      */
     public function listForAdmin(int $page = 1, int $pageSize = 10, array $filters = []): Collection
     {
@@ -103,7 +104,7 @@ class BetService extends Service
 
         $query = Bet::query()->with(['betNumbers', 'user.wallet']);
 
-        foreach (['status', 'bet_result_status', 'payout_status', 'bet_type', 'target_opentime'] as $column) {
+        foreach (['status', 'bet_result_status', 'payout_status', 'bet_type', 'target_opentime', 'user_id'] as $column) {
             if (! empty($filters[$column])) {
                 $query->where($column, $filters[$column]);
             }
