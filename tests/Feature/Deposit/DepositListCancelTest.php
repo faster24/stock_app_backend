@@ -120,6 +120,31 @@ class DepositListCancelTest extends TestCase
         $response->assertJsonPath('data.pagination.total', 1);
     }
 
+    public function test_admin_can_filter_deposits_by_user_id(): void
+    {
+        $other = User::factory()->create();
+        Wallet::factory()->create([
+            'user_id' => $other->id, 'currency' => Currency::MMK, 'currency_locked_at' => now(),
+        ]);
+
+        $this->createDeposit($this->user->id, 'PENDING');
+        $this->createDeposit($this->user->id, 'APPROVED');
+        $this->createDeposit($other->id, 'PENDING');
+
+        $response = $this->getJson("/api/v1/admin/deposits?user_id={$this->user->id}",
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        );
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('data.pagination.total', 2);
+
+        $this->getJson("/api/v1/admin/deposits?user_id={$this->user->id}&status=PENDING",
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )
+            ->assertStatus(200)
+            ->assertJsonPath('data.pagination.total', 1);
+    }
+
     public function test_user_can_show_own_deposit(): void
     {
         $deposit = $this->createDeposit($this->user->id);

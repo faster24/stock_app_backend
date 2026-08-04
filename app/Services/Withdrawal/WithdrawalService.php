@@ -81,7 +81,7 @@ class WithdrawalService extends Service
             ->first();
     }
 
-    public function listForAdmin(int $page, int $pageSize, ?WithdrawalStatus $status): LengthAwarePaginator
+    public function listForAdmin(int $page, int $pageSize, ?WithdrawalStatus $status, ?string $userId = null): LengthAwarePaginator
     {
         $query = Withdrawal::query()
             ->with('user')
@@ -89,6 +89,10 @@ class WithdrawalService extends Service
 
         if ($status !== null) {
             $query->where('status', $status->value);
+        }
+
+        if ($userId !== null && $userId !== '') {
+            $query->where('user_id', $userId);
         }
 
         return $query->paginate($pageSize, ['*'], 'page', $page);

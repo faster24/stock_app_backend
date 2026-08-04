@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
-use App\Http\Controllers\Api\V1\AdminBalanceAdjustmentController;
 use App\Http\Controllers\Api\V1\AdminBankSettingController;
 use App\Http\Controllers\Api\V1\AdminBetReportController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
@@ -153,6 +152,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('users')->controller(AdminUserController::class)->group(function () {
                     Route::get('/', 'index');
                     Route::get('/{user}', 'show');
+                    Route::get('/{user}/activity-summary', 'activitySummary');
                     Route::patch('/{user}/role', 'assignRole');
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');
@@ -161,7 +161,6 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('users/{user}')->group(function () {
                     Route::get('/wallet', [AdminWalletController::class, 'show']);
                     Route::get('/wallet/transactions', [AdminWalletController::class, 'transactions']);
-                    Route::post('/balance-adjustment', [AdminBalanceAdjustmentController::class, 'store']);
                 });
                 Route::prefix('deposits')->controller(AdminDepositController::class)->group(function () {
                     Route::get('/', 'index');

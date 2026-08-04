@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\AssignUserRoleRequest;
 use App\Models\User;
+use App\Services\User\UserActivitySummaryService;
 use App\Services\User\UserManagementService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -12,7 +13,10 @@ use Illuminate\Http\Request;
 
 class AdminUserController extends Controller
 {
-    public function __construct(private UserManagementService $userManagementService) {}
+    public function __construct(
+        private UserManagementService $userManagementService,
+        private UserActivitySummaryService $userActivitySummaryService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -40,6 +44,22 @@ class AdminUserController extends Controller
 
         return $this->respond('User retrieved successfully.', [
             'user' => $this->userDetailPayload($resolvedUser),
+        ]);
+    }
+
+    public function activitySummary(string $user): JsonResponse
+    {
+        $resolvedUser = $this->userManagementService->showUser($user);
+
+        if (! $resolvedUser instanceof User) {
+            return $this->respond('User not found.', null, 404, [
+                'user' => ['The selected user is invalid.'],
+            ]);
+        }
+
+        return $this->respond('User activity summary retrieved successfully.', [
+            'user' => $this->userSummaryPayload($resolvedUser),
+            'summary' => $this->userActivitySummaryService->summarize($resolvedUser),
         ]);
     }
 

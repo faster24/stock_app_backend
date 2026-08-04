@@ -84,6 +84,27 @@ class WithdrawalListTest extends TestCase
         $response->assertJsonPath('data.pagination.total', 1);
     }
 
+    public function test_admin_can_filter_withdrawals_by_user_id(): void
+    {
+        $other = User::factory()->create();
+
+        $this->createWithdrawal($this->user->id, 'PENDING');
+        $this->createWithdrawal($this->user->id, 'COMPLETED');
+        $this->createWithdrawal($other->id, 'PENDING');
+
+        $this->getJson("/api/v1/admin/withdrawals?user_id={$this->user->id}",
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )
+            ->assertStatus(200)
+            ->assertJsonPath('data.pagination.total', 2);
+
+        $this->getJson("/api/v1/admin/withdrawals?user_id={$this->user->id}&status=PENDING",
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )
+            ->assertStatus(200)
+            ->assertJsonPath('data.pagination.total', 1);
+    }
+
     public function test_user_can_show_own_withdrawal(): void
     {
         $withdrawal = $this->createWithdrawal($this->user->id);

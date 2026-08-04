@@ -20,8 +20,9 @@ class AdminWithdrawalController extends Controller
         $page     = $request->integer('page', 1);
         $pageSize = $request->integer('page_size', 15);
         $status   = $request->filled('status') ? WithdrawalStatus::tryFrom($request->input('status')) : null;
+        $userId   = $request->filled('user_id') ? (string) $request->input('user_id') : null;
 
-        $withdrawals = $this->withdrawalService->listForAdmin($page, $pageSize, $status);
+        $withdrawals = $this->withdrawalService->listForAdmin($page, $pageSize, $status, $userId);
 
         return $this->respond('Withdrawals retrieved successfully.', [
             'withdrawals' => $withdrawals->items(),

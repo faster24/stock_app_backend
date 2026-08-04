@@ -1265,6 +1265,32 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/users/{user}/activity-summary:
+    get:
+      tags: [Admin]
+      summary: User betting, winning, deposit and withdrawal totals (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User activity summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserActivitySummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /admin/bank-settings:
     get:
       tags: [AdminBankSetting]
@@ -1412,6 +1438,13 @@ paths:
             minimum: 1
             maximum: 100
             default: 10
+        - name: user_id
+          in: query
+          required: false
+          description: Restrict the list to a single customer.
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
           description: Bets list
@@ -2308,6 +2341,97 @@ components:
           properties:
             user:
               $ref: '#/components/schemas/AdminUser'
+        errors:
+          type: object
+          nullable: true
+
+    AdminUserActivitySummary:
+      type: object
+      properties:
+        wallet:
+          type: object
+          properties:
+            balance:
+              type: integer
+            currency:
+              type: string
+              nullable: true
+        bets:
+          type: object
+          properties:
+            total:
+              type: integer
+            total_staked:
+              type: integer
+              description: Sum of total_amount excluding REJECTED bets.
+            pending:
+              type: integer
+            accepted:
+              type: integer
+            rejected:
+              type: integer
+            refunded:
+              type: integer
+            open:
+              type: integer
+            won:
+              type: integer
+            lost:
+              type: integer
+        winnings:
+          type: object
+          properties:
+            won_bet_count:
+              type: integer
+            total_won_amount:
+              type: integer
+            paid_out_amount:
+              type: integer
+            pending_payout_amount:
+              type: integer
+            pending_payout_count:
+              type: integer
+            last_won_at:
+              type: string
+              format: date-time
+              nullable: true
+        deposits:
+          type: object
+          properties:
+            total:
+              type: integer
+            approved_count:
+              type: integer
+            approved_amount:
+              type: integer
+            pending_count:
+              type: integer
+        withdrawals:
+          type: object
+          properties:
+            total:
+              type: integer
+            completed_count:
+              type: integer
+            completed_amount:
+              type: integer
+            pending_count:
+              type: integer
+            pending_amount:
+              type: integer
+
+    AdminUserActivitySummaryResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            summary:
+              $ref: '#/components/schemas/AdminUserActivitySummary'
         errors:
           type: object
           nullable: true

@@ -42,7 +42,7 @@ class BetController extends Controller
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
 
         $filters = array_filter(
-            $request->only(['status', 'bet_result_status', 'payout_status', 'bet_type', 'stock_date', 'target_opentime']),
+            $request->only(['status', 'bet_result_status', 'payout_status', 'bet_type', 'stock_date', 'target_opentime', 'user_id']),
             fn ($value) => $value !== null && $value !== '',
         );
 
