@@ -88,9 +88,17 @@ class BetSettlementService extends Service
         $resolvedChunkSize = max(1, min(2000, $chunkSize));
         $settledAt = Carbon::now();
 
-        // Bets eligible: stock_date from (prev settlement date + 1) up to (result date - 1).
-        // e.g. result saved for 25th → valid bets have stock_date on the 24th or earlier.
-        $upperBound = Carbon::parse($resolvedStockDate)->subDay()->toDateString();
+        // Bets eligible: stock_date from the previous result's date up to this one's,
+        // both inclusive. The bounds used to exclude both end days, which orphaned any
+        // bet placed on a result date — it fell outside that draw's window and then
+        // below the floor of every later one, staying ACCEPTED/OPEN forever. That is
+        // reachable whenever betting is open on a draw day, including when a holiday
+        // pushes the draw and the result is entered a day late.
+        //
+        // Overlapping a day with the previous run is harmless: the eligible query below
+        // requires bet_result_status = OPEN, so anything the previous draw already
+        // settled is no longer a candidate.
+        $upperBound = $resolvedStockDate;
 
         $previousResult = ThreeDResult::query()
             ->where('stock_date', '<', $resolvedStockDate)
@@ -102,9 +110,7 @@ class BetSettlementService extends Service
             ->whereDate('stock_date', '<=', $upperBound);
 
         if ($previousResult !== null) {
-            $lowerBound = Carbon::parse($this->resolveStockDate($previousResult->stock_date))
-                ->addDay()
-                ->toDateString();
+            $lowerBound = $this->resolveStockDate($previousResult->stock_date);
             $scopeQuery->whereDate('stock_date', '>=', $lowerBound);
         }
 
