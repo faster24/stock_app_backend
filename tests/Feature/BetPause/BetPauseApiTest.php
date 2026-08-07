@@ -152,10 +152,43 @@ class BetPauseApiTest extends TestCase
             ->assertJsonValidationErrors(['pause_from']);
     }
 
+    public function test_three_d_can_be_paused(): void
+    {
+        $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
+            ->putJson('/api/v1/admin/bet-pauses', $this->basePayload([
+                'bet_type' => '3D',
+                'message' => '3D betting closed for the draw.',
+            ]))
+            ->assertStatus(200)
+            ->assertJsonPath('data.bet_pause.bet_type', '3D')
+            ->assertJsonPath('data.bet_pause.status', 'paused');
+
+        $this->assertDatabaseHas('bet_pauses', [
+            'bet_type' => '3D',
+            'is_enabled' => true,
+        ]);
+    }
+
+    public function test_two_d_and_three_d_pauses_are_independent_rows(): void
+    {
+        $token = $this->adminToken();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/admin/bet-pauses', $this->basePayload(['bet_type' => '2D']))
+            ->assertStatus(200);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/admin/bet-pauses', $this->basePayload(['bet_type' => '3D']))
+            ->assertStatus(200);
+
+        // The unique key is on bet_type alone, so pausing one must not overwrite the other.
+        $this->assertDatabaseCount('bet_pauses', 2);
+    }
+
     public function test_invalid_bet_type_is_rejected(): void
     {
         $this->withHeader('Authorization', 'Bearer '.$this->adminToken())
-            ->putJson('/api/v1/admin/bet-pauses', $this->basePayload(['bet_type' => '3D']))
+            ->putJson('/api/v1/admin/bet-pauses', $this->basePayload(['bet_type' => '4D']))
             ->assertStatus(422)
             ->assertJsonValidationErrors(['bet_type']);
     }
