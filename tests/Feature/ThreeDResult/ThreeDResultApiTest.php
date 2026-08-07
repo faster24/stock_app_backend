@@ -142,6 +142,111 @@ class ThreeDResultApiTest extends TestCase
         ]);
     }
 
+    public function test_reposting_a_settled_date_is_rejected_and_changes_nothing(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+        $user = User::factory()->normalUser()->create();
+
+        $bet = Bet::factory()->for($user)->create([
+            'bet_type' => BetType::THREE_D,
+            'status' => BetStatus::ACCEPTED,
+            'bet_result_status' => BetResultStatus::OPEN,
+            'stock_date' => '2026-09-01',
+        ]);
+        $bet->betNumbers()->createMany([['number' => 111, 'amount' => 1000]]);
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-01',
+                'threed' => '111',
+            ])
+            ->assertStatus(201);
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $bet->id,
+            'bet_result_status' => BetResultStatus::WON->value,
+            'settled_result_history_id' => '3d-result-2026-09-01',
+        ]);
+
+        // Correcting a typo by re-posting used to rewrite the number while silently
+        // skipping re-settlement, leaving the bet settled against the old one.
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-01',
+                'threed' => '222',
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('data.requires_revert', true)
+            ->assertJsonPath('data.history_id', '3d-result-2026-09-01');
+
+        $this->assertDatabaseHas('three_d_results', [
+            'stock_date' => '2026-09-01',
+            'threed' => '111',
+        ]);
+
+        $this->assertDatabaseHas('bets', [
+            'id' => $bet->id,
+            'bet_result_status' => BetResultStatus::WON->value,
+            'settled_result_history_id' => '3d-result-2026-09-01',
+        ]);
+    }
+
+    public function test_posting_a_date_whose_result_was_deleted_is_still_rejected(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+
+        $created = $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-01',
+                'threed' => '111',
+            ])
+            ->assertStatus(201)
+            ->json('data.three_d_result.id');
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->deleteJson('/api/v1/admin/three-d-results/'.$created)
+            ->assertOk();
+
+        // Deleting the result leaves its settlement run behind, and any bets it
+        // settled with it. Re-creating the date would settle nothing, so it is
+        // refused rather than accepted into a half-settled state.
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-01',
+                'threed' => '222',
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('data.requires_revert', true);
+
+        $this->assertDatabaseMissing('three_d_results', ['stock_date' => '2026-09-01']);
+    }
+
+    public function test_posting_an_unsettled_date_still_creates_and_settles(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+
+        // A different date is untouched by the guard.
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-01',
+                'threed' => '111',
+            ])
+            ->assertStatus(201);
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->postJson('/api/v1/admin/three-d-results', [
+                'stock_date' => '2026-09-16',
+                'threed' => '222',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.three_d_result.threed', '222');
+
+        $this->assertDatabaseCount('bet_settlement_runs', 2);
+    }
+
     public function test_non_admin_cannot_write_three_d_results(): void
     {
         $result = ThreeDResult::query()->create([

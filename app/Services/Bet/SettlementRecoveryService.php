@@ -10,7 +10,6 @@ use App\Services\Service;
 use App\Services\ThreeDResult\ThreeDResultService;
 use DomainException;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Orchestrates manual result entry and revert-and-resettle corrections.
@@ -39,7 +38,7 @@ class SettlementRecoveryService extends Service
             str_replace(':', '', substr($openTime, 0, 5))
         );
 
-        if (DB::table('bet_settlement_runs')->where('history_id', $historyId)->whereNotNull('settled_at')->exists()) {
+        if ($this->settlementService->hasCompletedRun($historyId)) {
             throw new DomainException('This period was already settled manually. Use the correction endpoint instead.');
         }
 
@@ -106,12 +105,9 @@ class SettlementRecoveryService extends Service
         $currentDate = $result->stock_date instanceof Carbon
             ? $result->stock_date->toDateString()
             : (string) $result->stock_date;
-        $historyId = '3d-result-'.$currentDate;
+        $historyId = BetSettlementService::threeDHistoryId($currentDate);
 
-        $runExists = DB::table('bet_settlement_runs')
-            ->where('history_id', $historyId)
-            ->whereNotNull('settled_at')
-            ->exists();
+        $runExists = $this->settlementService->hasCompletedRun($historyId);
 
         if (
             $runExists
@@ -154,12 +150,7 @@ class SettlementRecoveryService extends Service
         ?string $reason,
         bool $confirmRevert
     ): ?SettlementReversal {
-        $runExists = DB::table('bet_settlement_runs')
-            ->where('history_id', $historyId)
-            ->whereNotNull('settled_at')
-            ->exists();
-
-        if (! $runExists) {
+        if (! $this->settlementService->hasCompletedRun($historyId)) {
             return null;
         }
 

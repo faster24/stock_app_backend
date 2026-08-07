@@ -70,6 +70,24 @@ class BetSettlementService extends Service
         );
     }
 
+    /**
+     * 3D runs have no upstream feed to take an id from, so the settlement run is
+     * keyed on the result's own date.
+     */
+    public static function threeDHistoryId(string $stockDate): string
+    {
+        return '3d-result-'.$stockDate;
+    }
+
+    /** Whether this history id has already been settled to completion. */
+    public function hasCompletedRun(string $historyId): bool
+    {
+        return DB::table('bet_settlement_runs')
+            ->where('history_id', $historyId)
+            ->whereNotNull('settled_at')
+            ->exists();
+    }
+
     public function settleThreeDResult(ThreeDResult $result, int $chunkSize = 500): array
     {
         $resolvedStockDate = $this->resolveStockDate($result->stock_date);
@@ -79,7 +97,7 @@ class BetSettlementService extends Service
             return self::NOOP_SUMMARY;
         }
 
-        $historyId = '3d-result-'.$resolvedStockDate;
+        $historyId = self::threeDHistoryId($resolvedStockDate);
 
         if (! $this->beginSettlementRun($historyId, BetType::THREE_D, null, (int) $result->getKey())) {
             return self::NOOP_SUMMARY;
