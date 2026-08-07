@@ -173,6 +173,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('users/{user}')->group(function () {
                     Route::get('/wallet', [AdminWalletController::class, 'show']);
                     Route::get('/wallet/transactions', [AdminWalletController::class, 'transactions']);
+                    Route::post('/wallet/reset-currency', [AdminWalletController::class, 'resetCurrency']);
                 });
                 Route::prefix('deposits')->controller(AdminDepositController::class)->group(function () {
                     Route::get('/', 'index');
