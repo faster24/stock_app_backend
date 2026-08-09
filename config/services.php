@@ -53,14 +53,26 @@ return [
             'timeout' => (int) env('THAISTOCK2D_TIMEOUT', 20),
         ],
         // Opt-in only — TWOD_DRIVER stays thaistock2d until manually flipped.
-        // The test key is capped at 100 requests/day; daily_limit is an
-        // internal safety ceiling enforced by HtayApiCallBudget, well under
-        // that real quota.
+        //
+        // daily_limit is an internal circuit breaker enforced by
+        // HtayApiCallBudget, not the vendor's own quota. Sized against a
+        // 30,000/day key: the live ticker's worst case is ~2,500/day (see the
+        // TTL tiers below), so 8,000 is ~3x expected while still capping the
+        // blast radius of a runaway loop at roughly a quarter of the quota.
+        // Settlement and health checks share this budget and cost <50/day.
+        //
+        // The live_ttl_* values set how long TwoDLiveTickerService serves a
+        // cached snapshot: tight around the 12:01/16:30 draws, relaxed during
+        // the rest of the session, and slow overnight. Upstream cost is a
+        // function of these alone — it does not scale with user count.
         'htayapi' => [
             'url' => env('HTAYAPI_URL', 'https://htayapi.com/mm-twod/thai/2dlive'),
             'key' => env('HTAYAPI_KEY'),
             'timeout' => (int) env('HTAYAPI_TIMEOUT', 20),
-            'daily_limit' => (int) env('HTAYAPI_DAILY_LIMIT', 25),
+            'daily_limit' => (int) env('HTAYAPI_DAILY_LIMIT', 8000),
+            'live_ttl_hot' => (int) env('HTAYAPI_LIVE_TTL_HOT', 5),
+            'live_ttl_warm' => (int) env('HTAYAPI_LIVE_TTL_WARM', 20),
+            'live_ttl_cold' => (int) env('HTAYAPI_LIVE_TTL_COLD', 300),
         ],
     ],
 

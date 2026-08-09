@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\BetPause;
 
+use App\Enums\BetType;
 use App\Http\Requests\Auth\AuthFormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -11,7 +12,7 @@ class UpdateBetPauseRequest extends AuthFormRequest
     public function rules(): array
     {
         return [
-            'bet_type' => ['required', 'string', Rule::in(['2D'])],
+            'bet_type' => ['required', 'string', Rule::in(array_column(BetType::cases(), 'value'))],
             'is_enabled' => ['required', 'boolean'],
             'pause_from' => ['required_if:is_enabled,true', 'nullable', 'date'],
             'message' => ['nullable', 'string', 'max:255'],

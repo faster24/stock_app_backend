@@ -104,7 +104,9 @@ class HtayApiProviderTest extends TestCase
         $this->assertSame(200, $snapshot->upstreamStatus);
         $this->assertTrue($snapshot->hasResultFor('12:01'));
         $this->assertTrue($snapshot->hasResultFor('16:30'));
-        $this->assertNull($snapshot->live);
+        // The ticker rides along on the same fetch — it is what backs
+        // GET /two-d-results/live, so no extra upstream call is spent on it.
+        $this->assertSame('73', $snapshot->live->twod);
     }
 
     public function test_throws_with_status_on_non_2xx_response(): void

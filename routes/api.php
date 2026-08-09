@@ -55,6 +55,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
         Route::get('/two-d-results', [TwoDResultController::class, 'index']);
         Route::get('/two-d-results/latest', [TwoDResultController::class, 'latest']);
+        Route::get('/two-d-results/live', [TwoDResultController::class, 'live']);
         Route::get('/two-d-results/last-5-days', [TwoDResultController::class, 'lastFiveDays']);
         Route::get('/two-d-side-numbers/last-5-days', [TwoDSideNumberController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
@@ -173,6 +174,7 @@ Route::prefix('v1')->group(function () {
                 Route::prefix('users/{user}')->group(function () {
                     Route::get('/wallet', [AdminWalletController::class, 'show']);
                     Route::get('/wallet/transactions', [AdminWalletController::class, 'transactions']);
+                    Route::post('/wallet/reset-currency', [AdminWalletController::class, 'resetCurrency']);
                 });
                 Route::prefix('deposits')->controller(AdminDepositController::class)->group(function () {
                     Route::get('/', 'index');

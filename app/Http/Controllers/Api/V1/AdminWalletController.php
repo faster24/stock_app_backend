@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Wallet\ResetWalletCurrencyRequest;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
+use App\Services\Wallet\WalletCurrencyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AdminWalletController extends Controller
 {
+    public function __construct(private WalletCurrencyService $walletCurrencyService) {}
+
     public function show(User $user): JsonResponse
     {
         $wallet = Wallet::query()->where('user_id', $user->id)->first();
@@ -52,6 +56,15 @@ class AdminWalletController extends Controller
                 'per_page'     => $transactions->perPage(),
                 'total'        => $transactions->total(),
             ],
+        ]);
+    }
+
+    public function resetCurrency(ResetWalletCurrencyRequest $request, User $user): JsonResponse
+    {
+        $wallet = $this->walletCurrencyService->resetForUser($user->id, $request->boolean('force'));
+
+        return $this->respond('Wallet currency reset successfully.', [
+            'wallet' => $this->walletPayload($wallet),
         ]);
     }
 

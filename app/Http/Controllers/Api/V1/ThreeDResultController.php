@@ -45,7 +45,28 @@ class ThreeDResultController extends Controller
 
     public function store(StoreThreeDResultRequest $request): JsonResponse
     {
-        $threeDResult = $this->threeDResultService->upsertByStockDate($request->validated());
+        $validated = $request->validated();
+
+        // This endpoint upserts by date, so re-posting a settled date would rewrite
+        // the winning number while beginSettlementRun blocks the re-settlement —
+        // leaving every bet settled against the old number, with no reversal and a
+        // 200 saying it worked. Corrections must go through the PUT path, which
+        // reverts the wallet credits before re-settling.
+        //
+        // A deleted result leaves its run row behind, so its date is refused too.
+        // That is deliberate: the bets it settled still exist.
+        $historyId = BetSettlementService::threeDHistoryId((string) $validated['stock_date']);
+
+        if ($this->betSettlementService->hasCompletedRun($historyId)) {
+            $message = 'This date is already settled. Use PUT /api/v1/admin/three-d-results/{id} with confirm_revert to correct it.';
+
+            return $this->respond($message, [
+                'requires_revert' => true,
+                'history_id' => $historyId,
+            ], 409, ['result' => [$message]]);
+        }
+
+        $threeDResult = $this->threeDResultService->upsertByStockDate($validated);
 
         if ($threeDResult->wasRecentlyCreated || $threeDResult->wasChanged()) {
             $this->betSettlementService->settleThreeDResult($threeDResult);
