@@ -55,6 +55,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/odd-settings/{oddSetting}', [OddSettingController::class, 'show']);
         Route::get('/two-d-results', [TwoDResultController::class, 'index']);
         Route::get('/two-d-results/latest', [TwoDResultController::class, 'latest']);
+        Route::get('/two-d-results/live', [TwoDResultController::class, 'live']);
         Route::get('/two-d-results/last-5-days', [TwoDResultController::class, 'lastFiveDays']);
         Route::get('/two-d-side-numbers/last-5-days', [TwoDSideNumberController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);

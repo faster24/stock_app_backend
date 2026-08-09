@@ -62,7 +62,6 @@ class HtayApiSnapshotMapperTest extends TestCase
 
         $this->assertSame(200, $snapshot->upstreamStatus);
         $this->assertCount(2, $snapshot->results);
-        $this->assertNull($snapshot->live);
         $this->assertSame($this->fullPayload(), $snapshot->raw);
 
         $today = Carbon::now('Asia/Bangkok')->toDateString();
@@ -210,5 +209,78 @@ class HtayApiSnapshotMapperTest extends TestCase
         $snapshot = $this->mapper()->map(['taiwan' => ['2d' => '96']], 200);
 
         $this->assertFalse($snapshot->hasRecognisedPayload());
+    }
+
+    /**
+     * The ticker reads `live.live`, NOT `live.twod` (which HtayApi never sends)
+     * and not the settlement blocks. Getting this wrong shows a blank hero.
+     */
+    public function test_maps_the_live_ticker_from_htayapis_own_field_names(): void
+    {
+        $payload = $this->fullPayload();
+        $payload['live'] = ['set' => '1234.56', 'val' => '789.01', 'live' => '73'];
+
+        $live = $this->mapper()->map($payload, 200)->live;
+
+        $this->assertNotNull($live);
+        $this->assertSame('73', $live->twod);
+        $this->assertSame('1234.56', $live->set);
+        $this->assertSame('789.01', $live->value);
+        $this->assertSame($payload['live'], $live->raw);
+    }
+
+    /**
+     * The live block carries no timestamp of its own, so all three time fields
+     * derive from the payload's top-level `date`.
+     */
+    public function test_live_timestamps_derive_from_the_top_level_date(): void
+    {
+        $live = $this->mapper()->map($this->fullPayload(), 200)->live;
+
+        $this->assertSame('2026-07-22 00:43:55 +0630', $live->time);
+        $this->assertSame('2026-07-22', $live->date);
+        $this->assertSame('2026-07-22 00:43:55', $live->dateTime);
+    }
+
+    /**
+     * "??" is HtayApi's closed-market placeholder. It must not reach the client
+     * as a literal to render.
+     */
+    public function test_live_placeholders_normalize_to_null(): void
+    {
+        // The default fixture already carries "??" for set/val.
+        $live = $this->mapper()->map($this->fullPayload(), 200)->live;
+
+        $this->assertNull($live->set);
+        $this->assertNull($live->value);
+        $this->assertSame('73', $live->twod);
+
+        $payload = $this->fullPayload();
+        $payload['live']['live'] = '--';
+
+        $this->assertNull($this->mapper()->map($payload, 200)->live->twod);
+    }
+
+    /**
+     * The ticker is a preview and deliberately bypasses the freshness guard:
+     * before publication the settlement rows are withheld, but the hero must
+     * still show the last known number rather than going blank.
+     */
+    public function test_live_is_mapped_even_when_the_guard_withholds_every_slot(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-22 11:00', 'Asia/Bangkok'));
+
+        $snapshot = $this->mapper()->map($this->fullPayload(), 200);
+
+        $this->assertSame([], $snapshot->results);
+        $this->assertSame('73', $snapshot->live->twod);
+    }
+
+    public function test_a_payload_without_a_live_block_maps_live_to_null(): void
+    {
+        $payload = $this->fullPayload();
+        unset($payload['live']);
+
+        $this->assertNull($this->mapper()->map($payload, 200)->live);
     }
 }

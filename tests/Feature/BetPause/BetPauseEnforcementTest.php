@@ -59,10 +59,20 @@ class BetPauseEnforcementTest extends TestCase
         ], $overrides);
     }
 
-    private function activePause(?string $message = 'Betting paused before the draw.'): BetPause
+    private function threeDBetPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'bet_type' => '3D',
+            'currency' => 'MMK',
+            'security_pin' => '123456',
+            'bet_numbers' => [['number' => 456, 'amount' => 1000]],
+        ], $overrides);
+    }
+
+    private function activePause(?string $message = 'Betting paused before the draw.', string $betType = '2D'): BetPause
     {
         return BetPause::query()->create([
-            'bet_type' => '2D',
+            'bet_type' => $betType,
             'is_enabled' => true,
             'pause_from' => Carbon::now()->subMinute(),
             'message' => $message,
@@ -213,6 +223,72 @@ class BetPauseEnforcementTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/bets', $this->betPayload())
+            ->assertStatus(201);
+    }
+
+    public function test_active_3d_pause_rejects_3d_bets(): void
+    {
+        $this->seedOddSetting(Currency::MMK, BetType::THREE_D);
+        [, $token] = $this->makeUserWithWallet();
+
+        $this->activePause('3D closed for the draw.', '3D');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->threeDBetPayload())
+            ->assertStatus(422)
+            ->assertJsonPath('errors.bet_type.0', '3D closed for the draw.');
+
+        $this->assertDatabaseCount('bets', 0);
+        $this->assertDatabaseCount('wallet_transactions', 0);
+    }
+
+    public function test_2d_bets_are_unaffected_by_3d_pause(): void
+    {
+        $this->seedOddSetting();
+        [, $token] = $this->makeUserWithWallet();
+
+        $this->activePause('3D closed for the draw.', '3D');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->betPayload())
+            ->assertStatus(201);
+    }
+
+    public function test_update_of_3d_bet_is_rejected_while_3d_paused(): void
+    {
+        $this->seedOddSetting(Currency::MMK, BetType::THREE_D);
+        [$user] = $this->makeUserWithWallet();
+        $service = app(BetService::class);
+
+        $bet = $service->createForUser($user->id, $this->threeDBetPayload());
+
+        $this->activePause('3D closed for the draw.', '3D');
+
+        try {
+            $service->updateForUser($user->id, $bet->id, [
+                'bet_numbers' => [['number' => 789, 'amount' => 1000]],
+            ]);
+            $this->fail('Expected ValidationException for 3D update while paused.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('bet_type', $exception->errors());
+        }
+    }
+
+    public function test_resumed_3d_betting_accepts_bets_again(): void
+    {
+        $this->seedOddSetting(Currency::MMK, BetType::THREE_D);
+        [, $token] = $this->makeUserWithWallet();
+
+        $pause = $this->activePause('3D closed for the draw.', '3D');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->threeDBetPayload())
+            ->assertStatus(422);
+
+        $pause->update(['is_enabled' => false, 'pause_from' => null, 'message' => null]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->threeDBetPayload())
             ->assertStatus(201);
     }
 }

@@ -8,6 +8,7 @@ use App\Http\Requests\TwoDResult\StoreTwoDResultRequest;
 use App\Http\Requests\TwoDResult\UpdateTwoDResultRequest;
 use App\Models\TwoDResult;
 use App\Services\Bet\SettlementRecoveryService;
+use App\Services\TwoD\TwoDLiveTickerService;
 use App\Services\TwoDResult\TwoDResultService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,19 @@ class TwoDResultController extends Controller
     {
         return $this->respond('Last 5 days 2D results retrieved successfully.', [
             'two_d_results' => $this->twoDResultService->lastFiveDays(),
+        ]);
+    }
+
+    /**
+     * The home-screen ticker. Preview only — never a settlement source.
+     *
+     * Method-injected rather than constructor-injected so the upstream provider
+     * chain is not built for the sibling endpoints, which never touch it.
+     */
+    public function live(TwoDLiveTickerService $ticker): JsonResponse
+    {
+        return $this->respond('Live 2D value retrieved successfully.', [
+            'live' => $ticker->current(),
         ]);
     }
 
