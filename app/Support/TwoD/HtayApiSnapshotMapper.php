@@ -15,6 +15,10 @@ use Illuminate\Support\Carbon;
  * the authoritative settlement number; `modern`/`internet`/`key`/`taiwan` are
  * never read.
  *
+ * HtayApi does carry a `live{}` block, but its keys differ from thaistock2d's:
+ * the ticking number is `live.live` (not `live.twod`) and the SET value is
+ * `live.val` (not `live.value`). See {@see mapLive()}.
+ *
  * `stockDate`/`historyId` are self-anchored on this system's own current
  * Asia/Bangkok date rather than trusting HtayApi's own top-level `"date"`
  * field, mirroring SetIndexProvider's pattern and sidestepping that field's
@@ -78,7 +82,7 @@ class HtayApiSnapshotMapper
         return new TwoDLiveSnapshot(
             upstreamStatus: $upstreamStatus,
             results: $results,
-            live: null,
+            live: $this->mapLive($payload),
             raw: $payload,
             // Shape is judged on the slot blocks being present, independently of
             // whether their values passed the freshness guard — a correctly
@@ -86,5 +90,64 @@ class HtayApiSnapshotMapper
             // yet.
             payloadRecognised: $recognisedBlocks > 0,
         );
+    }
+
+    /**
+     * Maps HtayApi's `live{}` block into the vendor-neutral {@see TwoDLiveData}.
+     *
+     * The key names do not line up with thaistock2d's, so this cannot reuse
+     * {@see TwoDSnapshotMapper::mapLive()}:
+     *
+     *   twod  <- live.live   (thaistock2d: live.twod)
+     *   set   <- live.set
+     *   value <- live.val    (thaistock2d: live.value)
+     *
+     * There is no per-`live` timestamp either, so all three time fields derive
+     * from the payload's top-level `date` ("2026-08-09 16:59:54 +0630"). `time`
+     * stays the raw string, matching TwoDSnapshotMapper's contract that callers
+     * may match it against a slot by hour.
+     *
+     * Unlike the settlement blocks, this is a preview value: it is deliberately
+     * NOT run through {@see HtayApiFreshnessGuard}, because the ticker is
+     * expected to hold the last known number outside market hours.
+     */
+    private function mapLive(array $payload): ?TwoDLiveData
+    {
+        $live = $payload['live'] ?? null;
+
+        if (! is_array($live)) {
+            return null;
+        }
+
+        $rawDate = $payload['date'] ?? null;
+
+        return new TwoDLiveData(
+            twod: $this->placeholderAware($live['live'] ?? null),
+            time: $this->normalizer->string($rawDate),
+            date: $this->normalizer->date($rawDate),
+            dateTime: $this->normalizer->dateTime($rawDate),
+            set: $this->placeholderAware($live['set'] ?? null),
+            value: $this->placeholderAware($live['val'] ?? null),
+            raw: $live,
+        );
+    }
+
+    /**
+     * Normalizes a field that may carry a "not available" placeholder.
+     *
+     * HtayApi fills the live block with `"??"` while the market is closed (and
+     * `"--"` appears elsewhere in the feed). Both mean absent, but
+     * {@see TwoDPayloadNormalizer::string()} only strips empty strings, so they
+     * would otherwise reach the client as literal values to render.
+     */
+    private function placeholderAware(mixed $value): ?string
+    {
+        $normalized = $this->normalizer->string($value);
+
+        if ($normalized === null || $normalized === '??' || $normalized === '--') {
+            return null;
+        }
+
+        return $normalized;
     }
 }
