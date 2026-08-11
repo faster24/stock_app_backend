@@ -9,6 +9,7 @@ use App\Http\Requests\ThreeDResult\UpdateThreeDResultRequest;
 use App\Models\ThreeDResult;
 use App\Services\Bet\BetSettlementService;
 use App\Services\Bet\SettlementRecoveryService;
+use App\Services\ThreeD\ThreeDHistoryService;
 use App\Services\ThreeDResult\ThreeDResultService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -40,6 +41,23 @@ class ThreeDResultController extends Controller
     {
         return $this->respond('Latest 3D result retrieved successfully.', [
             'three_d_result' => $this->threeDResultService->latest(),
+        ]);
+    }
+
+    /**
+     * Past draws from the upstream vendor, served from a shared cache.
+     *
+     * Display only, and separate from index() on purpose: these are not the
+     * records that settle 3D bets. `stale` reports that the upstream was
+     * unreachable and the list is the last known good one.
+     */
+    public function history(ThreeDHistoryService $history): JsonResponse
+    {
+        $history = $history->current();
+
+        return $this->respond('3D history retrieved successfully.', [
+            'three_d_history' => $history['results'],
+            'stale' => $history['stale'],
         ]);
     }
 

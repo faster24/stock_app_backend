@@ -65,6 +65,13 @@ return [
         // cached snapshot: tight around the 12:01/16:30 draws, relaxed during
         // the rest of the session, and slow overnight. Upstream cost is a
         // function of these alone — it does not scale with user count.
+        //
+        // threed_history_* drive the read-only 3D history list. It lives in this
+        // block because it is the same vendor and the same key, and so shares
+        // the daily_limit budget above. Nothing here settles a 3D bet — that
+        // still runs off admin-entered ThreeDResult records. Draws land on the
+        // 1st and 16th, so an hour of staleness costs nothing and one client
+        // poll per hour is the whole upstream bill.
         'htayapi' => [
             'url' => env('HTAYAPI_URL', 'https://htayapi.com/mm-twod/thai/2dlive'),
             'key' => env('HTAYAPI_KEY'),
@@ -73,6 +80,8 @@ return [
             'live_ttl_hot' => (int) env('HTAYAPI_LIVE_TTL_HOT', 5),
             'live_ttl_warm' => (int) env('HTAYAPI_LIVE_TTL_WARM', 20),
             'live_ttl_cold' => (int) env('HTAYAPI_LIVE_TTL_COLD', 300),
+            'threed_history_url' => env('HTAYAPI_3D_HISTORY_URL', 'https://htayapi.com/mm-twod/thai/3dhistory'),
+            'threed_history_ttl' => (int) env('HTAYAPI_3D_HISTORY_TTL', 3600),
         ],
     ],
 

@@ -60,6 +60,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/two-d-side-numbers/last-5-days', [TwoDSideNumberController::class, 'lastFiveDays']);
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
+        Route::get('/three-d-results/history', [ThreeDResultController::class, 'history']);
         Route::get('/closed-numbers', [BettingDistributionController::class, 'getClosedNumbers']);
         Route::get('/bet-pauses', [BetPauseController::class, 'index']);
         Route::prefix('deposits')->controller(DepositController::class)->group(function () {
