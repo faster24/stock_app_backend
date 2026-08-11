@@ -18,7 +18,10 @@ use App\Models\Wallet;
 use App\Services\BettingDistribution\NumberControlService;
 use App\Services\Service;
 use App\Services\Wallet\WalletMutator;
+use Closure;
 use DomainException;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
@@ -95,9 +98,10 @@ class BetService extends Service
     /**
      * @param  array<string, string>  $filters  any of: status, bet_result_status,
      *                                          payout_status, bet_type, target_opentime,
-     *                                          stock_date, user_id
+     *                                          stock_date, stock_date_from, stock_date_to,
+     *                                          user_id, search
      */
-    public function listForAdmin(int $page = 1, int $pageSize = 10, array $filters = []): Collection
+    public function listForAdmin(int $page = 1, int $pageSize = 10, array $filters = []): LengthAwarePaginator
     {
         $resolvedPage = max(1, $page);
         $resolvedPageSize = min(100, max(1, $pageSize));
@@ -110,14 +114,45 @@ class BetService extends Service
             }
         }
 
+        // stock_date is the exact-day filter kept for existing callers; the
+        // from/to pair is the range the admin dashboard sends. They compose.
         if (! empty($filters['stock_date'])) {
             $query->whereDate('stock_date', $filters['stock_date']);
         }
 
+        if (! empty($filters['stock_date_from'])) {
+            $query->whereDate('stock_date', '>=', $filters['stock_date_from']);
+        }
+
+        if (! empty($filters['stock_date_to'])) {
+            $query->whereDate('stock_date', '<=', $filters['stock_date_to']);
+        }
+
+        if (! empty($filters['search'])) {
+            $query->where($this->betSearchConstraint((string) $filters['search']));
+        }
+
         return $query
             ->latest()
-            ->forPage($resolvedPage, $resolvedPageSize)
-            ->get();
+            ->paginate($resolvedPageSize, ['*'], 'page', $resolvedPage);
+    }
+
+    /**
+     * Free-text admin search: a bet id prefix (admins copy ids straight off the
+     * list) or a username substring. Soft-deleted users are included so a bet
+     * never disappears from search just because its owner was removed.
+     */
+    private function betSearchConstraint(string $search): Closure
+    {
+        $term = addcslashes(trim($search), '%_\\');
+
+        return function (Builder $query) use ($term): void {
+            $query
+                ->where('id', 'like', $term.'%')
+                ->orWhereHas('user', function (Builder $userQuery) use ($term): void {
+                    $userQuery->withTrashed()->where('username', 'like', '%'.$term.'%');
+                });
+        };
     }
 
     public function showForUser(string $userId, string $betId): ?Bet

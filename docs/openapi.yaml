@@ -1624,6 +1624,67 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: search
+          in: query
+          required: false
+          description: >
+            Free text. Matches a bet id prefix or a username substring
+            (soft-deleted owners included).
+          schema:
+            type: string
+            maxLength: 64
+        - name: status
+          in: query
+          required: false
+          description: Admin review status.
+          schema:
+            type: string
+            enum: [PENDING, ACCEPTED, REJECTED, REFUNDED]
+        - name: bet_result_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OPEN, WON, LOST, INVALID]
+        - name: payout_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, PAID_OUT, REFUNDED]
+        - name: bet_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['2D', '3D']
+        - name: target_opentime
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
+        - name: stock_date
+          in: query
+          required: false
+          description: Exact draw day. Composes with the from/to range.
+          schema:
+            type: string
+            format: date
+        - name: stock_date_from
+          in: query
+          required: false
+          description: Inclusive lower bound on stock_date.
+          schema:
+            type: string
+            format: date
+        - name: stock_date_to
+          in: query
+          required: false
+          description: Inclusive upper bound on stock_date. Must be >= stock_date_from.
+          schema:
+            type: string
+            format: date
       responses:
         '200':
           description: Bets list
@@ -1635,6 +1696,8 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
 
   /admin/bets/{bet}/status:
     patch:
@@ -3086,6 +3149,14 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Bet'
+            pagination:
+              type: object
+              description: Present on the admin list endpoint.
+              properties:
+                current_page: {type: integer}
+                last_page: {type: integer}
+                per_page: {type: integer}
+                total: {type: integer}
         errors:
           type: object
           nullable: true
