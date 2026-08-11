@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Contracts\SetScraper;
 use App\Contracts\ThreeDHistoryProvider;
+use App\Contracts\ThreeDLiveProvider;
 use App\Contracts\TwoDLiveProvider;
 use App\Events\BetPaidOutEvent;
 use App\Events\BetWonEvent;
@@ -22,6 +23,7 @@ use App\Listeners\SendWithdrawalRejectedNotification;
 use App\Services\FirebaseNotificationService;
 use App\Services\Set\NodeSetScraper;
 use App\Services\ThreeD\HtayApiThreeDHistoryProvider;
+use App\Services\ThreeD\HtayApiThreeDLiveProvider;
 use App\Services\TwoD\HtayApiCallBudget;
 use App\Services\TwoD\TwoDLiveProviderManager;
 use App\Support\RealSleeper;
@@ -52,6 +54,17 @@ class AppServiceProvider extends ServiceProvider
 
             return new HtayApiThreeDHistoryProvider(
                 (string) ($config['threed_history_url'] ?? ''),
+                (string) ($config['key'] ?? ''),
+                (int) ($config['timeout'] ?? 20),
+                new HtayApiCallBudget((int) ($config['daily_limit'] ?? 25)),
+            );
+        });
+
+        $this->app->bind(ThreeDLiveProvider::class, function ($app) {
+            $config = (array) $app['config']->get('services.twod.htayapi', []);
+
+            return new HtayApiThreeDLiveProvider(
+                (string) ($config['threed_live_url'] ?? ''),
                 (string) ($config['key'] ?? ''),
                 (int) ($config['timeout'] ?? 20),
                 new HtayApiCallBudget((int) ($config['daily_limit'] ?? 25)),

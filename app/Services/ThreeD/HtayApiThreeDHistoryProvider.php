@@ -5,7 +5,7 @@ namespace App\Services\ThreeD;
 use App\Contracts\ThreeDHistoryProvider;
 use App\Exceptions\ThreeDProviderException;
 use App\Services\TwoD\HtayApiCallBudget;
-use App\Support\ThreeD\ThreeDHistoryEntry;
+use App\Support\ThreeD\ThreeDDraw;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -67,7 +67,7 @@ class HtayApiThreeDHistoryProvider implements ThreeDHistoryProvider
      * a partial list of real draws beats a list with holes in it.
      *
      * @param  array<mixed>  $payload
-     * @return list<ThreeDHistoryEntry>
+     * @return list<ThreeDDraw>
      */
     private function map(array $payload): array
     {
@@ -98,7 +98,7 @@ class HtayApiThreeDHistoryProvider implements ThreeDHistoryProvider
                 continue;
             }
 
-            $entries[] = new ThreeDHistoryEntry($threed, $stockDate);
+            $entries[] = new ThreeDDraw($threed, $stockDate);
         }
 
         return $entries;

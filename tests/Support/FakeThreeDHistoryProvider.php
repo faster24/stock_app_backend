@@ -4,7 +4,7 @@ namespace Tests\Support;
 
 use App\Contracts\ThreeDHistoryProvider;
 use App\Exceptions\ThreeDProviderException;
-use App\Support\ThreeD\ThreeDHistoryEntry;
+use App\Support\ThreeD\ThreeDDraw;
 
 /**
  * Test double for {@see ThreeDHistoryProvider}. Bind it in place of the real
@@ -19,7 +19,7 @@ class FakeThreeDHistoryProvider implements ThreeDHistoryProvider
     public int $calls = 0;
 
     /**
-     * @param  list<ThreeDHistoryEntry>  $entries
+     * @param  list<ThreeDDraw>  $entries
      */
     public function __construct(
         private readonly array $entries = [],

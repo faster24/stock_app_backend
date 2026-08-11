@@ -7,7 +7,7 @@ use App\Exceptions\ThreeDProviderException;
 use App\Models\User;
 use App\Services\ThreeD\HtayApiThreeDHistoryProvider;
 use App\Services\TwoD\HtayApiCallBudget;
-use App\Support\ThreeD\ThreeDHistoryEntry;
+use App\Support\ThreeD\ThreeDDraw;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -38,13 +38,13 @@ class ThreeDHistoryApiTest extends TestCase
     }
 
     /**
-     * @return list<ThreeDHistoryEntry>
+     * @return list<ThreeDDraw>
      */
     private function entries(): array
     {
         return [
-            new ThreeDHistoryEntry('479', '2026-08-01'),
-            new ThreeDHistoryEntry('214', '2026-07-16'),
+            new ThreeDDraw('479', '2026-08-01'),
+            new ThreeDDraw('214', '2026-07-16'),
         ];
     }
 
