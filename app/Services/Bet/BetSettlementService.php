@@ -9,6 +9,7 @@ use App\Events\BetWonEvent;
 use App\Models\Bet;
 use App\Models\ThreeDResult;
 use App\Models\TwoDResult;
+use App\Services\BettingDistribution\ThreeDDrawScope;
 use App\Services\Service;
 use DomainException;
 use Illuminate\Support\Carbon;
@@ -136,7 +137,7 @@ class BetSettlementService extends Service
             ->where('status', BetStatus::ACCEPTED->value)
             ->where('bet_result_status', BetResultStatus::OPEN->value);
 
-        return $this->settleEligibleBets(
+        $summary = $this->settleEligibleBets(
             $historyId,
             BetType::THREE_D,
             null,
@@ -147,6 +148,32 @@ class BetSettlementService extends Service
             $winningNumber,
             $settledAt
         );
+
+        $this->retireThreeDDrawControls($resolvedStockDate);
+
+        return $summary;
+    }
+
+    /**
+     * Entering a result closes the draw, so the controls and temporary odds that
+     * were anchored to it are done. They are anchored below this result's date
+     * (see ThreeDDrawScope), and the next draw anchors at it.
+     */
+    private function retireThreeDDrawControls(string $resolvedStockDate): void
+    {
+        $sentinel = ThreeDDrawScope::OPENTIME_SENTINEL;
+
+        DB::table('number_controls')
+            ->where('bet_type', BetType::THREE_D->value)
+            ->where('target_opentime', $sentinel)
+            ->whereDate('stock_date', '<', $resolvedStockDate)
+            ->delete();
+
+        DB::table('temporary_odd_adjustments')
+            ->where('bet_type', BetType::THREE_D->value)
+            ->where('target_opentime', $sentinel)
+            ->whereDate('stock_date', '<', $resolvedStockDate)
+            ->delete();
     }
 
     private function settleEligibleBets(

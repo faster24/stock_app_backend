@@ -196,6 +196,7 @@ Route::prefix('v1')->group(function () {
                     ->controller(BettingDistributionController::class)
                     ->group(function () {
                         Route::get('/current', 'getCurrentDistribution')->name('current');
+                        Route::get('/three-d', 'getThreeDDistribution')->name('three-d');
                         Route::get('/periods-today', 'getPeriodsForToday')->name('periods-today');
                         Route::post('/adjust-odds', 'adjustOdds')->name('adjust-odds');
                         Route::get('/temp-odds/{date}/{targetOpentime}', 'getTempOdds')->name('temp-odds');

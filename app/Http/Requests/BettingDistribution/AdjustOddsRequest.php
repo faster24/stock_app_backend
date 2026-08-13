@@ -14,9 +14,10 @@ class AdjustOddsRequest extends AuthFormRequest
 
         return [
             'target_opentime' => [
-                'required',
+                'required_if:bet_type,2D',
+                'nullable',
                 'string',
-                Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00']),
+                Rule::in(['11:00:00', '12:01:00', '15:00:00', '16:30:00', '']),
             ],
             'stock_date' => ['required', 'date_format:Y-m-d'],
             'bet_type' => ['required', Rule::in(['2D', '3D'])],

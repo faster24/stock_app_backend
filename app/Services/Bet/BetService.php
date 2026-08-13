@@ -16,6 +16,7 @@ use App\Models\TemporaryOddAdjustment;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\BettingDistribution\NumberControlService;
+use App\Services\BettingDistribution\ThreeDDrawScope;
 use App\Services\Service;
 use App\Services\Wallet\WalletMutator;
 use DomainException;
@@ -30,6 +31,7 @@ class BetService extends Service
     public function __construct(
         private WalletMutator $walletMutator,
         private NumberControlService $numberControlService,
+        private ThreeDDrawScope $drawScope,
         private BetPauseService $betPauseService,
     ) {}
 
@@ -395,12 +397,15 @@ class BetService extends Service
         ?string $excludeBetId = null,
     ): void {
         $opentimeKey = (string) $opentime;
+        // A 3D control belongs to the open draw, so it is stored (and read) at
+        // the draw anchor rather than under the day the bet happens to land on.
+        $controlDate = $this->drawScope->resolveStorageDate($betType, $stockDate);
 
         $controls = NumberControl::query()
             ->where('bet_type', $betType)
             ->where('currency', $currency)
             ->where('target_opentime', $opentimeKey)
-            ->where('stock_date', $stockDate)
+            ->where('stock_date', $controlDate)
             ->whereIn('number', array_column($numberEntries, 'number'))
             ->lockForUpdate()
             ->get()
@@ -630,7 +635,7 @@ class BetService extends Service
             ->where('bet_type', $betType)
             ->where('currency', $currency)
             ->where('target_opentime', $opentime)
-            ->where('stock_date', $stockDate)
+            ->where('stock_date', $this->drawScope->resolveStorageDate($betType, $stockDate))
             ->whereIn('number', $numbers)
             ->pluck('adjusted_odd', 'number');
 
