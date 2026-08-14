@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class TemporaryOddAdjustmentService extends Service
 {
+    public function __construct(private readonly ThreeDDrawScope $drawScope) {}
+
     public function adjustOdds(
         string $date,
         string $opentime,
@@ -19,6 +21,9 @@ class TemporaryOddAdjustmentService extends Service
         string $adminId
     ): array {
         $this->assertPeriodNotSettled($date, $opentime);
+
+        // 3D rows live for the whole open draw, not for one calendar day.
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
 
         $baseOdd = $this->resolveBaseOdd($betType, $currency);
 
@@ -70,6 +75,8 @@ class TemporaryOddAdjustmentService extends Service
         string $betType,
         string $currency
     ): array {
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
+
         return TemporaryOddAdjustment::query()
             ->where('stock_date', $date)
             ->where('target_opentime', $opentime)
@@ -101,6 +108,8 @@ class TemporaryOddAdjustmentService extends Service
         string $betType,
         string $currency
     ): array {
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
+
         $count = TemporaryOddAdjustment::query()
             ->where('stock_date', $date)
             ->where('target_opentime', $opentime)

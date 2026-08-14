@@ -61,6 +61,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/three-d-results', [ThreeDResultController::class, 'index']);
         Route::get('/three-d-results/latest', [ThreeDResultController::class, 'latest']);
         Route::get('/three-d-results/history', [ThreeDResultController::class, 'history']);
+        Route::get('/three-d-results/live', [ThreeDResultController::class, 'live']);
         Route::get('/closed-numbers', [BettingDistributionController::class, 'getClosedNumbers']);
         Route::get('/bet-pauses', [BetPauseController::class, 'index']);
         Route::prefix('deposits')->controller(DepositController::class)->group(function () {
@@ -195,6 +196,7 @@ Route::prefix('v1')->group(function () {
                     ->controller(BettingDistributionController::class)
                     ->group(function () {
                         Route::get('/current', 'getCurrentDistribution')->name('current');
+                        Route::get('/three-d', 'getThreeDDistribution')->name('three-d');
                         Route::get('/periods-today', 'getPeriodsForToday')->name('periods-today');
                         Route::post('/adjust-odds', 'adjustOdds')->name('adjust-odds');
                         Route::get('/temp-odds/{date}/{targetOpentime}', 'getTempOdds')->name('temp-odds');

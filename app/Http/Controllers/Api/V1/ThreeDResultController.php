@@ -10,6 +10,7 @@ use App\Models\ThreeDResult;
 use App\Services\Bet\BetSettlementService;
 use App\Services\Bet\SettlementRecoveryService;
 use App\Services\ThreeD\ThreeDHistoryService;
+use App\Services\ThreeD\ThreeDLiveService;
 use App\Services\ThreeDResult\ThreeDResultService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -58,6 +59,23 @@ class ThreeDResultController extends Controller
         return $this->respond('3D history retrieved successfully.', [
             'three_d_history' => $history['results'],
             'stale' => $history['stale'],
+        ]);
+    }
+
+    /**
+     * The current draw from the upstream vendor, served from a shared cache.
+     *
+     * Display only, like history(). `three_d_live` is null when the vendor has
+     * nothing published and nothing was cached earlier; `stale` reports that the
+     * upstream was unreachable and the value is the last known one.
+     */
+    public function live(ThreeDLiveService $liveService): JsonResponse
+    {
+        $live = $liveService->current();
+
+        return $this->respond('Live 3D value retrieved successfully.', [
+            'three_d_live' => $live['live'],
+            'stale' => $live['stale'],
         ]);
     }
 

@@ -9,6 +9,7 @@ use App\Http\Requests\BettingDistribution\SetNumberControlsRequest;
 use App\Services\BettingDistribution\BettingDistributionService;
 use App\Services\BettingDistribution\NumberControlService;
 use App\Services\BettingDistribution\TemporaryOddAdjustmentService;
+use App\Services\BettingDistribution\ThreeDDistributionService;
 use DomainException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,7 @@ class BettingDistributionController extends Controller
         private readonly BettingDistributionService $distributionService,
         private readonly TemporaryOddAdjustmentService $oddAdjustmentService,
         private readonly NumberControlService $numberControlService,
+        private readonly ThreeDDistributionService $threeDDistributionService,
     ) {}
 
     public function getCurrentDistribution(Request $request): JsonResponse
@@ -43,12 +45,27 @@ class BettingDistributionController extends Controller
         return $this->respond('Betting distribution retrieved successfully.', $data);
     }
 
+    /**
+     * 3D board: one draw window, no period columns.
+     */
+    public function getThreeDDistribution(Request $request): JsonResponse
+    {
+        $currency = $this->validateCurrency($request);
+
+        $data = $this->threeDDistributionService->getCurrentDrawDistribution($currency);
+
+        return $this->respond('Betting distribution retrieved successfully.', $data);
+    }
+
     public function adjustOdds(AdjustOddsRequest $request): JsonResponse
     {
         try {
             $result = $this->oddAdjustmentService->adjustOdds(
                 $request->validated('stock_date'),
-                $request->validated('target_opentime'),
+                $this->resolveOpentime(
+                    $request->validated('bet_type'),
+                    $request->validated('target_opentime'),
+                ),
                 $request->validated('bet_type'),
                 $request->validated('currency'),
                 $request->validated('adjustments'),
@@ -227,6 +244,21 @@ class BettingDistributionController extends Controller
                 'errors' => $validator->errors(),
             ], 422));
         }
+    }
+
+    private function validateCurrency(Request $request): string
+    {
+        $currency = $request->query('currency', 'THB');
+
+        if (! in_array($currency, ['MMK', 'THB'], true)) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'The given data was invalid.',
+                'data' => null,
+                'errors' => ['currency' => ['The selected currency is invalid.']],
+            ], 422));
+        }
+
+        return $currency;
     }
 
     private function validateBetTypeAndCurrency(Request $request, bool $required = true): array

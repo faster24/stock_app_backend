@@ -3,13 +3,14 @@
 namespace App\Support\ThreeD;
 
 /**
- * One past 3D draw, normalized away from the vendor's field names.
+ * One 3D draw, normalized away from the vendor's field names.
  *
- * The upstream calls these `result` and `datetime`; clients see `threed` and
- * `stock_date`, matching the shape they already consume from the admin-entered
- * ThreeDResult records so a page can render either source.
+ * The upstream calls these `result`/`datetime` on the history feed and
+ * `threed`/`date` on the live one; clients see `threed` and `stock_date`,
+ * matching the shape they already consume from the admin-entered ThreeDResult
+ * records so a page can render any of the three sources.
  */
-class ThreeDHistoryEntry
+class ThreeDDraw
 {
     public function __construct(
         public readonly string $threed,

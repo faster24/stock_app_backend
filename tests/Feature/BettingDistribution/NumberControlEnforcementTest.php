@@ -11,6 +11,7 @@ use App\Models\OddSetting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Bet\BetService;
+use App\Services\BettingDistribution\ThreeDDrawScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -273,11 +274,12 @@ class NumberControlEnforcementTest extends TestCase
         $this->seedOddSetting(BetType::THREE_D);
         [, , $token] = $this->makeUserWithWallet();
 
+        // A 3D control is anchored to the open draw, not to a calendar day.
         NumberControl::factory()->closed()->create([
             'bet_type' => BetType::THREE_D,
             'number' => 456,
             'target_opentime' => '',
-            'stock_date' => $this->today(),
+            'stock_date' => app(ThreeDDrawScope::class)->anchorDate(),
         ]);
 
         $this->withHeader('Authorization', 'Bearer '.$token)

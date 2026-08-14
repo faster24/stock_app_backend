@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class NumberControlService extends Service
 {
+    private const THREE_D_OPENTIME = ThreeDDrawScope::OPENTIME_SENTINEL;
+
+    public function __construct(private readonly ThreeDDrawScope $drawScope) {}
+
     public function setControls(
         string $date,
         string $opentime,
@@ -20,6 +24,9 @@ class NumberControlService extends Service
         string $adminId
     ): array {
         $this->assertPeriodNotSettled($date, $opentime);
+
+        // 3D rows live for the whole open draw, not for one calendar day.
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
 
         $applied = [];
 
@@ -75,6 +82,8 @@ class NumberControlService extends Service
     ): array {
         $this->assertPeriodNotSettled($date, $opentime);
 
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
+
         $count = NumberControl::query()
             ->where('stock_date', $date)
             ->where('target_opentime', $opentime)
@@ -101,6 +110,8 @@ class NumberControlService extends Service
         string $betType,
         string $currency
     ): array {
+        $date = $this->drawScope->resolveStorageDate($betType, $date);
+
         $controls = NumberControl::query()
             ->where('stock_date', $date)
             ->where('target_opentime', $opentime)
@@ -142,7 +153,8 @@ class NumberControlService extends Service
 
     /**
      * Sum of PENDING/ACCEPTED bet amounts per number for one period.
-     * An '' opentime means 3D bets, stored with a NULL target_opentime.
+     * An '' opentime means 3D bets, stored with a NULL target_opentime; those
+     * are summed across the whole open draw rather than for $date alone.
      *
      * @return array<int, float> number => sold volume
      */
@@ -158,13 +170,24 @@ class NumberControlService extends Service
             return [];
         }
 
+        $isThreeD = $opentime === self::THREE_D_OPENTIME;
+        $windowStart = $isThreeD ? $this->drawScope->windowStart() : null;
+
         return DB::table('bet_numbers')
             ->join('bets', 'bets.id', '=', 'bet_numbers.bet_id')
-            ->whereDate('bets.stock_date', $date)
+            ->when(
+                $isThreeD,
+                // A 3D limit caps the whole draw, so it sums every day of it.
+                fn ($q) => $q->when(
+                    $windowStart !== null,
+                    fn ($inner) => $inner->whereDate('bets.stock_date', '>=', $windowStart),
+                ),
+                fn ($q) => $q->whereDate('bets.stock_date', $date),
+            )
             ->where('bets.bet_type', $betType)
             ->where('bets.currency', $currency)
             ->when(
-                $opentime === '',
+                $isThreeD,
                 fn ($q) => $q->whereNull('bets.target_opentime'),
                 fn ($q) => $q->where('bets.target_opentime', $opentime),
             )
@@ -185,7 +208,7 @@ class NumberControlService extends Service
 
     private function assertPeriodNotSettled(string $date, string $opentime): void
     {
-        if ($opentime === '') {
+        if ($opentime === self::THREE_D_OPENTIME) {
             return;
         }
 
