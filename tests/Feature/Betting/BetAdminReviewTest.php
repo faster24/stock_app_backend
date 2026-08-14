@@ -299,6 +299,107 @@ class BetAdminReviewTest extends TestCase
             ->assertJsonPath('errors.status.0', 'Illegal review status transition.');
     }
 
+    public function test_admin_bet_list_returns_pagination_meta(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        Bet::factory()->count(3)->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/admin/bets?page=1&page_size=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.bets')
+            ->assertJsonPath('data.pagination.current_page', 1)
+            ->assertJsonPath('data.pagination.last_page', 2)
+            ->assertJsonPath('data.pagination.per_page', 2)
+            ->assertJsonPath('data.pagination.total', 3);
+    }
+
+    public function test_admin_can_filter_bets_by_stock_date_range(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $before = Bet::factory()->create(['stock_date' => '2026-05-01']);
+        $inside = Bet::factory()->create(['stock_date' => '2026-05-10']);
+        $after = Bet::factory()->create(['stock_date' => '2026-05-20']);
+
+        $ids = collect(
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->getJson('/api/v1/admin/bets?stock_date_from=2026-05-05&stock_date_to=2026-05-15')
+                ->assertOk()
+                ->json('data.bets')
+        )->pluck('id')->all();
+
+        $this->assertSame([$inside->id], $ids);
+        $this->assertNotContains($before->id, $ids);
+        $this->assertNotContains($after->id, $ids);
+    }
+
+    public function test_admin_can_search_bets_by_username_and_bet_id_prefix(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $target = User::factory()->normalUser()->create(['username' => 'zarmani_win']);
+        $other = User::factory()->normalUser()->create(['username' => 'someone_else']);
+
+        $targetBet = Bet::factory()->for($target)->create();
+        $otherBet = Bet::factory()->for($other)->create();
+
+        $byUsername = collect(
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->getJson('/api/v1/admin/bets?search=zarmani')
+                ->assertOk()
+                ->json('data.bets')
+        )->pluck('id')->all();
+
+        $this->assertSame([$targetBet->id], $byUsername);
+
+        // Ordered UUIDs share a long leading prefix, so only a full/near-full id
+        // is guaranteed unique — that is the copy-the-id-off-the-list path.
+        $byIdPrefix = collect(
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->getJson('/api/v1/admin/bets?search='.$otherBet->id)
+                ->assertOk()
+                ->json('data.bets')
+        )->pluck('id')->all();
+
+        $this->assertSame([$otherBet->id], $byIdPrefix);
+    }
+
+    public function test_admin_bet_search_still_matches_bets_of_soft_deleted_users(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $ghost = User::factory()->normalUser()->create(['username' => 'ghost_punter']);
+        $ghostBet = Bet::factory()->for($ghost)->create();
+        $ghost->delete();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/admin/bets?search=ghost_punter')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.bets')
+            ->assertJsonPath('data.bets.0.id', $ghostBet->id);
+    }
+
+    public function test_admin_bet_list_rejects_invalid_filter_values(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/admin/bets?bet_result_status=NOPE')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/admin/bets?stock_date_from=2026-05-10&stock_date_to=2026-05-01')
+            ->assertStatus(422);
+    }
+
     private function createWalletForUser(User $user, int $balance = 0): Wallet
     {
         return Wallet::factory()->create([

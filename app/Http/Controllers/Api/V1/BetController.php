@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Bet\AdminListBetsRequest;
 use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
 use App\Http\Requests\Bet\ApproveBetPayoutRequest;
 use App\Http\Requests\Bet\BulkApproveBetPayoutRequest;
@@ -36,20 +37,24 @@ class BetController extends Controller
         ]);
     }
 
-    public function adminIndex(Request $request): JsonResponse
+    public function adminIndex(AdminListBetsRequest $request): JsonResponse
     {
         $page = max(1, (int) $request->query('page', 1));
         $pageSize = min(100, max(1, (int) $request->query('page_size', 10)));
-
-        $filters = array_filter(
-            $request->only(['status', 'bet_result_status', 'payout_status', 'bet_type', 'stock_date', 'target_opentime', 'user_id']),
-            fn ($value) => $value !== null && $value !== '',
-        );
+        $filters = $request->filters();
 
         Log::info('Admin bet list requested.', ['admin_user_id' => (string) $request->user()->id, 'page' => $page, 'page_size' => $pageSize, 'filters' => $filters]);
 
+        $bets = $this->betService->listForAdmin($page, $pageSize, $filters);
+
         return $this->respond('Bets retrieved successfully.', [
-            'bets' => $this->betService->listForAdmin($page, $pageSize, $filters),
+            'bets' => $bets->items(),
+            'pagination' => [
+                'current_page' => $bets->currentPage(),
+                'last_page' => $bets->lastPage(),
+                'per_page' => $bets->perPage(),
+                'total' => $bets->total(),
+            ],
         ]);
     }
 
