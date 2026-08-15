@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Wallet\StoreWalletBankInfoRequest;
 use App\Http\Requests\Wallet\UpdateWalletBankInfoRequest;
+use App\Models\Wallet;
 use App\Services\Wallet\WalletBankInfoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,12 +52,16 @@ class WalletBankInfoController extends Controller
         return $this->respond('Bank info cleared successfully.', null);
     }
 
-    private function bankInfoPayload(mixed $wallet): array
+    private function bankInfoPayload(Wallet $wallet): array
     {
         return [
-            'bank_name' => data_get($wallet, 'bank_name'),
-            'account_name' => data_get($wallet, 'account_name'),
-            'account_number' => data_get($wallet, 'account_number'),
+            'bank_name' => $wallet->bank_name?->value,
+            'account_name' => $wallet->account_name,
+            'account_number' => $wallet->account_number,
+
+            // Null until setup is complete — see WalletBankInfoService.
+            'bank_info_updated_at' => $wallet->bank_info_updated_at?->toIso8601String(),
+            'bank_info_next_allowed_at' => $wallet->bankInfoNextAllowedAt()?->toIso8601String(),
         ];
     }
 

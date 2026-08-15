@@ -65,12 +65,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            // next_allowed_at belongs in data, not errors: clients flatten every
+            // array under errors into the message they show the user, and a raw
+            // ISO timestamp glued onto the sentence is not a message.
             return response()->json([
                 'message' => $e->getMessage(),
-                'data' => null,
+                'data' => [
+                    'code' => 'BANK_INFO_COOLDOWN',
+                    'next_allowed_at' => $e->getNextAllowedAt()->toIso8601String(),
+                ],
                 'errors' => [
                     'bank_info' => [$e->getMessage()],
-                    'next_allowed_at' => [$e->getNextAllowedAt()->toIso8601String()],
                 ],
             ], 422);
         });
@@ -82,8 +87,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return response()->json([
                 'message' => $e->getMessage(),
-                'data'    => null,
-                'errors'  => [
+                'data' => null,
+                'errors' => [
                     'domain' => [$e->getMessage()],
                 ],
             ], 409);

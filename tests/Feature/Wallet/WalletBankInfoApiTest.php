@@ -3,6 +3,7 @@
 namespace Tests\Feature\Wallet;
 
 use App\Enums\BankName;
+use App\Enums\Currency;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -244,9 +245,10 @@ class WalletBankInfoApiTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'Bank info can only be updated once every 30 days.')
-            ->assertJsonPath('data', null)
+            ->assertJsonPath('data.code', 'BANK_INFO_COOLDOWN')
             ->assertJsonPath('errors.bank_info.0', 'Bank info can only be updated once every 30 days.')
-            ->assertJsonStructure(['errors' => ['next_allowed_at']]);
+            ->assertJsonStructure(['data' => ['next_allowed_at']])
+            ->assertJsonMissingPath('errors.next_allowed_at');
     }
 
     public function test_post_within_30_days_is_rejected_with_422(): void
@@ -270,9 +272,10 @@ class WalletBankInfoApiTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'Bank info can only be updated once every 30 days.')
-            ->assertJsonPath('data', null)
+            ->assertJsonPath('data.code', 'BANK_INFO_COOLDOWN')
             ->assertJsonPath('errors.bank_info.0', 'Bank info can only be updated once every 30 days.')
-            ->assertJsonStructure(['errors' => ['next_allowed_at']]);
+            ->assertJsonStructure(['data' => ['next_allowed_at']])
+            ->assertJsonMissingPath('errors.next_allowed_at');
     }
 
     public function test_update_is_allowed_after_30_day_cooldown(): void
@@ -363,5 +366,113 @@ class WalletBankInfoApiTest extends TestCase
             ])
             ->assertStatus(201)
             ->assertJsonPath('errors', null);
+    }
+
+    public function test_bank_info_write_without_a_currency_does_not_start_the_cooldown(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $payload = [
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Half Finished',
+            'account_number' => '100200300',
+        ];
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('data.bank_info.bank_info_updated_at', null)
+            ->assertJsonPath('data.bank_info.bank_info_next_allowed_at', null);
+
+        $this->assertNull(Wallet::query()->where('user_id', $user->id)->value('bank_info_updated_at'));
+
+        // A user whose setup was interrupted must be able to finish it, not be
+        // locked out of their own account for 30 days.
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', $payload)
+            ->assertStatus(201)
+            ->assertJsonPath('errors', null);
+    }
+
+    public function test_bank_info_write_on_a_wallet_with_a_currency_starts_the_cooldown(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'balance' => 0,
+            'currency' => Currency::MMK->value,
+            'currency_locked_at' => now(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/me/bank-info', [
+                'bank_name' => BankName::KBZ->value,
+                'account_name' => 'All Set',
+                'account_number' => '100200300',
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('errors', null);
+
+        $this->assertNotNull(Wallet::query()->where('user_id', $user->id)->value('bank_info_updated_at'));
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', ['bank_name' => BankName::AYA->value])
+            ->assertStatus(422)
+            ->assertJsonPath('data.code', 'BANK_INFO_COOLDOWN');
+    }
+
+    public function test_partial_update_that_leaves_setup_incomplete_does_not_start_the_cooldown(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'balance' => 0,
+            'currency' => Currency::MMK->value,
+            'currency_locked_at' => now(),
+            'bank_name' => BankName::KBZ->value,
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/me/bank-info', ['account_name' => 'Still Missing A Number'])
+            ->assertOk()
+            ->assertJsonPath('data.bank_info.bank_info_next_allowed_at', null);
+
+        $this->assertNull(Wallet::query()->where('user_id', $user->id)->value('bank_info_updated_at'));
+    }
+
+    public function test_bank_info_and_wallet_payloads_expose_the_cooldown_window(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $updatedAt = now()->subDays(10);
+
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'balance' => 0,
+            'currency' => Currency::MMK->value,
+            'currency_locked_at' => now(),
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'User',
+            'account_number' => '111000111',
+            'bank_info_updated_at' => $updatedAt,
+        ]);
+
+        $expected = $updatedAt->copy()->addDays(Wallet::BANK_INFO_COOLDOWN_DAYS)->toIso8601String();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/me/bank-info')
+            ->assertOk()
+            ->assertJsonPath('data.bank_info.bank_info_next_allowed_at', $expected);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/v1/me/wallet')
+            ->assertOk()
+            ->assertJsonPath('data.wallet.bank_info_next_allowed_at', $expected);
     }
 }
