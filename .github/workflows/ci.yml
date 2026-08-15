@@ -29,4 +29,14 @@ jobs:
             php artisan optimize:clear
             php artisan config:cache
             php artisan route:cache
-            php artisan view:cache
+            # No view:cache. Blade here is two pages (welcome, the OpenAPI docs),
+            # and php-fpm compiles them lazily on first hit anyway. Precompiling
+            # from the deploy user fights the web user over ownership of
+            # storage/framework/views and fails the whole deploy over a cache
+            # warm-up: view:clear silently skips files it cannot unlink, then
+            # view:cache dies trying to overwrite them.
+            #
+            # Must come after config:cache, or the restarted workers boot with
+            # the previous config. Without it they keep running the old code and
+            # cannot autoload job classes added in this deploy.
+            php artisan queue:restart
