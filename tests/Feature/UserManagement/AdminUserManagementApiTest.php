@@ -268,6 +268,80 @@ class AdminUserManagementApiTest extends TestCase
         $this->assertNotContains($user->id, $ids);
     }
 
+    /**
+     * A deleted user is usually still signed in somewhere. Their client keeps
+     * the bearer token until a request tells it otherwise, so the status these
+     * routes return is what the app acts on — 401 is what ends the session and
+     * sends them to the login screen. Anything else strands them mid-app.
+     */
+    public function test_deleted_user_token_is_revoked_and_protected_routes_return_401(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+
+        $user = User::factory()->normalUser()->create();
+        $userToken = $user->createToken('auth_token')->plainTextToken;
+
+        // Signed in and working before the deletion.
+        $this->withHeader('Authorization', 'Bearer '.$userToken)
+            ->getJson('/api/v1/me')
+            ->assertOk();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->deleteJson('/api/v1/admin/users/'.$user->id)
+            ->assertOk();
+
+        $this->app['auth']->forgetGuards();
+
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'tokenable_id' => $user->id,
+            'tokenable_type' => User::class,
+        ]);
+
+        foreach (['/api/v1/me', '/api/v1/me/wallet', '/api/v1/me/bank-info'] as $route) {
+            $this->withHeader('Authorization', 'Bearer '.$userToken)
+                ->getJson($route)
+                ->assertStatus(401)
+                ->assertJsonPath('message', 'Unauthenticated.');
+
+            $this->app['auth']->forgetGuards();
+        }
+    }
+
+    /**
+     * Deletion is soft and wallets.user_id is onDelete('restrict'), so the
+     * balance and bank details outlive the account on purpose. Pinned here so a
+     * future "clean up deleted users" change cannot quietly destroy money.
+     */
+    public function test_soft_deleting_a_user_leaves_their_wallet_intact(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+
+        $user = User::factory()->normalUser()->create();
+        Wallet::query()->create([
+            'user_id' => $user->id,
+            'balance' => 25_000,
+            'currency' => 'MMK',
+            'currency_locked_at' => now(),
+            'bank_name' => BankName::KBZ->value,
+            'account_name' => 'Deleted User',
+            'account_number' => '09123456789',
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->deleteJson('/api/v1/admin/users/'.$user->id)
+            ->assertOk();
+
+        $this->assertDatabaseHas('wallets', [
+            'user_id' => $user->id,
+            'balance' => 25_000,
+            'account_number' => '09123456789',
+        ]);
+    }
+
     public function test_admin_cannot_manage_own_account_and_edit_endpoint_is_not_available(): void
     {
         $admin = User::factory()->admin()->create();
