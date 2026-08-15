@@ -8,6 +8,7 @@ use App\Enums\WalletTransactionDirection;
 use App\Enums\WalletTransactionType;
 use App\Events\DepositApprovedEvent;
 use App\Events\DepositRejectedEvent;
+use App\Events\DepositRequestedEvent;
 use App\Models\Deposit;
 use App\Models\Wallet;
 use App\Services\Service;
@@ -36,6 +37,8 @@ class DepositService extends Service
         ]);
 
         $deposit->addMedia($proofImage)->toMediaCollection('proof_of_payment');
+
+        DepositRequestedEvent::dispatch($deposit);
 
         return $deposit->refresh();
     }
