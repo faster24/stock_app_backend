@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AdminBetReportController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminDepositController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
+use App\Http\Controllers\Api\V1\AdminPendingCountsController;
 use App\Http\Controllers\Api\V1\AdminSettlementRunController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\AdminWalletController;
@@ -110,6 +111,9 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::post('/notifications/send', [NotificationController::class, 'send']);
                 Route::get('/dashboard', AdminDashboardController::class);
+                // Deliberately not nested under /deposits or /withdrawals — those
+                // groups end in a /{model} binding that would swallow the path.
+                Route::get('/pending-counts', AdminPendingCountsController::class);
                 Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
                 Route::put('/app-settings/maintenance', [AppSettingController::class, 'updateMaintenance']);
                 Route::get('/bet-pauses', [BetPauseController::class, 'index']);

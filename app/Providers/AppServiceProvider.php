@@ -10,9 +10,12 @@ use App\Events\BetPaidOutEvent;
 use App\Events\BetWonEvent;
 use App\Events\DepositApprovedEvent;
 use App\Events\DepositRejectedEvent;
+use App\Events\DepositRequestedEvent;
 use App\Events\SettlementRevertedEvent;
 use App\Events\WithdrawalCompletedEvent;
 use App\Events\WithdrawalRejectedEvent;
+use App\Events\WithdrawalRequestedEvent;
+use App\Listeners\ScheduleAdminPendingRequestsNotification;
 use App\Listeners\SendBetPaidOutNotification;
 use App\Listeners\SendBetWonNotification;
 use App\Listeners\SendDepositApprovedNotification;
@@ -89,5 +92,12 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(WithdrawalCompletedEvent::class, SendWithdrawalCompletedNotification::class);
         Event::listen(WithdrawalRejectedEvent::class, SendWithdrawalRejectedNotification::class);
         Event::listen(SettlementRevertedEvent::class, SendSettlementRevertedNotification::class);
+
+        // Everything that lands on an admin's queue funnels into one debounced,
+        // aggregated push. BetWonEvent counts because a settled winner still
+        // needs a manual payout.
+        Event::listen(DepositRequestedEvent::class, ScheduleAdminPendingRequestsNotification::class);
+        Event::listen(WithdrawalRequestedEvent::class, ScheduleAdminPendingRequestsNotification::class);
+        Event::listen(BetWonEvent::class, ScheduleAdminPendingRequestsNotification::class);
     }
 }

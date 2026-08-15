@@ -8,6 +8,7 @@ use App\Enums\WalletTransactionType;
 use App\Enums\WithdrawalStatus;
 use App\Events\WithdrawalCompletedEvent;
 use App\Events\WithdrawalRejectedEvent;
+use App\Events\WithdrawalRequestedEvent;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
 use App\Services\Service;
@@ -60,6 +61,8 @@ class WithdrawalService extends Service
                 reference: $withdrawal,
                 createdByUserId: $userId,
             );
+
+            WithdrawalRequestedEvent::dispatch($withdrawal);
 
             return $withdrawal->refresh();
         });
