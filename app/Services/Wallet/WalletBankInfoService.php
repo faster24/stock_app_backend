@@ -19,26 +19,24 @@ class WalletBankInfoService extends Service
     {
         $this->guardBankInfoCooldown($userId);
 
-        return Wallet::query()->updateOrCreate(
+        $wallet = Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
-            array_merge(
-                $this->bankInfoAttributes($attributes),
-                ['bank_info_updated_at' => now()],
-            ),
+            $this->bankInfoAttributes($attributes),
         );
+
+        return $this->stampCooldownIfSetupComplete($wallet);
     }
 
     public function updateForUser(string $userId, array $attributes): Wallet
     {
         $this->guardBankInfoCooldown($userId);
 
-        return Wallet::query()->updateOrCreate(
+        $wallet = Wallet::query()->updateOrCreate(
             ['user_id' => $userId],
-            array_merge(
-                $this->providedBankInfoAttributes($attributes),
-                ['bank_info_updated_at' => now()],
-            ),
+            $this->providedBankInfoAttributes($attributes),
         );
+
+        return $this->stampCooldownIfSetupComplete($wallet);
     }
 
     public function clearForUser(string $userId): void
@@ -51,15 +49,48 @@ class WalletBankInfoService extends Service
         ]);
     }
 
+    /**
+     * The cooldown gates *changes*, not the initial setup. Stamping every write
+     * meant a user whose setup was interrupted — a failed wallet refresh, a
+     * dropped connection between picking a currency and saving bank details —
+     * came back to finish it and got locked out of their own account for 30
+     * days. Only a wallet that is fully set up has something worth protecting,
+     * so an incomplete one stays unstamped and freely retryable.
+     */
+    private function stampCooldownIfSetupComplete(Wallet $wallet): Wallet
+    {
+        if (! $this->isSetupComplete($wallet)) {
+            return $wallet;
+        }
+
+        $wallet->update(['bank_info_updated_at' => now()]);
+
+        return $wallet->refresh();
+    }
+
+    private function isSetupComplete(Wallet $wallet): bool
+    {
+        if ($wallet->currency === null) {
+            return false;
+        }
+
+        foreach (self::BANK_INFO_KEYS as $key) {
+            if ($wallet->{$key} === null) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function guardBankInfoCooldown(string $userId): void
     {
         $wallet = Wallet::query()->where('user_id', $userId)->first();
 
-        if ($wallet?->bank_info_updated_at !== null) {
-            $nextAllowedAt = $wallet->bank_info_updated_at->addDays(30);
-            if (now()->lt($nextAllowedAt)) {
-                throw new BankInfoUpdateTooSoonException($nextAllowedAt);
-            }
+        $nextAllowedAt = $wallet?->bankInfoNextAllowedAt();
+
+        if ($nextAllowedAt !== null && now()->lt($nextAllowedAt)) {
+            throw new BankInfoUpdateTooSoonException($nextAllowedAt);
         }
     }
 
