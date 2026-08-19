@@ -5,6 +5,7 @@ namespace Tests\Feature\Withdrawal;
 use App\Enums\Currency;
 use App\Models\User;
 use App\Models\Wallet;
+use Database\Factories\UserFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -36,7 +37,7 @@ class WithdrawalCreateTest extends TestCase
     public function test_user_can_submit_when_balance_sufficient(): void
     {
         $response = $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 20_000],
+            ['currency' => 'MMK', 'amount' => 20_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         );
 
@@ -58,7 +59,7 @@ class WithdrawalCreateTest extends TestCase
     public function test_insufficient_balance_returns_409_no_row_persisted(): void
     {
         $response = $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 99_999],
+            ['currency' => 'MMK', 'amount' => 99_999, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         );
 
@@ -85,7 +86,7 @@ class WithdrawalCreateTest extends TestCase
         $token = $userNoBankInfo->createToken('test')->plainTextToken;
 
         $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 1_000],
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer $token"]
         )->assertStatus(422)->assertJsonStructure(['errors' => ['bank_info']]);
     }
@@ -93,12 +94,12 @@ class WithdrawalCreateTest extends TestCase
     public function test_only_one_pending_at_a_time(): void
     {
         $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 5_000],
+            ['currency' => 'MMK', 'amount' => 5_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         )->assertStatus(201);
 
         $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 5_000],
+            ['currency' => 'MMK', 'amount' => 5_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         )->assertStatus(409);
 
@@ -108,7 +109,7 @@ class WithdrawalCreateTest extends TestCase
     public function test_bank_snapshot_captures_current_info(): void
     {
         $response = $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 1_000],
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         );
 
@@ -123,7 +124,7 @@ class WithdrawalCreateTest extends TestCase
     public function test_currency_must_match_wallet(): void
     {
         $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'THB', 'amount' => 1_000],
+            ['currency' => 'THB', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer {$this->token}"]
         )->assertStatus(422)->assertJsonStructure(['errors' => ['currency']]);
     }
@@ -139,9 +140,71 @@ class WithdrawalCreateTest extends TestCase
         $token = $userNoCurrency->createToken('test')->plainTextToken;
 
         $this->postJson('/api/v1/withdrawals',
-            ['currency' => 'MMK', 'amount' => 1_000],
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
             ['Authorization' => "Bearer $token"]
         )->assertStatus(422)->assertJsonStructure(['errors' => ['wallet_currency']]);
+    }
+
+    public function test_wrong_security_pin_is_rejected_and_persists_nothing(): void
+    {
+        $response = $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 20_000, 'security_pin' => '999999'],
+            ['Authorization' => "Bearer {$this->token}"]
+        );
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['security_pin']]);
+
+        $this->assertDatabaseCount('withdrawals', 0);
+        $this->assertDatabaseCount('wallet_transactions', 0);
+
+        $this->wallet->refresh();
+        $this->assertEquals(50_000, $this->wallet->balance);
+    }
+
+    public function test_missing_security_pin_returns_422(): void
+    {
+        $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 20_000],
+            ['Authorization' => "Bearer {$this->token}"]
+        )->assertStatus(422)->assertJsonStructure(['errors' => ['security_pin']]);
+
+        $this->assertDatabaseCount('withdrawals', 0);
+    }
+
+    public function test_repeated_wrong_pins_are_throttled(): void
+    {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $this->postJson('/api/v1/withdrawals',
+                ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => '999999'],
+                ['Authorization' => "Bearer {$this->token}"]
+            )->assertStatus(422);
+        }
+
+        $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => '999999'],
+            ['Authorization' => "Bearer {$this->token}"]
+        )->assertStatus(429)->assertJsonPath('data.code', 'SECURITY_PIN_THROTTLED');
+
+        // The correct PIN is locked out too — the counter is on the user, not the guess.
+        $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
+            ['Authorization' => "Bearer {$this->token}"]
+        )->assertStatus(429);
+
+        $this->assertDatabaseCount('withdrawals', 0);
+    }
+
+    public function test_correct_pin_after_a_failure_clears_the_counter(): void
+    {
+        $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => '999999'],
+            ['Authorization' => "Bearer {$this->token}"]
+        )->assertStatus(422);
+
+        $this->postJson('/api/v1/withdrawals',
+            ['currency' => 'MMK', 'amount' => 1_000, 'security_pin' => UserFactory::TEST_PIN],
+            ['Authorization' => "Bearer {$this->token}"]
+        )->assertStatus(201);
     }
 
     public function test_unauthenticated_returns_401(): void

@@ -9,8 +9,10 @@ use App\Enums\WithdrawalStatus;
 use App\Events\WithdrawalCompletedEvent;
 use App\Events\WithdrawalRejectedEvent;
 use App\Events\WithdrawalRequestedEvent;
+use App\Models\User;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
+use App\Services\Auth\SecurityPinVerifier;
 use App\Services\Service;
 use App\Services\Wallet\WalletMutator;
 use DomainException;
@@ -21,10 +23,22 @@ use Illuminate\Validation\ValidationException;
 
 class WithdrawalService extends Service
 {
-    public function __construct(private WalletMutator $walletMutator) {}
+    public function __construct(
+        private WalletMutator $walletMutator,
+        private SecurityPinVerifier $securityPinVerifier,
+    ) {}
 
     public function createForUser(string $userId, array $validated): Withdrawal
     {
+        // Verified before the transaction opens so a wrong PIN never reaches the
+        // wallet debit — the request must leave no row and no balance change.
+        $this->securityPinVerifier->assertValid(
+            User::findOrFail($userId),
+            (string) ($validated['security_pin'] ?? ''),
+            'Please set a security PIN before requesting a withdrawal.',
+        );
+        unset($validated['security_pin']);
+
         return DB::transaction(function () use ($userId, $validated) {
             $this->assertWalletCurrencyMatches($userId, Currency::from($validated['currency']));
             $this->assertUserHasCompleteBankInfo($userId);
