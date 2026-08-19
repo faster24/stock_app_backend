@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BankInfoUpdateTooSoonException;
+use App\Exceptions\TooManySecurityPinAttemptsException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -78,6 +79,25 @@ return Application::configure(basePath: dirname(__DIR__))
                     'bank_info' => [$e->getMessage()],
                 ],
             ], 422);
+        });
+
+        $exceptions->render(function (TooManySecurityPinAttemptsException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            // retry_after belongs in data for the same reason as the cooldown
+            // above: clients flatten everything under errors into one sentence.
+            return response()->json([
+                'message' => $e->getMessage(),
+                'data' => [
+                    'code' => 'SECURITY_PIN_THROTTLED',
+                    'retry_after' => $e->getRetryAfter(),
+                ],
+                'errors' => [
+                    'security_pin' => [$e->getMessage()],
+                ],
+            ], 429);
         });
 
         $exceptions->render(function (\DomainException $e, Request $request) {
