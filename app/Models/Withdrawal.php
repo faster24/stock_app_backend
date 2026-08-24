@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Currency;
 use App\Enums\WithdrawalStatus;
+use App\Support\Media\ImageUploadPolicy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -44,7 +45,10 @@ class Withdrawal extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('payout_proof')->singleFile();
+        $this->addMediaCollection('payout_proof')
+            ->singleFile()
+            // Last line of defence for callers that skip the FormRequest.
+            ->acceptsMimeTypes(ImageUploadPolicy::MIME_TYPES);
     }
 
     public function getPayoutProofAttribute(): array

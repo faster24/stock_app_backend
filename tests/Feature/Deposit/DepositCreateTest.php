@@ -9,11 +9,12 @@ use App\Models\Wallet;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UploadsScriptableImages;
 use Tests\TestCase;
 
 class DepositCreateTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UploadsScriptableImages;
 
     private User $user;
     private string $token;
@@ -61,6 +62,22 @@ class DepositCreateTest extends TestCase
             'claimed_amount' => 50_000,
             'status'        => 'PENDING',
         ]);
+    }
+
+    public function test_svg_proof_is_rejected(): void
+    {
+        $response = $this->postJson('/api/v1/deposits', [
+            'admin_bank_setting_id' => $this->bankSetting->id,
+            'currency'              => 'MMK',
+            'claimed_amount'        => 50_000,
+            // A .png name does not help: validation reads the bytes.
+            'proof_image'           => $this->scriptableSvgUpload('receipt.png'),
+        ], ['Authorization' => "Bearer {$this->token}"]);
+
+        $response->assertStatus(422);
+        $response->assertJsonStructure(['errors' => ['proof_image']]);
+
+        $this->assertDatabaseMissing('deposits', ['user_id' => $this->user->id]);
     }
 
     public function test_requires_wallet_currency_set(): void

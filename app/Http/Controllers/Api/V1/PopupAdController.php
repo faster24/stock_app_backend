@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\StreamsMediaDownloads;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PopupAd\StorePopupAdRequest;
 use App\Http\Requests\PopupAd\UpdatePopupAdRequest;
@@ -13,6 +14,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PopupAdController extends Controller
 {
+    use StreamsMediaDownloads;
+
     public function __construct(private PopupAdService $popupAdService) {}
 
     public function index(): JsonResponse
@@ -96,11 +99,7 @@ class PopupAdController extends Controller
             return $this->respond('Popup ad image not found.', null, 404);
         }
 
-        return response()->download(
-            $media->getPath(),
-            $media->file_name,
-            array_filter(['Content-Type' => $media->mime_type])
-        );
+        return $this->downloadMedia($media);
     }
 
     private function popupAdPayload(PopupAd $popupAd): array
