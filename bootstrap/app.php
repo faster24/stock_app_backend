@@ -8,6 +8,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
 
 return Application::configure(basePath: dirname(__DIR__))
     // Auto-discovery double-registers every listener already wired explicitly via
@@ -98,6 +99,24 @@ return Application::configure(basePath: dirname(__DIR__))
                     'security_pin' => [$e->getMessage()],
                 ],
             ], 429);
+        });
+
+        $exceptions->render(function (FileUnacceptableForCollection $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            // A rejected MIME reaching the media collection means a caller got past
+            // the FormRequest. That is the caller's mistake, not a server fault, so
+            // it answers 422 — and with our own wording: the library's message names
+            // the model class and id, which is not the uploader's business.
+            return response()->json([
+                'message' => 'The uploaded file type is not supported.',
+                'data' => null,
+                'errors' => [
+                    'file' => ['Only JPEG, PNG and WebP images are accepted.'],
+                ],
+            ], 422);
         });
 
         $exceptions->render(function (\DomainException $e, Request $request) {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\StreamsMediaDownloads;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Deposit\StoreDepositRequest;
 use App\Models\Deposit;
@@ -12,6 +13,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DepositController extends Controller
 {
+    use StreamsMediaDownloads;
+
     public function __construct(private DepositService $depositService) {}
 
     public function index(Request $request): JsonResponse
@@ -77,11 +80,7 @@ class DepositController extends Controller
             return $this->respond('Proof image not found.', null, 404);
         }
 
-        return response()->download(
-            $media->getPath(),
-            $media->file_name,
-            array_filter(['Content-Type' => $media->mime_type])
-        );
+        return $this->downloadMedia($media);
     }
 
     public function cancel(Request $request, string $deposit): JsonResponse

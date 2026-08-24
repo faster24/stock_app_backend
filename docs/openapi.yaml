@@ -1441,7 +1441,9 @@ paths:
       summary: Download a popup ad image
       description: >
         Streams the artwork. The media disk has no public URL, so this route is the
-        only way to read it. Returns 404 once the ad is deactivated.
+        only way to read it. Returns 404 once the ad is deactivated. Always sent as
+        an attachment with `X-Content-Type-Options: nosniff`; anything outside the
+        accepted types is served as `application/octet-stream`.
       security:
         - bearerAuth: []
       parameters:
@@ -1450,7 +1452,15 @@ paths:
         '200':
           description: Image file
           content:
-            image/*:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -3402,7 +3412,9 @@ components:
         image:
           type: string
           format: binary
-          description: Image file, max 10 MB.
+          description: >
+            Image file, max 10 MB. jpg, jpeg, png or webp only — SVG is rejected
+            because it can carry script. The file's content is checked, not its name.
 
     UpdatePopupAdRequest:
       type: object
@@ -3419,7 +3431,9 @@ components:
         image:
           type: string
           format: binary
-          description: Optional. When present it replaces the current artwork.
+          description: >
+            Optional. When present it replaces the current artwork. jpg, jpeg, png
+            or webp only — SVG is rejected because it can carry script.
 
     PopupAdListResponse:
       type: object

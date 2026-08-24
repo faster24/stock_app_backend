@@ -3,6 +3,7 @@
 namespace App\Http\Requests\PopupAd;
 
 use App\Http\Requests\Auth\AuthFormRequest;
+use App\Support\Media\ImageUploadPolicy;
 
 class StorePopupAdRequest extends AuthFormRequest
 {
@@ -12,8 +13,8 @@ class StorePopupAdRequest extends AuthFormRequest
             'title' => ['required', 'string', 'max:255'],
             'link_url' => ['nullable', 'url', 'max:2048'],
             'is_active' => ['sometimes', 'boolean'],
-            // 10 MB matches config/media-library.php max_file_size.
-            'image' => ['required', 'file', 'image', 'max:10240'],
+            // Raster formats only, 10 MB — see ImageUploadPolicy.
+            'image' => ImageUploadPolicy::rules(),
         ];
     }
 }

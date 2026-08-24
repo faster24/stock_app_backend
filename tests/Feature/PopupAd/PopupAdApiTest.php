@@ -7,11 +7,12 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UploadsScriptableImages;
 use Tests\TestCase;
 
 class PopupAdApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UploadsScriptableImages;
 
     protected function setUp(): void
     {
@@ -121,6 +122,98 @@ class PopupAdApiTest extends TestCase
             ->postJson('/api/v1/admin/popup-ads', ['title' => 'No artwork'])
             ->assertStatus(422)
             ->assertJsonStructure(['errors' => ['image']]);
+    }
+
+    /**
+     * The allowlist has to stay wide enough for the formats the dashboard sends;
+     * a fix that only ever rejects is not a fix.
+     */
+    public function test_png_and_webp_artwork_are_accepted(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        foreach (['artwork.png', 'artwork.webp'] as $fileName) {
+            $this->app['auth']->forgetGuards();
+
+            $this
+                ->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+                ->postJson('/api/v1/admin/popup-ads', [
+                    'title' => 'Promo '.$fileName,
+                    'image' => UploadedFile::fake()->image($fileName),
+                ])
+                ->assertStatus(201)
+                ->assertJsonPath('data.popup_ad.image.exists', true);
+        }
+    }
+
+    public function test_svg_artwork_is_rejected_on_create(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this
+            ->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->postJson('/api/v1/admin/popup-ads', [
+                'title' => 'Scriptable artwork',
+                'image' => $this->scriptableSvgUpload(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['image']]);
+
+        $this->assertDatabaseMissing('popup_ads', ['title' => 'Scriptable artwork']);
+    }
+
+    /**
+     * An SVG is an executable document, so the name it arrives under proves
+     * nothing — validation has to read the bytes.
+     */
+    public function test_svg_renamed_to_png_is_rejected(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this
+            ->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->postJson('/api/v1/admin/popup-ads', [
+                'title' => 'Disguised artwork',
+                'image' => $this->scriptableSvgUpload('logo.png'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['image']]);
+
+        $this->assertDatabaseMissing('popup_ads', ['title' => 'Disguised artwork']);
+    }
+
+    public function test_rejected_svg_replacement_leaves_the_existing_artwork_alone(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $ad = $this->adWithImage(['title' => 'Original']);
+        $originalFileName = $ad->getFirstMedia('ad_image')->file_name;
+
+        $this
+            ->withHeader('Authorization', 'Bearer '.$this->tokenFor($admin))
+            ->post('/api/v1/admin/popup-ads/'.$ad->id, [
+                '_method' => 'PUT',
+                'title' => 'Replaced with a payload',
+                'image' => $this->scriptableSvgUpload(),
+            ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonStructure(['errors' => ['image']]);
+
+        $fresh = $ad->fresh();
+        $this->assertSame('Original', $fresh->title);
+        $this->assertSame($originalFileName, $fresh->getFirstMedia('ad_image')->file_name);
+    }
+
+    public function test_image_download_forbids_content_type_sniffing(): void
+    {
+        $user = User::factory()->normalUser()->create();
+        $ad = $this->adWithImage(['is_active' => true]);
+
+        $this
+            ->withHeader('Authorization', 'Bearer '.$this->tokenFor($user))
+            ->get('/api/v1/popup-ads/'.$ad->id.'/image')
+            ->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Content-Type', 'image/jpeg');
     }
 
     public function test_guest_cannot_read_popup_ads(): void
