@@ -116,7 +116,7 @@ foreach ([
 // silently while everything else (balances, API responses) keeps working. This
 // turns that silent failure into a log line.
 // ---------------------------------------------------------------------------
-Schedule::call(function () {
+$queueBacklogCheck = Schedule::call(function () {
     $depth = DB::table('jobs')->count();
     $oldestAvailableAt = DB::table('jobs')->min('available_at');
     $oldestAgeSeconds = $oldestAvailableAt !== null ? now()->timestamp - (int) $oldestAvailableAt : 0;
@@ -125,3 +125,20 @@ Schedule::call(function () {
         Log::error("Queue backlog: {$depth} job(s), oldest {$oldestAgeSeconds}s old — is the queue worker running?");
     }
 })->everyFiveMinutes()->name('queue-backlog-check')->withoutOverlapping();
+
+// ---------------------------------------------------------------------------
+// Scheduler dead-man's switch. Everything else here reports a failure by
+// logging it — which only works if the scheduler is running to do the logging.
+// When cron itself dies, settlement silently stops and nothing anywhere says
+// so. This hangs a ping on the most frequent job in the file, so an external
+// watchdog alerts on the absence of a signal rather than the presence of one.
+//
+// The two settlement slots need no ping of their own: FetchAndSettleTwoDCommand
+// already logs CRITICAL when it gives up, and that now reaches the alert
+// channel. Missing scheduler is the gap this closes.
+// ---------------------------------------------------------------------------
+if (filled($healthcheckPingUrl = config('services.healthchecks.ping_url'))) {
+    $queueBacklogCheck
+        ->pingOnSuccess("{$healthcheckPingUrl}/scheduler-heartbeat")
+        ->pingOnFailure("{$healthcheckPingUrl}/scheduler-heartbeat/fail");
+}

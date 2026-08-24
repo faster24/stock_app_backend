@@ -37,6 +37,20 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Expected outcomes, not faults. Laravel already ignores
+        // ValidationException, AuthenticationException and HttpException; these
+        // are this app's own equivalents, each with a render() below turning it
+        // into a deliberate 4xx. Left reportable they would dominate the alert
+        // channel with routine business rules — a player mistyping a security
+        // PIN is not an incident — and the real 500s would be lost among them.
+        $exceptions->dontReport([
+            BankInfoUpdateTooSoonException::class,
+            TooManySecurityPinAttemptsException::class,
+            FileUnacceptableForCollection::class,
+            \DomainException::class,
+            \Spatie\Permission\Exceptions\UnauthorizedException::class,
+        ]);
+
         $exceptions->render(function (AuthenticationException $e) {
             // API-only backend — there is no web `login` route to fall back to.
             // Always return JSON, regardless of the request's Accept header,
