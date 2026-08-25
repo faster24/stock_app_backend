@@ -37,6 +37,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scheduler Dead-Man's Switch
+    |--------------------------------------------------------------------------
+    |
+    | Base ping URL (e.g. https://hc-ping.com/<ping-key>) for an external
+    | watchdog. The scheduler pings it on every run; the watchdog alerts on the
+    | *absence* of a ping. This is the one failure nothing inside the app can
+    | report — if cron stops, the code that would notice never executes.
+    |
+    | Leave unset to disable pinging entirely.
+    |
+    */
+
+    'healthchecks' => [
+        'ping_url' => env('HEALTHCHECKS_PING_URL'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | 2D Result Provider
     |--------------------------------------------------------------------------
     |

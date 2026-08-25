@@ -78,8 +78,28 @@ return [
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
             'username' => env('LOG_SLACK_USERNAME', 'Laravel Log'),
             'emoji' => env('LOG_SLACK_EMOJI', ':boom:'),
-            'level' => env('LOG_LEVEL', 'critical'),
+            'level' => env('LOG_SLACK_LEVEL', 'critical'),
             'replace_placeholders' => true,
+        ],
+
+        /*
+         * Failure alerting. Sits in LOG_STACK in production so anything logged
+         * at LOG_TELEGRAM_LEVEL or above reaches a human instead of dying in
+         * storage/logs. Inert without credentials — see CreateTelegramAlertLogger.
+         *
+         * throttle_seconds collapses repeats of the same message into one
+         * alert per window; a broken endpoint under load would otherwise send
+         * hundreds and get the chat muted.
+         */
+        'telegram' => [
+            'driver' => 'custom',
+            'via' => App\Logging\CreateTelegramAlertLogger::class,
+            'level' => env('LOG_TELEGRAM_LEVEL', 'error'),
+            'bot_token' => env('TELEGRAM_ALERT_BOT_TOKEN'),
+            'chat_id' => env('TELEGRAM_ALERT_CHAT_ID'),
+            'environment' => env('APP_ENV', 'production'),
+            'throttle_seconds' => (int) env('TELEGRAM_ALERT_THROTTLE_SECONDS', 300),
+            'timeout' => (int) env('TELEGRAM_ALERT_TIMEOUT', 5),
         ],
 
         'papertrail' => [
