@@ -7,6 +7,7 @@ use App\Exceptions\SetScraperException;
 use App\Services\Set\SetSessionCaptureService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class CaptureSetSessionCommand extends Command
@@ -52,6 +53,14 @@ class CaptureSetSessionCommand extends Command
         } catch (SetScraperException $e) {
             $this->error("Capture failed for {$session->value}: {$e->getMessage()}");
 
+            // Catching the exception here means nothing else ever reports it.
+            // Console output only reaches set-capture.log, which nobody reads, so
+            // a broken scraper would let the SET feed go stale in silence.
+            Log::error("set:capture failed for {$session->value}: {$e->getMessage()}", [
+                'session' => $session->value,
+                'result_date' => $date->toDateString(),
+            ]);
+
             return self::FAILURE;
         }
 
@@ -76,6 +85,11 @@ class CaptureSetSessionCommand extends Command
 
         if ($reason === 'no_data') {
             $this->error("No usable data for {$where}. Nothing stored.");
+
+            // Weekends and holidays arrive as an ordinary skip reason below, not
+            // as no_data, so reaching here on a scheduled run means the scrape
+            // succeeded but the page no longer holds what we parse.
+            Log::error("set:capture found no usable data for {$where}.", $summary);
 
             return self::FAILURE;
         }

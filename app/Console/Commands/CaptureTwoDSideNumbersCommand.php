@@ -7,6 +7,7 @@ use App\Services\TwoD\TwoDSideNumberCaptureService;
 use App\Support\Sleeper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -110,6 +111,15 @@ class CaptureTwoDSideNumbersCommand extends Command
         // already-captured days all land here. Exiting non-zero would make the
         // scheduler log look like an incident every weekend.
         $this->warn("Skipped {$where}: {$reason}.");
+
+        // Terminal reasons are those legitimate outcomes. Anything else means
+        // handle() burnt every attempt and still came back empty on a day that
+        // should have published — the silent failure worth hearing about. The
+        // exit code deliberately stays 0, so this log line is the only signal
+        // that would ever leave the box.
+        if (! in_array($reason, self::TERMINAL_REASONS, true)) {
+            Log::error("twod:capture-side-numbers gave up on {$where}: {$reason}.", $summary);
+        }
 
         return self::SUCCESS;
     }

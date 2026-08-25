@@ -7,6 +7,7 @@ use App\Exceptions\TwoDProviderException;
 use App\Support\TwoD\TwoDLiveSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Tests\Support\FakeTwoDLiveProvider;
 use Tests\TestCase;
 
@@ -216,5 +217,74 @@ class CaptureTwoDSideNumbersCommandTest extends TestCase
     {
         $this->artisan('twod:capture-side-numbers', ['slot' => 'afternoon'])
             ->assertExitCode(1);
+    }
+
+    /**
+     * This command exits 0 even when it stores nothing, on purpose — a skip is a
+     * legitimate outcome. That makes the log line the only signal that ever
+     * leaves the box when the run really did fail.
+     */
+    public function test_exhausting_every_attempt_on_an_upstream_failure_reaches_the_log(): void
+    {
+        Log::spy();
+
+        $this->app->instance(
+            TwoDLiveProvider::class,
+            FakeTwoDLiveProvider::throwing(new TwoDProviderException('HtayApi daily call budget exhausted.'))
+        );
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 1])
+            ->assertExitCode(0);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(fn (string $message) => str_contains($message, 'upstream_error'));
+    }
+
+    public function test_an_unrecognised_payload_shape_reaches_the_log(): void
+    {
+        Log::spy();
+
+        $payload = $this->payload();
+        $payload['morning']['modern'] = '--';
+        $payload['morning']['internet'] = '--';
+        $this->fakeProvider($payload);
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 1])
+            ->assertExitCode(0);
+
+        Log::shouldHaveReceived('error')->once();
+    }
+
+    /**
+     * The reason this is not a blanket "log every non-stored outcome": holidays
+     * and already-captured days are the terminal reasons, and they arrive on
+     * every weekend and every re-run. Alerting on them would train everyone to
+     * ignore the channel.
+     */
+    public function test_a_market_holiday_is_not_logged_as_an_error(): void
+    {
+        Log::spy();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-29 10:15', 'Asia/Bangkok'));
+        $this->fakeProvider();
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
+
+        Log::shouldNotHaveReceived('error');
+    }
+
+    public function test_an_already_captured_day_is_not_logged_as_an_error(): void
+    {
+        $this->fakeProvider();
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
+
+        // Spied only for the second run: the first is the one that stores.
+        Log::spy();
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
+
+        Log::shouldNotHaveReceived('error');
     }
 }

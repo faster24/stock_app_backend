@@ -4,8 +4,10 @@ namespace Tests\Feature\Set;
 
 use App\Contracts\SetScraper;
 use App\Exceptions\SetScraperException;
+use App\Support\Set\SetScrapeResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Tests\Support\FakeSetScraper;
 use Tests\TestCase;
 
@@ -113,5 +115,69 @@ class CaptureSetSessionCommandTest extends TestCase
     public function test_invalid_session_argument_fails(): void
     {
         $this->artisan('set:capture', ['session' => 'nope'])->assertExitCode(1);
+    }
+
+    /**
+     * The command catches SetScraperException, so nothing else ever reports it.
+     * Without this log line a broken scraper reaches set-capture.log and stops
+     * there, and the SET feed goes stale with no signal.
+     */
+    public function test_a_scraper_failure_reaches_the_log(): void
+    {
+        Log::spy();
+
+        $this->app->instance(SetScraper::class, FakeSetScraper::throwing(
+            new SetScraperException('Incapsula blocked the request')
+        ));
+
+        $this->artisan('set:capture', ['session' => 'evening_close', '--date' => $this->weekday()])
+            ->assertExitCode(1);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(fn (string $message) => str_contains($message, 'Incapsula blocked the request'));
+    }
+
+    public function test_data_the_scraper_returns_but_cannot_be_parsed_reaches_the_log(): void
+    {
+        Log::spy();
+
+        // Built directly rather than through FakeSetScraper::reading(): the
+        // no_data branch turns on the fields being null, and that builder types
+        // them as plain strings.
+        $this->app->instance(SetScraper::class, FakeSetScraper::returning(new SetScrapeResult(
+            httpStatus: 200,
+            marketStatus: 'Closed',
+            marketDateTime: '2026-07-25T16:35:00+07:00',
+            indexLast: null,
+            indexOpen: null,
+            value: null,
+            computed2d: null,
+            stabilized: true,
+            attempts: 1,
+            raw: ['index' => []],
+        )));
+
+        $this->artisan('set:capture', ['session' => 'evening_close', '--date' => $this->weekday()])
+            ->assertExitCode(1);
+
+        Log::shouldHaveReceived('error')->once();
+    }
+
+    /**
+     * The counterpart that matters just as much: a closed market is the normal
+     * case five days in fourteen. Logging it would put a false alert in the chat
+     * every weekend and the channel would be muted within a month.
+     */
+    public function test_a_skipped_non_trading_day_is_not_logged_as_an_error(): void
+    {
+        Log::spy();
+
+        $this->app->instance(SetScraper::class, FakeSetScraper::returning(FakeSetScraper::reading()));
+
+        $this->artisan('set:capture', ['session' => 'evening_close', '--date' => $this->saturday()])
+            ->assertExitCode(0);
+
+        Log::shouldNotHaveReceived('error');
     }
 }
