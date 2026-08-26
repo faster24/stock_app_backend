@@ -31,7 +31,10 @@ use App\Services\TwoD\HtayApiCallBudget;
 use App\Services\TwoD\TwoDLiveProviderManager;
 use App\Support\RealSleeper;
 use App\Support\Sleeper;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -99,5 +102,43 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(DepositRequestedEvent::class, ScheduleAdminPendingRequestsNotification::class);
         Event::listen(WithdrawalRequestedEvent::class, ScheduleAdminPendingRequestsNotification::class);
         Event::listen(BetWonEvent::class, ScheduleAdminPendingRequestsNotification::class);
+
+        $this->configureRateLimiting();
+    }
+
+    /**
+     * Laravel 11 ships no RouteServiceProvider, so nothing defines these unless
+     * we do -- and `throttle:api` on an undefined limiter is a hard error, not a
+     * no-op.
+     *
+     * Every per-IP number here is deliberately loose. Myanmar mobile carriers
+     * put large numbers of subscribers behind one CGNAT address, so limits tight
+     * enough to look impressive would lock out real players sharing an IP with
+     * an attacker. The goal is to turn an unlimited firehose into a trickle, not
+     * to price out a determined single attacker.
+     */
+    private function configureRateLimiting(): void
+    {
+        // Two windows: the per-minute cap stops a burst, the per-hour cap stops
+        // a slow drip that would stay under it all day.
+        RateLimiter::for('register', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->ip()),
+            Limit::perHour(20)->by($request->ip()),
+        ]);
+
+        RateLimiter::for('login', fn (Request $request) => [
+            // Keyed on the credential pair, not the IP alone: an attacker
+            // hammering someone else's account must not be able to lock the
+            // owner out of it.
+            Limit::perMinute(5)->by($request->ip().'|'.$request->input('email')),
+            // And a looser ceiling so spraying across many accounts from one
+            // source still runs out of budget.
+            Limit::perMinute(30)->by($request->ip()),
+        ]);
+
+        // Authenticated traffic is keyed per user, so one noisy device cannot
+        // spend everyone else's budget. Generous: both clients poll.
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
+            ->by($request->user()?->id ?: $request->ip()));
     }
 }
