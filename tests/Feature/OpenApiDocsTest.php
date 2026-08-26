@@ -4,9 +4,21 @@ namespace Tests\Feature;
 
 use Tests\TestCase;
 
+/**
+ * These cover the shape of the published spec. They are NOT a statement that it
+ * is reachable in production -- it is not, and must not be: see
+ * Tests\Feature\Docs\ApiDocsAccessTest. Each test opts the docs in explicitly.
+ */
 class OpenApiDocsTest extends TestCase
 {
-    public function test_openapi_docs_ui_is_publicly_available(): void
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('docs.enabled', true);
+    }
+
+    public function test_openapi_docs_ui_renders_when_enabled(): void
     {
         $this->get('/docs')
             ->assertOk()
@@ -14,7 +26,7 @@ class OpenApiDocsTest extends TestCase
             ->assertSee('/docs/openapi.yaml');
     }
 
-    public function test_openapi_yaml_is_publicly_available(): void
+    public function test_openapi_yaml_is_served_when_enabled(): void
     {
         $this->get('/docs/openapi.yaml')
             ->assertOk()
