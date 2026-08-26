@@ -33,8 +33,11 @@ use App\Http\Controllers\Api\V1\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    // Unauthenticated and cheap to call, so these carry their own limits on top
+    // of the global `api` one. Registration is the expensive side: every call
+    // that gets through mints a user, a role and a non-expiring token.
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::get('/app-settings/maintenance', [AppSettingController::class, 'maintenance']);
 
     Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {

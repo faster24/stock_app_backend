@@ -7,6 +7,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Spatie\MediaLibrary\MediaCollections\Exceptions\FileUnacceptableForCollection;
@@ -36,6 +37,27 @@ return Application::configure(basePath: dirname(__DIR__))
         // unauthenticated requests to route('login'), which doesn't exist, crashing
         // with a 500 instead of a clean 401 on every protected route.
         $middleware->redirectGuestsTo(fn () => null);
+
+        // nginx runs on this box and proxies to php-fpm over loopback, so without
+        // this every request reports 127.0.0.1 and each rate limiter below would
+        // put the entire user base in one bucket -- locking everyone out at once
+        // instead of the attacker.
+        //
+        // Scoped to loopback on purpose. `at: '*'` would honour an
+        // X-Forwarded-For sent by the client itself, letting a caller mint a
+        // fresh address per request and walk straight through the limiter.
+        $middleware->trustProxies(
+            at: ['127.0.0.1', '::1'],
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
+        // Laravel 11 applies no throttling by default and has no
+        // RouteServiceProvider to define one. The `api` limiter lives in
+        // AppServiceProvider::configureRateLimiting().
+        $middleware->throttleApi('api');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Expected outcomes, not faults. Laravel already ignores
@@ -50,6 +72,10 @@ return Application::configure(basePath: dirname(__DIR__))
             FileUnacceptableForCollection::class,
             \DomainException::class,
             \Spatie\Permission\Exceptions\UnauthorizedException::class,
+            // Being throttled is the feature working. Left reportable, the very
+            // attack this defends against would fire one Telegram alert per
+            // blocked request and take the alert channel down with it.
+            ThrottleRequestsException::class,
         ]);
 
         $exceptions->render(function (AuthenticationException $e) {
@@ -146,6 +172,33 @@ return Application::configure(basePath: dirname(__DIR__))
                     'domain' => [$e->getMessage()],
                 ],
             ], 409);
+        });
+
+        // Laravel's default is a bare {"message": "Too Many Attempts."}, which
+        // breaks the three-key envelope every client parses. retry_after goes in
+        // data, not errors, for the same reason as the cooldown above: clients
+        // flatten everything under errors into the one sentence they show.
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            $message = 'Too many attempts. Please try again later.';
+
+            return response()->json([
+                'message' => $message,
+                'data' => [
+                    'code' => 'RATE_LIMITED',
+                    'retry_after' => (int) ($e->getHeaders()['Retry-After'] ?? 60),
+                ],
+                'errors' => [
+                    'throttle' => [$message],
+                ],
+            ], 429)
+                // Retry-After and the X-RateLimit-* pair are how clients and
+                // proxies know when to come back; rebuilding the body must not
+                // drop them.
+                ->withHeaders($e->getHeaders());
         });
 
         // Safety net only. A duplicate key reaching here is a bug in the caller's
