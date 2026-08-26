@@ -155,4 +155,76 @@ class FcmTokenTest extends TestCase
 
         $this->assertDatabaseHas('fcm_tokens', ['user_id' => $other->id, 'is_active' => 1]);
     }
+
+    /**
+     * The production 500: an FCM token identifies an app install, not an
+     * account, so a device handed to a second player re-presents the very same
+     * token. The unique index is on `token` alone, so registration has to
+     * reassign the row rather than insert a second one.
+     */
+    public function test_registering_a_token_already_owned_by_another_user_reassigns_it(): void
+    {
+        $other = User::factory()->normalUser()->create();
+        FcmToken::factory()->create([
+            'user_id' => $other->id,
+            'token' => $this->token,
+            'device_name' => 'Old Owner Phone',
+        ]);
+
+        $this->actingAsUser()->postJson('/api/v1/fcm/token', [
+            'token' => $this->token,
+            'device_type' => 'android',
+            'device_name' => 'CPH2789',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseCount('fcm_tokens', 1);
+        $this->assertDatabaseHas('fcm_tokens', [
+            'token' => $this->token,
+            'user_id' => $this->user->id,
+            'device_name' => 'CPH2789',
+        ]);
+    }
+
+    /**
+     * The previous owner's row may already have been deactivated by the dead
+     * token sweep in FirebaseNotificationService. Claiming it must switch it
+     * back on, or the new owner silently never receives a push.
+     */
+    public function test_reassigned_token_reactivates(): void
+    {
+        $other = User::factory()->normalUser()->create();
+        FcmToken::factory()->inactive()->create([
+            'user_id' => $other->id,
+            'token' => $this->token,
+        ]);
+
+        $this->actingAsUser()->postJson('/api/v1/fcm/token', [
+            'token' => $this->token,
+            'device_type' => 'android',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('fcm_tokens', [
+            'token' => $this->token,
+            'user_id' => $this->user->id,
+            'is_active' => 1,
+        ]);
+    }
+
+    public function test_reassigning_does_not_disturb_the_previous_owners_other_devices(): void
+    {
+        $other = User::factory()->normalUser()->create();
+        FcmToken::factory()->create(['user_id' => $other->id, 'token' => $this->token]);
+        $keptToken = FcmToken::factory()->create(['user_id' => $other->id]);
+
+        $this->actingAsUser()->postJson('/api/v1/fcm/token', [
+            'token' => $this->token,
+            'device_type' => 'android',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('fcm_tokens', [
+            'id' => $keptToken->id,
+            'user_id' => $other->id,
+            'is_active' => 1,
+        ]);
+    }
 }
