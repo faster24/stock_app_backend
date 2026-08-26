@@ -3,6 +3,7 @@
 use App\Exceptions\BankInfoUpdateTooSoonException;
 use App\Exceptions\TooManySecurityPinAttemptsException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -143,6 +144,35 @@ return Application::configure(basePath: dirname(__DIR__))
                 'data' => null,
                 'errors' => [
                     'domain' => [$e->getMessage()],
+                ],
+            ], 409);
+        });
+
+        // Safety net only. A duplicate key reaching here is a bug in the caller's
+        // write path -- the fix belongs there, as it did for FCM token
+        // registration -- but a raw 500 tells the client nothing and the default
+        // handler leaks the offending SQL whenever APP_DEBUG is on. Deliberately
+        // NOT in dontReport: this still has to page us, it just stops being
+        // unreadable on the way out.
+        $exceptions->render(function (QueryException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+            $driverCode = (string) ($exception->errorInfo[1] ?? '');
+
+            // 1062 = duplicate entry. Every other query fault keeps its 500;
+            // dressing them all as 4xx would hide real outages.
+            if ($sqlState !== '23000' || $driverCode !== '1062') {
+                return null;
+            }
+
+            return response()->json([
+                'message' => 'This record already exists.',
+                'data' => null,
+                'errors' => [
+                    'duplicate' => ['This record already exists.'],
                 ],
             ], 409);
         });
