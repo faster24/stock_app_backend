@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BankInfoUpdateTooSoonException;
+use App\Exceptions\BettingPausedException;
 use App\Exceptions\TooManySecurityPinAttemptsException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\QueryException;
@@ -69,6 +70,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport([
             BankInfoUpdateTooSoonException::class,
             TooManySecurityPinAttemptsException::class,
+            BettingPausedException::class,
             FileUnacceptableForCollection::class,
             \DomainException::class,
             \Spatie\Permission\Exceptions\UnauthorizedException::class,
@@ -140,6 +142,28 @@ return Application::configure(basePath: dirname(__DIR__))
                     'security_pin' => [$e->getMessage()],
                 ],
             ], 429);
+        });
+
+        $exceptions->render(function (BettingPausedException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            // 422 with errors.bet_type is the shape clients already handle, so
+            // it stays. What was missing is data.code: a paused bet type is a
+            // state the app should render as its own screen, and it could not
+            // tell one apart from a malformed bet_type without string-matching
+            // the message.
+            return response()->json([
+                'message' => $e->getMessage(),
+                'data' => [
+                    'code' => 'BETTING_PAUSED',
+                    'bet_type' => $e->getBetType(),
+                ],
+                'errors' => [
+                    'bet_type' => [$e->getMessage()],
+                ],
+            ], 422);
         });
 
         $exceptions->render(function (FileUnacceptableForCollection $e, Request $request) {

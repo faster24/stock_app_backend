@@ -5,6 +5,7 @@ namespace Tests\Feature\BetPause;
 use App\Enums\BetType;
 use App\Enums\Currency;
 use App\Enums\OddSettingUserType;
+use App\Exceptions\BettingPausedException;
 use App\Models\BetPause;
 use App\Models\OddSetting;
 use App\Models\User;
@@ -12,7 +13,6 @@ use App\Models\Wallet;
 use App\Services\Bet\BetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class BetPauseEnforcementTest extends TestCase
@@ -168,7 +168,9 @@ class BetPauseEnforcementTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/bets', $this->betPayload())
             ->assertStatus(422)
-            ->assertJsonPath('errors.bet_type.0', 'Betting is currently paused.');
+            ->assertJsonPath('errors.bet_type.0', 'Betting is currently paused.')
+            ->assertJsonPath('data.code', 'BETTING_PAUSED')
+            ->assertJsonPath('data.bet_type', '2D');
     }
 
     public function test_3d_bets_are_unaffected_by_2d_pause(): void
@@ -202,9 +204,9 @@ class BetPauseEnforcementTest extends TestCase
             $service->updateForUser($user->id, $bet->id, [
                 'bet_numbers' => [['number' => 45, 'amount' => 1000]],
             ]);
-            $this->fail('Expected ValidationException for update while paused.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('bet_type', $exception->errors());
+            $this->fail('Expected BettingPausedException for update while paused.');
+        } catch (BettingPausedException $exception) {
+            $this->assertSame('2D', $exception->getBetType());
         }
     }
 
@@ -236,7 +238,9 @@ class BetPauseEnforcementTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson('/api/v1/bets', $this->threeDBetPayload())
             ->assertStatus(422)
-            ->assertJsonPath('errors.bet_type.0', '3D closed for the draw.');
+            ->assertJsonPath('errors.bet_type.0', '3D closed for the draw.')
+            ->assertJsonPath('data.code', 'BETTING_PAUSED')
+            ->assertJsonPath('data.bet_type', '3D');
 
         $this->assertDatabaseCount('bets', 0);
         $this->assertDatabaseCount('wallet_transactions', 0);
@@ -268,9 +272,9 @@ class BetPauseEnforcementTest extends TestCase
             $service->updateForUser($user->id, $bet->id, [
                 'bet_numbers' => [['number' => 789, 'amount' => 1000]],
             ]);
-            $this->fail('Expected ValidationException for 3D update while paused.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('bet_type', $exception->errors());
+            $this->fail('Expected BettingPausedException for 3D update while paused.');
+        } catch (BettingPausedException $exception) {
+            $this->assertSame('3D', $exception->getBetType());
         }
     }
 

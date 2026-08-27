@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\BettingPausedException;
+use App\Exceptions\TooManySecurityPinAttemptsException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bet\AdminListBetsRequest;
 use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
@@ -15,6 +17,7 @@ use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class BetController extends Controller
@@ -134,11 +137,8 @@ class BetController extends Controller
 
         try {
             $bet = $this->betService->createForUser($userId, $request->validated());
-        } catch (DomainException $e) {
-            throw $e;
         } catch (Throwable $e) {
-            Log::error('Unexpected error creating bet.', ['user_id' => $userId, 'error' => $e->getMessage()]);
-            throw $e;
+            $this->rethrowLogged($e, 'Bet creation rejected.', 'Unexpected error creating bet.', ['user_id' => $userId]);
         }
 
         Log::info('Bet created successfully.', ['user_id' => $userId, 'bet_id' => $bet->id]);
@@ -156,11 +156,8 @@ class BetController extends Controller
 
         try {
             $updatedBet = $this->betService->updateForUser($userId, $bet, $request->validated());
-        } catch (DomainException $e) {
-            throw $e;
         } catch (Throwable $e) {
-            Log::error('Unexpected error updating bet.', ['user_id' => $userId, 'bet_id' => $bet, 'error' => $e->getMessage()]);
-            throw $e;
+            $this->rethrowLogged($e, 'Bet update rejected.', 'Unexpected error updating bet.', ['user_id' => $userId, 'bet_id' => $bet]);
         }
 
         if ($updatedBet === null) {
@@ -187,8 +184,7 @@ class BetController extends Controller
         try {
             $deleted = $this->betService->deleteForUser($userId, $bet);
         } catch (Throwable $e) {
-            Log::error('Unexpected error deleting bet.', ['user_id' => $userId, 'bet_id' => $bet, 'error' => $e->getMessage()]);
-            throw $e;
+            $this->rethrowLogged($e, 'Bet delete rejected.', 'Unexpected error deleting bet.', ['user_id' => $userId, 'bet_id' => $bet]);
         }
 
         if ($deleted === BetService::DELETE_RESULT_NOT_FOUND) {
@@ -228,8 +224,7 @@ class BetController extends Controller
                 'status' => [$exception->getMessage()],
             ]);
         } catch (Throwable $e) {
-            Log::error('Unexpected error updating bet review status.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'target_status' => $targetStatus, 'error' => $e->getMessage()]);
-            throw $e;
+            $this->rethrowLogged($e, 'Bet review status update rejected.', 'Unexpected error updating bet review status.', ['admin_user_id' => $adminUserId, 'bet_id' => $bet, 'target_status' => $targetStatus]);
         }
 
         if ($updatedBet === null) {
@@ -307,6 +302,41 @@ class BetController extends Controller
         return $this->respond('Bet payouts approved.', [
             'summary' => $summary,
         ]);
+    }
+
+    /**
+     * Log a failed bet operation at the level it deserves, then re-throw it for
+     * the global renderers in bootstrap/app.php to turn into a response.
+     *
+     * A mistyped security PIN, a paused bet type and an insufficient balance are
+     * outcomes, not faults. They were all landing in a `catch (Throwable)` that
+     * called Log::error, so the log read "Unexpected error creating bet." for
+     * things the app decided on purpose — and once the Telegram channel started
+     * carrying errors, each rejection paged someone and throttled the genuine
+     * 500s queued behind it. bootstrap/app.php's dontReport() list already
+     * exempts these, but dontReport says nothing about an explicit Log::error.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function rethrowLogged(Throwable $e, string $rejectedMessage, string $unexpectedMessage, array $context): never
+    {
+        if ($e instanceof DomainException || $e instanceof BettingPausedException || $e instanceof TooManySecurityPinAttemptsException) {
+            Log::info($rejectedMessage, $context + ['reason' => $e->getMessage()]);
+
+            throw $e;
+        }
+
+        if ($e instanceof ValidationException) {
+            // The field keys, not the message: ValidationException::getMessage()
+            // is only ever the first error, which hides the rest.
+            Log::info($rejectedMessage, $context + ['fields' => array_keys($e->errors())]);
+
+            throw $e;
+        }
+
+        Log::error($unexpectedMessage, $context + ['error' => $e->getMessage()]);
+
+        throw $e;
     }
 
     private function respond(string $message, ?array $data, int $status = 200, ?array $errors = null): JsonResponse

@@ -136,6 +136,14 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(30)->by($request->ip()),
         ]);
 
+        // Changing a PIN is password-gated, so this is guarding the password
+        // rather than the PIN: without it the endpoint is an authenticated
+        // oracle for guessing the account password of whoever's token leaked.
+        RateLimiter::for('security-pin', fn (Request $request) => [
+            Limit::perMinute(5)->by($request->user()?->id ?: $request->ip()),
+            Limit::perHour(20)->by($request->user()?->id ?: $request->ip()),
+        ]);
+
         // Authenticated traffic is keyed per user, so one noisy device cannot
         // spend everyone else's budget. Generous: both clients poll.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(120)
