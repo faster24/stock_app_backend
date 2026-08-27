@@ -2,10 +2,10 @@
 
 namespace App\Services\Bet;
 
+use App\Exceptions\BettingPausedException;
 use App\Models\BetPause;
 use App\Services\Service;
 use Illuminate\Support\Carbon;
-use Illuminate\Validation\ValidationException;
 
 class BetPauseService extends Service
 {
@@ -55,9 +55,12 @@ class BetPauseService extends Service
             return;
         }
 
-        throw ValidationException::withMessages([
-            'bet_type' => [$pause->message ?? self::DEFAULT_PAUSE_MESSAGE],
-        ]);
+        // A dedicated exception rather than a bare ValidationException: the
+        // client has to tell "betting is off right now" apart from "you typed
+        // something wrong", and it could not — every rejection arrived as an
+        // anonymous 422 under some field key. The renderer gives this one a
+        // `data.code` so a paused bet type reads as a state, not a typo.
+        throw new BettingPausedException($betType, $pause->message ?? self::DEFAULT_PAUSE_MESSAGE);
     }
 
     private function present(BetPause $pause): array

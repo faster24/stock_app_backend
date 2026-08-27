@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\AssignUserRoleRequest;
+use App\Http\Requests\UserManagement\ResetUserSecurityPinRequest;
 use App\Models\User;
+use App\Services\Auth\AuthService;
 use App\Services\User\UserActivitySummaryService;
 use App\Services\User\UserManagementService;
 use DomainException;
@@ -16,6 +18,7 @@ class AdminUserController extends Controller
     public function __construct(
         private UserManagementService $userManagementService,
         private UserActivitySummaryService $userActivitySummaryService,
+        private AuthService $authService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -155,6 +158,27 @@ class AdminUserController extends Controller
         return $this->respond('User role updated successfully.', [
             'user' => $this->userDetailPayload($updatedUser),
         ]);
+    }
+
+    public function resetSecurityPin(ResetUserSecurityPinRequest $request, string $user): JsonResponse
+    {
+        $resolvedUser = $this->userManagementService->showUser($user);
+
+        if (! $resolvedUser instanceof User) {
+            return $this->respond('User not found.', null, 404, [
+                'user' => ['The selected user is invalid.'],
+            ]);
+        }
+
+        $this->authService->resetSecurityPinForAdmin(
+            $resolvedUser,
+            (string) $request->validated()['pin'],
+            (string) $request->user()->id,
+        );
+
+        // The new PIN is deliberately not echoed back: it would then sit in the
+        // dashboard's network log and in whatever the admin pastes it into.
+        return $this->respond('Security PIN reset successfully.', null);
     }
 
     private function userSummaryPayload(User $user): array

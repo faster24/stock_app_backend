@@ -43,6 +43,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/security-pin', [AuthController::class, 'changeSecurityPin'])->middleware('throttle:security-pin');
         Route::get('/me/wallet', [WalletController::class, 'show']);
         Route::put('/me/wallet/currency', [WalletCurrencyController::class, 'set']);
         Route::get('/me/wallet/transactions', [WalletTransactionController::class, 'index']);
@@ -176,6 +177,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/{user}', 'show');
                     Route::get('/{user}/activity-summary', 'activitySummary');
                     Route::patch('/{user}/role', 'assignRole');
+                    Route::post('/{user}/reset-security-pin', 'resetSecurityPin');
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');
                     Route::delete('/{user}', 'destroy');

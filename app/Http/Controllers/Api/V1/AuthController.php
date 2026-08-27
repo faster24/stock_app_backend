@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\Currency;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ChangeSecurityPinRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
@@ -67,6 +68,25 @@ class AuthController extends Controller
         return $this->respond('Authenticated user profile.', [
             'user' => $this->authService->me($user),
         ]);
+    }
+
+    public function changeSecurityPin(ChangeSecurityPinRequest $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user instanceof User) {
+            return $this->respond('Unauthenticated.', null, 401, [
+                'auth' => ['Authentication is required.'],
+            ]);
+        }
+
+        $this->authService->changeSecurityPin(
+            $user,
+            $request->string('password')->toString(),
+            $request->string('pin')->toString(),
+        );
+
+        return $this->respond('Security PIN updated successfully.', null);
     }
 
     public function logout(Request $request): JsonResponse
