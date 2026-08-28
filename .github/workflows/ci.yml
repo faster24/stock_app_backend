@@ -25,6 +25,12 @@ jobs:
             cd /opt/apps/backend
             git pull origin production
             composer install --no-dev --optimize-autoloader
+            # Snapshot before migrating. A destructive or buggy migration lands
+            # on live money data -- balances, deposits, settled bets -- and
+            # without this there is nothing to roll back to. set -e is active,
+            # so a failed snapshot aborts the deploy before the migration runs.
+            # That is intended: no snapshot, no migration.
+            /opt/backups/bin/db-backup.sh --tag predeploy
             php artisan migrate --force
             php artisan optimize:clear
             php artisan config:cache
