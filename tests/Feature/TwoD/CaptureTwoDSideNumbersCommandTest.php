@@ -4,9 +4,12 @@ namespace Tests\Feature\TwoD;
 
 use App\Contracts\TwoDLiveProvider;
 use App\Exceptions\TwoDProviderException;
+use App\Support\NoopSleeper;
+use App\Support\Sleeper;
 use App\Support\TwoD\TwoDLiveSnapshot;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Tests\Support\FakeTwoDLiveProvider;
 use Tests\TestCase;
 
@@ -22,9 +25,11 @@ class CaptureTwoDSideNumbersCommandTest extends TestCase
         parent::setUp();
 
         config(['services.twod.driver' => 'htayapi']);
-        // 10:15 Bangkok — past the 09:30 MMT slot's 10:00 publication and clear
-        // of the carry-over grace window, so mapping is exercised without the
-        // freshness guard's time gate rejecting rows.
+        $this->app->bind(Sleeper::class, NoopSleeper::class);
+        // 10:15 Bangkok — past the 09:30 MMT slot's 10:00 publication, so the
+        // freshness guard's time gate does not reject rows. It is INSIDE the
+        // carry-over grace window, but no test here seeds an earlier day, so the
+        // value comparison passes on a null baseline.
         Carbon::setTestNow(Carbon::parse(self::TRADING_DAY.' 10:15', 'Asia/Bangkok'));
     }
 
@@ -210,6 +215,101 @@ class CaptureTwoDSideNumbersCommandTest extends TestCase
         $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
 
         $this->assertDatabaseCount('two_d_side_numbers', 0);
+    }
+
+    /**
+     * The 2026-08-24 incident: upstream served a bare `"0"` for both halves and
+     * it was stored verbatim, because the freshness guard only asks whether the
+     * pair differs from yesterday's — not whether it is a number at all.
+     */
+    public function test_a_malformed_value_is_not_stored(): void
+    {
+        $payload = $this->payload();
+        $payload['morning']['modern'] = '0';
+        $payload['morning']['internet'] = '0';
+        $this->fakeProvider($payload);
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 1])
+            ->assertExitCode(0);
+
+        $this->assertDatabaseCount('two_d_side_numbers', 0);
+    }
+
+    /**
+     * Half a pair is still worth storing — the row stays incomplete, so
+     * `already_captured` keeps returning false and a later run fills it in.
+     */
+    public function test_one_malformed_half_does_not_discard_the_other(): void
+    {
+        $payload = $this->payload();
+        $payload['morning']['modern'] = '7';
+        $this->fakeProvider($payload);
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 1])
+            ->assertExitCode(0);
+
+        $this->assertDatabaseHas('two_d_side_numbers', [
+            'slot' => 'morning',
+            'modern' => null,
+            'internet' => '07',
+        ]);
+    }
+
+    /**
+     * The silent-failure fix. Running out of retries means the day's numbers are
+     * gone for good — htayapi serves no history — so it must leave a trace
+     * somewhere other than an untimestamped scheduler.log line.
+     */
+    public function test_exhausting_the_retries_logs_an_error(): void
+    {
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(fn (string $message, array $context) => str_contains($message, 'morning @ '.self::TRADING_DAY)
+                && $context['reason'] === 'no_data');
+
+        $payload = $this->payload();
+        $payload['morning']['modern'] = '--';
+        $payload['morning']['internet'] = '--';
+        $this->fakeProvider($payload);
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 2])
+            ->assertExitCode(0);
+    }
+
+    public function test_an_upstream_error_that_never_clears_is_logged(): void
+    {
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(fn (string $message, array $context) => $context['reason'] === 'upstream_error'
+                && $context['upstream_message'] === 'HtayApi daily call budget exhausted.');
+
+        $this->app->instance(
+            TwoDLiveProvider::class,
+            FakeTwoDLiveProvider::throwing(new TwoDProviderException('HtayApi daily call budget exhausted.'))
+        );
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning', '--max-attempts' => 2])
+            ->assertExitCode(0);
+    }
+
+    /** A holiday is a correct outcome, not a lost day — it must stay quiet. */
+    public function test_a_terminal_skip_logs_nothing(): void
+    {
+        Log::shouldReceive('error')->never();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-29 10:15', 'Asia/Bangkok'));
+        $this->fakeProvider();
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
+    }
+
+    public function test_a_successful_capture_logs_nothing(): void
+    {
+        Log::shouldReceive('error')->never();
+
+        $this->fakeProvider();
+
+        $this->artisan('twod:capture-side-numbers', ['slot' => 'morning'])->assertExitCode(0);
     }
 
     public function test_an_invalid_slot_fails(): void

@@ -97,9 +97,35 @@ class TwoDSideNumberFreshnessGuardTest extends TestCase
      * Past the grace window the clock is the authority. Without this a day whose
      * pair legitimately repeated would be dropped entirely — the failure that
      * kept the 12:01 settlement slot empty with a stored baseline of '85'.
+     *
+     * 13:05 Bangkok is just past the default 180-minute window measured from the
+     * 10:00 Bangkok publication instant.
      */
     public function test_an_identical_pair_is_fresh_once_the_grace_window_passes(): void
     {
+        $this->seedPair('2026-07-20', TwoDSideSlot::MORNING, '39', '07');
+        $this->freezeBangkok(self::TRADING_DAY.' 13:05');
+
+        $this->assertTrue($this->guard()->isFresh(TwoDSideSlot::MORNING, '39', '07'));
+    }
+
+    /**
+     * The window has to outlast the retry loop. A late capture attempt — the
+     * whole point of widening it — has no clock evidence that a repeated pair is
+     * genuine, so it must still fall through to the value comparison.
+     */
+    public function test_an_identical_pair_is_still_carryover_late_in_the_retry_window(): void
+    {
+        $this->seedPair('2026-07-20', TwoDSideSlot::MORNING, '39', '07');
+        $this->freezeBangkok(self::TRADING_DAY.' 12:50'); // last late-sweep attempt
+
+        $this->assertFalse($this->guard()->isFresh(TwoDSideSlot::MORNING, '39', '07'));
+    }
+
+    public function test_the_grace_window_is_configurable(): void
+    {
+        config(['services.twod.side_number_carry_over_grace_minutes' => 10]);
+
         $this->seedPair('2026-07-20', TwoDSideSlot::MORNING, '39', '07');
         $this->freezeBangkok(self::TRADING_DAY.' 10:15');
 

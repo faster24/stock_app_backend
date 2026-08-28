@@ -104,6 +104,20 @@ return [
             'threed_live_url' => env('HTAYAPI_3D_LIVE_URL', 'https://htayapi.com/mm-twod/thai/3dlive'),
             'threed_live_ttl' => (int) env('HTAYAPI_3D_LIVE_TTL', 60),
         ],
+
+        // Minutes after a side slot's publication instant during which upstream
+        // may still be serving the previous day's pair, so an identical pair is
+        // treated as carry-over rather than stored as today's.
+        //
+        // This MUST span the whole side-number capture window in
+        // routes/console.php, primary run plus late sweep — for the morning slot
+        // that is 09:30 MMT publication through a last sweep attempt at 12:20,
+        // so 180 minutes with margin. Inside the window the clock proves nothing
+        // (a day upstream never publishes looks exactly like a day it published
+        // late), and the value comparison is the only thing stopping a late
+        // attempt from storing yesterday's pair as today's. Shortening this
+        // below the retry span reopens that hole.
+        'side_number_carry_over_grace_minutes' => (int) env('TWOD_SIDE_CARRY_OVER_GRACE_MINUTES', 180),
     ],
 
 ];
