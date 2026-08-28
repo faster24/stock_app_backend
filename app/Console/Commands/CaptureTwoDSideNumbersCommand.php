@@ -7,6 +7,7 @@ use App\Services\TwoD\TwoDSideNumberCaptureService;
 use App\Support\Sleeper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -66,6 +67,7 @@ class CaptureTwoDSideNumbersCommand extends Command
         $force = (bool) $this->option('force');
 
         $summary = [];
+        $attemptsExhausted = false;
 
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             $this->info("Attempt {$attempt}/{$maxAttempts}: capturing {$slot->value} side numbers...");
@@ -83,16 +85,22 @@ class CaptureTwoDSideNumbersCommand extends Command
             if ($attempt < $maxAttempts) {
                 $this->warn("Retrying in {$retryInterval}s...");
                 $this->sleeper->sleep($retryInterval);
+
+                continue;
             }
+
+            // Fell off the end of the loop still not stored, on a reason that
+            // retrying was supposed to fix. The slot is now lost for the day.
+            $attemptsExhausted = true;
         }
 
-        return $this->report($summary);
+        return $this->report($summary, $attemptsExhausted, $maxAttempts);
     }
 
     /**
-     * @param  array{status: string, slot: string, result_date: string, modern?: ?string, internet?: ?string, reason?: string}  $summary
+     * @param  array{status: string, slot: string, result_date: string, modern?: ?string, internet?: ?string, reason?: string, message?: string}  $summary
      */
-    private function report(array $summary): int
+    private function report(array $summary, bool $attemptsExhausted, int $maxAttempts): int
     {
         $where = "{$summary['slot']} @ {$summary['result_date']}";
 
@@ -110,6 +118,23 @@ class CaptureTwoDSideNumbersCommand extends Command
         // already-captured days all land here. Exiting non-zero would make the
         // scheduler log look like an incident every weekend.
         $this->warn("Skipped {$where}: {$reason}.");
+
+        // ...but running out of retries on a reason retrying was meant to fix is
+        // NOT legitimate: that day's numbers are gone, and upstream serves no
+        // history to backfill them from. Before this, the only trace was an
+        // untimestamped line in scheduler.log indistinguishable from a holiday
+        // skip, which is how 2026-08-20/21 lost two full days unnoticed. Exit
+        // code stays 0 so the scheduler does not retry a lost cause; the log
+        // line is the alert.
+        if ($attemptsExhausted) {
+            Log::error("2D side numbers lost for {$where}: gave up after {$maxAttempts} attempt(s) on '{$reason}'.", [
+                'slot' => $summary['slot'],
+                'result_date' => $summary['result_date'],
+                'reason' => $reason,
+                'attempts' => $maxAttempts,
+                'upstream_message' => $summary['message'] ?? null,
+            ]);
+        }
 
         return self::SUCCESS;
     }

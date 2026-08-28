@@ -26,8 +26,15 @@ use Throwable;
  *     those days is ever today's.
  *  3. Clock, then value — before the slot's publication instant the data is
  *     necessarily yesterday's. Comfortably past it, whatever sits in the block
- *     IS today's. Only in the narrow window between is the previous stored pair
+ *     IS today's. Only in the window between is the previous stored pair
  *     consulted.
+ *
+ * The width of that middle window is not cosmetic: it must cover however long
+ * the capture command keeps retrying. Inside the retry span the clock proves
+ * nothing — a day upstream never publishes looks exactly like a day it
+ * published late — so the value comparison is the only thing standing between
+ * a late attempt and storing yesterday's pair as today's. See
+ * `services.twod.side_number_carry_over_grace_minutes`.
  *
  * The time logic below is deliberately duplicated from
  * {@see HtayApiFreshnessGuard} rather than extracted into a shared helper: that
@@ -43,11 +50,12 @@ class TwoDSideNumberFreshnessGuard
     private const SLOT_TZ = 'Asia/Yangon';
 
     /**
-     * Minutes after publication during which upstream may still be serving the
+     * Fallback for `services.twod.side_number_carry_over_grace_minutes` — the
+     * minutes after publication during which upstream may still be serving the
      * previous value, so an identical pair is treated as carry-over. Past this
      * the numbers are trusted on time alone.
      */
-    private const CARRY_OVER_GRACE_MINUTES = 10;
+    private const DEFAULT_CARRY_OVER_GRACE_MINUTES = 180;
 
     public function __construct(private readonly TradingCalendar $calendar) {}
 
@@ -71,11 +79,20 @@ class TwoDSideNumberFreshnessGuard
             return false;
         }
 
-        if ($now->greaterThanOrEqualTo($publishedAt->copy()->addMinutes(self::CARRY_OVER_GRACE_MINUTES))) {
+        if ($now->greaterThanOrEqualTo($publishedAt->copy()->addMinutes($this->graceMinutes()))) {
             return true;
         }
 
         return $this->differsFromStored($slot, $modern, $internet);
+    }
+
+    /** Never negative: a zero or absent value collapses to trusting the clock alone. */
+    private function graceMinutes(): int
+    {
+        return max(0, (int) config(
+            'services.twod.side_number_carry_over_grace_minutes',
+            self::DEFAULT_CARRY_OVER_GRACE_MINUTES,
+        ));
     }
 
     /** The instant today's numbers for this slot become available. */
@@ -98,8 +115,9 @@ class TwoDSideNumberFreshnessGuard
      * Requiring BOTH halves to repeat before suspecting carry-over is what makes
      * this safe to use at all: the settlement guard's single-value comparison
      * rejected any day whose number legitimately repeated (~1 in 100), and here
-     * that becomes ~1 in 10,000. Even then it only applies inside the grace
-     * window, so a later attempt picks the pair up on time alone.
+     * that becomes ~1 in 10,000. A day lost to that coincidence is not silent:
+     * the capture command logs an exhausted-attempts error, so it can be
+     * re-captured by hand with `--date` and `--force`.
      */
     private function differsFromStored(TwoDSideSlot $slot, ?string $modern, ?string $internet): bool
     {

@@ -16,10 +16,12 @@ Artisan::command('inspire', function () {
 // therefore the Myanmar slot + 30 minutes; firing at the raw slot label starts
 // the fetch before the number is published.
 //
-// Retry cadence depends on the active provider: htayapi's
-// test key is capped at 100 requests/day, so it gets a sparse cadence (4
-// attempts, 5 minutes apart, ~8 scheduled calls/day total) instead of
-// thaistock2d's unlimited-quota polling. Branching here — not inside
+// Retry cadence depends on the active provider. htayapi is metered, so it polls
+// on a 5-minute cadence rather than thaistock2d's 30–60s; the settlement slots
+// keep 4 attempts because a missing result there is caught and re-run by hand.
+// (An earlier note here justified the sparse cadence with a 100/day test key —
+// that key is retired. HTAYAPI_DAILY_LIMIT is 8000 and the internal
+// HtayApiCallBudget is the real ceiling.) Branching here — not inside
 // FetchAndSettleTwoDCommand — keeps the command provider-agnostic and means
 // the same TWOD_DRIVER flip that selects the provider also selects safe
 // scheduling, with no separate env variable to remember.
@@ -48,30 +50,58 @@ if (config('services.twod.driver') === 'htayapi') {
     // Side numbers (modern/internet). Display only — these never settle bets.
     // htayapi-only: no other provider carries these fields.
     //
-    // Same MMT+30 rule as above, plus 2 minutes so attempt 1 lands just PAST
-    // publication rather than exactly on it. Attempts fall at +0/+5/+10 min, so
-    // the last one clears the freshness guard's 10-minute carry-over grace and
-    // a legitimately repeated pair is still picked up.
+    // Same MMT+30 rule as above, plus 7 minutes. The old +2 offset put attempt 1
+    // at 09:32 MMT, which measurably beat publication on 8 of 11 observed days —
+    // a third of the retry budget spent every day on a read that could not
+    // succeed. Starting at 09:37 buys those attempts back.
     //
-    // Budget: 3 attempts each, worst case 6/day, on top of the settlement
-    // slots' 8 — 14 of the 25/day ceiling, leaving 11 for the health check and
-    // manual re-fetches. In practice both loops exit on the first success.
+    // Twelve attempts 5 minutes apart carries the window to 10:32 MMT. It used
+    // to close at 09:42: on 2026-08-28 upstream published a few minutes late and
+    // the day was lost outright, because htayapi serves no history and a missed
+    // slot can never be backfilled. Width is the entire defence.
+    //
+    // The late sweep exists for the case the primary run still loses — the
+    // 2026-08-20/21 upstream outage took out both slots on both days. It costs
+    // ZERO upstream calls on a normal day: `already_captured` is checked before
+    // the fetch, so a complete row makes the whole run a no-op.
+    //
+    // Budget: worst case 18 calls per slot per day, 36 total, against
+    // HTAYAPI_DAILY_LIMIT of 8000. The old 25/day ceiling in this comment
+    // referred to a retired 100/day test key. Typical day is ~4.
+    //
+    // Any widening here must be matched in
+    // services.twod.side_number_carry_over_grace_minutes — see that comment.
     // ----------------------------------------------------------------------
 
-    // 09:30 MMT side numbers — triggers at 10:02 Bangkok
-    Schedule::command('twod:capture-side-numbers morning --max-attempts=3 --retry-interval=300')
+    // 09:30 MMT side numbers — triggers at 10:07 Bangkok, last attempt 11:02
+    Schedule::command('twod:capture-side-numbers morning --max-attempts=12 --retry-interval=300')
         ->timezone('Asia/Bangkok')
         ->weekdays()
-        ->withoutOverlapping(20)
-        ->dailyAt('10:02')
+        ->withoutOverlapping(70)
+        ->dailyAt('10:07')
         ->appendOutputTo(storage_path('logs/scheduler.log'));
 
-    // 14:00 MMT side numbers — triggers at 14:32 Bangkok
-    Schedule::command('twod:capture-side-numbers evening --max-attempts=3 --retry-interval=300')
+    // 14:00 MMT side numbers — triggers at 14:37 Bangkok, last attempt 15:32
+    Schedule::command('twod:capture-side-numbers evening --max-attempts=12 --retry-interval=300')
         ->timezone('Asia/Bangkok')
         ->weekdays()
-        ->withoutOverlapping(20)
-        ->dailyAt('14:32')
+        ->withoutOverlapping(70)
+        ->dailyAt('14:37')
+        ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+    // Late sweeps. No-ops unless the primary run above came away empty.
+    Schedule::command('twod:capture-side-numbers morning --max-attempts=6 --retry-interval=600')
+        ->timezone('Asia/Bangkok')
+        ->weekdays()
+        ->withoutOverlapping(60)
+        ->dailyAt('12:00')
+        ->appendOutputTo(storage_path('logs/scheduler.log'));
+
+    Schedule::command('twod:capture-side-numbers evening --max-attempts=6 --retry-interval=600')
+        ->timezone('Asia/Bangkok')
+        ->weekdays()
+        ->withoutOverlapping(60)
+        ->dailyAt('16:00')
         ->appendOutputTo(storage_path('logs/scheduler.log'));
 } else {
     // 12:01 MMT slot — triggers at 12:31 Bangkok, 60-minute timeout, live fallback enabled
