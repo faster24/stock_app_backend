@@ -16,12 +16,28 @@ Artisan::command('inspire', function () {
 // therefore the Myanmar slot + 30 minutes; firing at the raw slot label starts
 // the fetch before the number is published.
 //
-// Retry cadence depends on the active provider. htayapi is metered, so it polls
-// on a 5-minute cadence rather than thaistock2d's 30–60s; the settlement slots
-// keep 4 attempts because a missing result there is caught and re-run by hand.
-// (An earlier note here justified the sparse cadence with a 100/day test key —
-// that key is retired. HTAYAPI_DAILY_LIMIT is 8000 and the internal
-// HtayApiCallBudget is the real ceiling.) Branching here — not inside
+// Retry cadence. The settlement slots poll every 20s and let
+// --timeout-minutes govern the window; there is deliberately no --max-attempts.
+//
+// They used to run --retry-interval=300 --max-attempts=4, sized for a metered
+// 100/day test key that is long retired. HTAYAPI_DAILY_LIMIT is 8000 and a
+// measured day spends ~34 calls, so the sparse cadence bought nothing and cost
+// five minutes: upstream still serves the PREVIOUS day's number at the
+// publication instant, so attempt 1 is always rejected as carry-over by
+// HtayApiFreshnessGuard, and the next look was 300s later. Every draw landed at
+// 16:35 (and 12:06) to the second — the lag was our sampling interval, not
+// upstream. Worst case now is ~60 calls per slot.
+//
+// --retry-interval and --max-attempts must be changed TOGETHER. A tight
+// interval with the old cap of 4 would close the window 80 seconds after the
+// slot opens and lose the day outright.
+//
+// This does not help the ~1% of days whose number repeats the previous trading
+// day's: HtayApiFreshnessGuard falls back to a value comparison for its first
+// CARRY_OVER_GRACE_MINUTES, so those settle at slot+10 no matter how often we
+// poll. That is intended — the alternative silently drops the day.
+//
+// Branching here — not inside
 // FetchAndSettleTwoDCommand — keeps the command provider-agnostic and means
 // the same TWOD_DRIVER flip that selects the provider also selects safe
 // scheduling, with no separate env variable to remember.
@@ -31,7 +47,7 @@ Artisan::command('inspire', function () {
 // timeout log — masking real weekday failures behind routine weekend noise.
 if (config('services.twod.driver') === 'htayapi') {
     // 12:01 MMT slot — triggers at 12:31 Bangkok
-    Schedule::command('twod:fetch-and-settle 12:01 --timeout-minutes=20 --retry-interval=300 --max-attempts=4')
+    Schedule::command('twod:fetch-and-settle 12:01 --timeout-minutes=20 --retry-interval=20')
         ->timezone('Asia/Bangkok')
         ->weekdays()
         ->withoutOverlapping(30)
@@ -39,7 +55,7 @@ if (config('services.twod.driver') === 'htayapi') {
         ->appendOutputTo(storage_path('logs/scheduler.log'));
 
     // 16:30 MMT slot — triggers at 17:00 Bangkok
-    Schedule::command('twod:fetch-and-settle 16:30 --timeout-minutes=20 --retry-interval=300 --max-attempts=4')
+    Schedule::command('twod:fetch-and-settle 16:30 --timeout-minutes=20 --retry-interval=20')
         ->timezone('Asia/Bangkok')
         ->weekdays()
         ->withoutOverlapping(30)
