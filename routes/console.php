@@ -122,25 +122,6 @@ if (config('services.twod.driver') === 'htayapi') {
 }
 
 // ---------------------------------------------------------------------------
-// SET-index → Myanmar 2D capture (Mon–Fri, Asia/Bangkok). Stores only; does NOT
-// settle bets. Closes fire a couple of minutes past the slot to let the value
-// settle. The command also guards weekends/holidays via TradingCalendar.
-// ---------------------------------------------------------------------------
-foreach ([
-    'morning_open' => '09:30',
-    'morning_close' => '12:02',
-    'afternoon_open' => '14:00',
-    'evening_close' => '16:32',
-] as $session => $at) {
-    Schedule::command("set:capture {$session}")
-        ->timezone('Asia/Bangkok')
-        ->weekdays()
-        ->withoutOverlapping(5)
-        ->dailyAt($at)
-        ->appendOutputTo(storage_path('logs/set-capture.log'));
-}
-
-// ---------------------------------------------------------------------------
 // Queue-worker heartbeat. Notification delivery depends entirely on a worker
 // consuming the `notifications` queue; when that worker dies, pushes stop
 // silently while everything else (balances, API responses) keeps working. This
