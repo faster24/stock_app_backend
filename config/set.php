@@ -4,55 +4,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | SET Index Scraper
+    | Thai Market Calendar
     |--------------------------------------------------------------------------
     |
-    | Configuration for the headless-browser scraper that reads the SET index
-    | (behind Incapsula) and the Myanmar 2D pipeline built on top of it. The
-    | Laravel `set:capture` command shells out to the Node script via
-    | Symfony\Component\Process.
+    | What survives of the retired SET-index scraper. The scraper, the
+    | `set:capture` command, the `TWOD_DRIVER=set` provider and the
+    | set_session_results table are all gone; the trading calendar it defined is
+    | not, because the live htayapi path depends on it — HtayApiFreshnessGuard
+    | on the settlement path, and both side-number classes.
     |
     */
 
-    'node_binary' => env('SET_NODE_BINARY', 'node'),
-
-    'script_path' => env('SET_SCRAPER_PATH', base_path('scripts/set-scraper/set-capture.mjs')),
-
-    'symbol' => env('SET_SYMBOL', 'SET'),
-
-    'warmup_url' => env('SET_WARMUP_URL', 'https://www.set.or.th/en/market/product/stock/overview'),
-
-    'api_url' => env('SET_API_URL', 'https://www.set.or.th/api/set/index/info/list?type=INDEX'),
-
-    // Market timezone (Asia/Bangkok, UTC+7). Distinct from the existing
-    // settlement date logic which uses Asia/Yangon — captures run mid-day so
-    // the result_date is unambiguous in either zone.
+    // Market timezone (Asia/Bangkok, UTC+7). Distinct from the settlement date
+    // logic, which uses Asia/Yangon — captures run mid-day, so the result_date
+    // is unambiguous in either zone.
     'timezone' => env('SET_TIMEZONE', 'Asia/Bangkok'),
-
-    // Hard ceiling (seconds) on the Node process before Symfony\Process kills it.
-    // Must exceed the poll budget below.
-    'process_timeout' => (int) env('SET_PROCESS_TIMEOUT', 180),
-
-    // Open sessions (09:30, 14:00): values oscillate, poll until stable.
-    'poll' => [
-        'interval' => (int) env('SET_POLL_INTERVAL', 12),
-        'max_duration' => (int) env('SET_POLL_MAX_DURATION', 90),
-        'stable_streak' => (int) env('SET_POLL_STABLE_STREAK', 2),
-    ],
-
-    // Close sessions (12:01, 16:30): final value, retry through API latency.
-    'retry' => [
-        'interval' => (int) env('SET_RETRY_INTERVAL', 10),
-        'max_attempts' => (int) env('SET_RETRY_MAX_ATTEMPTS', 5),
-    ],
-
-    // marketStatus values that should ABORT storage (treat the reading as a
-    // non-draw / invalid state). Left empty by default: the 12:01 "morning
-    // close" is only a snapshot time — the SET morning session is still "Open"
-    // then — so status is NOT a reliable finalized-close gate. Weekends +
-    // config('set.holidays') are the real no-draw guard. Populate this only once
-    // SET's holiday status vocabulary is confirmed.
-    'abort_market_statuses' => array_filter(explode(',', (string) env('SET_ABORT_MARKET_STATUSES', ''))),
 
     /*
     |--------------------------------------------------------------------------
@@ -63,7 +29,6 @@ return [
     | when the exchange is shut. MUST be maintained yearly against the official
     | SET holiday calendar (https://www.set.or.th) — `SET_HOLIDAYS` overrides
     | this list wholesale, so a missing year can be patched without a deploy.
-    | `marketStatus` is the runtime backstop if a holiday is missing here.
     |
     | Why this matters: on a no-draw day the upstream 2D feeds do NOT report
     | "--". thaistock2d backfills every slot with the current live value and
@@ -74,6 +39,12 @@ return [
     | 2026: 19 full closures, cross-checked against the published SET calendar
     | and the Thai public-holiday dates. Note Khao Phansa (2026-07-30) is a
     | national holiday but NOT a SET closure — the exchange trades that day.
+    |
+    | THIS LIST ONLY COVERS 2026. From 2027-01-01 every day reads as a trading
+    | day, silently. The 2D feeds carry their own holiday signal (thaistock2d's
+    | `holiday.status`); wire that up rather than extending this array again.
+    | Losing `marketStatus` with the scraper removed the runtime backstop that
+    | used to catch a missing date here, so this is now the only guard.
     |
     */
 

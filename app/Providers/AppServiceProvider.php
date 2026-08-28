@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Contracts\SetScraper;
 use App\Contracts\ThreeDHistoryProvider;
 use App\Contracts\ThreeDLiveProvider;
 use App\Contracts\TwoDLiveProvider;
@@ -24,7 +23,6 @@ use App\Listeners\SendSettlementRevertedNotification;
 use App\Listeners\SendWithdrawalCompletedNotification;
 use App\Listeners\SendWithdrawalRejectedNotification;
 use App\Services\FirebaseNotificationService;
-use App\Services\Set\NodeSetScraper;
 use App\Services\ThreeD\HtayApiThreeDHistoryProvider;
 use App\Services\ThreeD\HtayApiThreeDLiveProvider;
 use App\Services\TwoD\HtayApiCallBudget;
@@ -76,11 +74,6 @@ class AppServiceProvider extends ServiceProvider
                 new HtayApiCallBudget((int) ($config['daily_limit'] ?? 25)),
             );
         });
-
-        $this->app->bind(
-            SetScraper::class,
-            fn ($app) => new NodeSetScraper((array) $app['config']->get('set', [])),
-        );
     }
 
     /**
