@@ -24,6 +24,24 @@ jobs:
             set -e
             cd /opt/apps/backend
             git pull origin production
+            # The deploy and the admin crontab run these from /opt/backups/bin,
+            # outside the checkout, so that copy only ever changed when someone
+            # remembered to update it by hand. Once nobody did: every deploy
+            # from 2026-08-28 onward died on
+            #   /opt/backups/bin/db-backup.sh: No such file or directory
+            # because the predeploy snapshot below was merged before the script
+            # was ever placed on the box. Re-install from the repo on every
+            # deploy so the installed copies cannot drift from source again.
+            # install(1) writes through a temp file and renames, so a cron job
+            # already executing keeps the inode it started with.
+            #
+            # media-backup.sh is deliberately NOT synced here. It runs as root
+            # from root's crontab, and this script runs as the deploy user --
+            # syncing it would make a root-executed file writable by anyone who
+            # can push. Install that one by hand, root-owned.
+            mkdir -p /opt/backups/bin
+            install -m 0755 scripts/db-backup.sh /opt/backups/bin/db-backup.sh
+            install -m 0755 scripts/db-backup-check.sh /opt/backups/bin/db-backup-check.sh
             composer install --no-dev --optimize-autoloader
             # Snapshot before migrating. A destructive or buggy migration lands
             # on live money data -- balances, deposits, settled bets -- and
