@@ -185,6 +185,70 @@ class BetApiTransactionTest extends TestCase
         }
     }
 
+    public function test_api_keeps_duplicate_2d_numbers_as_separate_rows(): void
+    {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
+        $user   = User::factory()->normalUser()->create();
+        $wallet = $this->createWalletWithBankInfo($user, 50_000);
+        $token  = $user->createToken('auth_token')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', [
+                'bet_type'        => '2D',
+                'currency'        => 'MMK',
+                'target_opentime' => '11:00:00',
+                'security_pin'    => '123456',
+                'bet_numbers'     => [
+                    ['number' => 23, 'amount' => 1000],
+                    ['number' => 23, 'amount' => 500],
+                ],
+            ])
+            ->assertStatus(201);
+
+        $betId = $response->json('data.bet.id');
+
+        $this->assertSame(2, BetNumber::query()->where('bet_id', $betId)->count());
+        $this->assertSame(
+            [500, 1000],
+            BetNumber::query()->where('bet_id', $betId)->pluck('amount')->map(fn ($a): int => (int) $a)->sort()->values()->all()
+        );
+
+        $this->assertEquals(1500, (float) Bet::query()->findOrFail($betId)->total_amount);
+
+        $wallet->refresh();
+        $this->assertEquals(48_500, $wallet->balance);
+    }
+
+    public function test_api_keeps_duplicate_3d_numbers_as_separate_rows(): void
+    {
+        $this->seedOddSetting(BetType::THREE_D, Currency::MMK, OddSettingUserType::USER, '500.00');
+
+        $user   = User::factory()->normalUser()->create();
+        $wallet = $this->createWalletWithBankInfo($user, 50_000);
+        $token  = $user->createToken('auth_token')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', [
+                'bet_type'     => '3D',
+                'currency'     => 'MMK',
+                'security_pin' => '123456',
+                'bet_numbers'  => [
+                    ['number' => '007', 'amount' => 1000],
+                    ['number' => 7, 'amount' => 500],
+                ],
+            ])
+            ->assertStatus(201);
+
+        $betId = $response->json('data.bet.id');
+
+        $this->assertSame(2, BetNumber::query()->where('bet_id', $betId)->where('number', 7)->count());
+        $this->assertEquals(1500, (float) Bet::query()->findOrFail($betId)->total_amount);
+
+        $wallet->refresh();
+        $this->assertEquals(48_500, $wallet->balance);
+    }
+
     private function seedOddSetting(BetType $betType, Currency $currency, OddSettingUserType $userType, string $odd): void
     {
         OddSetting::query()->updateOrCreate([
