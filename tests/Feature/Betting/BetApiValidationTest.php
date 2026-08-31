@@ -82,7 +82,7 @@ class BetApiValidationTest extends TestCase
             ->assertJsonPath('errors.bank_info.0', 'Bank account information is required before creating a bet.');
     }
 
-    public function test_store_rejects_duplicate_bet_numbers_with_422_envelope(): void
+    public function test_store_accepts_duplicate_bet_numbers(): void
     {
         $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -92,19 +92,14 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => 12, 'amount' => 1000],
                     ['number' => 12, 'amount' => 1000],
                 ],
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'The given data was invalid.')
-            ->assertJsonPath('data', null)
-            ->assertJsonStructure([
-                'message',
-                'data',
-                'errors' => ['bet_numbers.1'],
-            ]);
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Validated.');
     }
 
     public function test_store_rejects_2d_numbers_outside_valid_range_with_422_envelope(): void
@@ -150,7 +145,7 @@ class BetApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_update_rejects_duplicate_bet_numbers_with_422_envelope(): void
+    public function test_update_accepts_duplicate_bet_numbers(): void
     {
         $user = $this->createUserWithBankInfo();
         $bet  = Bet::factory()->for($user)->create();
@@ -163,14 +158,9 @@ class BetApiValidationTest extends TestCase
                     ['number' => 99, 'amount' => 1200],
                 ],
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'The given data was invalid.')
-            ->assertJsonPath('data', null)
-            ->assertJsonStructure([
-                'message',
-                'data',
-                'errors' => ['bet_numbers.1'],
-            ]);
+            ->assertStatus(200)
+            ->assertJsonPath('message', 'Validated.')
+            ->assertJsonCount(2, 'data.bet_numbers');
     }
 
     public function test_store_rejects_invalid_target_opentime_with_422_envelope(): void
@@ -323,7 +313,7 @@ class BetApiValidationTest extends TestCase
             ->assertJsonPath('message', 'Validated.');
     }
 
-    public function test_store_rejects_normalized_duplicate_numbers(): void
+    public function test_store_accepts_numbers_that_only_duplicate_once_normalized(): void
     {
         $user = $this->createUserWithBankInfo();
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -333,19 +323,14 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
+                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => 1, 'amount' => 1000],
                     ['number' => '01', 'amount' => 1000],
                 ],
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'The given data was invalid.')
-            ->assertJsonPath('data', null)
-            ->assertJsonStructure([
-                'message',
-                'data',
-                'errors' => ['bet_numbers.1'],
-            ]);
+            ->assertStatus(201)
+            ->assertJsonPath('message', 'Validated.');
     }
 
     private function createUserWithBankInfo(): User
