@@ -39,7 +39,6 @@ class UpdateBetRequest extends AuthFormRequest
                 return;
             }
 
-            $seen = [];
             foreach (array_values($betNumbers) as $index => $entry) {
                 if (! is_array($entry)) {
                     $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be an object with number and amount.');
@@ -65,11 +64,6 @@ class UpdateBetRequest extends AuthFormRequest
                 if ($this->input('bet_type') === BetType::THREE_D->value && ($number < 0 || $number > 999)) {
                     $validator->errors()->add('bet_numbers.'.$index, 'The bet_numbers.'.$index.' field must be between 0 and 999 when bet type is 3D.');
                 }
-
-                if (isset($seen[$number])) {
-                    $validator->errors()->add('bet_numbers.'.$index, 'Duplicate bet number '.$number.'.');
-                }
-                $seen[$number] = true;
             }
         });
     }
