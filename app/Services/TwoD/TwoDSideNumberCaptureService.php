@@ -110,11 +110,18 @@ class TwoDSideNumberCaptureService extends Service
     /**
      * `--` is HtayApi's placeholder for "not published", the same convention the
      * settlement mapper applies to the `2d` field.
+     *
+     * Anything that is not exactly two digits is treated the same way. Upstream
+     * served a bare `"0"` for both halves of the morning pair on 2026-08-24 and
+     * it was stored verbatim: the freshness guard passed it (it differed from
+     * the previous day) and clients rendered it. A malformed value is upstream
+     * still warming up, not a result, so returning null lets the retry loop try
+     * again instead of writing junk that looks settled.
      */
     private function readNumber(array $block, string $key): ?string
     {
         $value = $this->normalizer->string($block[$key] ?? null);
 
-        return ($value === null || $value === '--') ? null : $value;
+        return ($value !== null && preg_match('/^\d{2}$/', $value) === 1) ? $value : null;
     }
 }

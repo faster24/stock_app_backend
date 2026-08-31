@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Media\ImageUploadPolicy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,7 +32,10 @@ class PopupAd extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('ad_image')->singleFile();
+        $this->addMediaCollection('ad_image')
+            ->singleFile()
+            // Last line of defence for callers that skip the FormRequest.
+            ->acceptsMimeTypes(ImageUploadPolicy::MIME_TYPES);
     }
 
     /**

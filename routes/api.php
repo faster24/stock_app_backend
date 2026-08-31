@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\AdminBetReportController;
 use App\Http\Controllers\Api\V1\AdminDashboardController;
 use App\Http\Controllers\Api\V1\AdminDepositController;
 use App\Http\Controllers\Api\V1\AdminHealthController;
+use App\Http\Controllers\Api\V1\AdminPendingCountsController;
 use App\Http\Controllers\Api\V1\AdminSettlementRunController;
 use App\Http\Controllers\Api\V1\AdminUserController;
 use App\Http\Controllers\Api\V1\AdminWalletController;
@@ -32,13 +33,17 @@ use App\Http\Controllers\Api\V1\WithdrawalController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    // Unauthenticated and cheap to call, so these carry their own limits on top
+    // of the global `api` one. Registration is the expensive side: every call
+    // that gets through mints a user, a role and a non-expiring token.
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:register');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
     Route::get('/app-settings/maintenance', [AppSettingController::class, 'maintenance']);
 
     Route::middleware(['auth:sanctum', 'not_banned'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/security-pin', [AuthController::class, 'changeSecurityPin'])->middleware('throttle:security-pin');
         Route::get('/me/wallet', [WalletController::class, 'show']);
         Route::put('/me/wallet/currency', [WalletCurrencyController::class, 'set']);
         Route::get('/me/wallet/transactions', [WalletTransactionController::class, 'index']);
@@ -110,6 +115,9 @@ Route::prefix('v1')->group(function () {
             ->group(function () {
                 Route::post('/notifications/send', [NotificationController::class, 'send']);
                 Route::get('/dashboard', AdminDashboardController::class);
+                // Deliberately not nested under /deposits or /withdrawals — those
+                // groups end in a /{model} binding that would swallow the path.
+                Route::get('/pending-counts', AdminPendingCountsController::class);
                 Route::get('/health/thaistock2d-live', [AdminHealthController::class, 'thaiStock2dLive']);
                 Route::put('/app-settings/maintenance', [AppSettingController::class, 'updateMaintenance']);
                 Route::get('/bet-pauses', [BetPauseController::class, 'index']);
@@ -169,6 +177,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/{user}', 'show');
                     Route::get('/{user}/activity-summary', 'activitySummary');
                     Route::patch('/{user}/role', 'assignRole');
+                    Route::post('/{user}/reset-security-pin', 'resetSecurityPin');
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');
                     Route::delete('/{user}', 'destroy');

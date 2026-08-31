@@ -12,11 +12,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
+use Tests\Support\UploadsScriptableImages;
 use Tests\TestCase;
 
 class WithdrawalCompleteRejectTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UploadsScriptableImages;
 
     private User $admin;
     private string $adminToken;
@@ -60,6 +61,23 @@ class WithdrawalCompleteRejectTest extends TestCase
     }
 
     // ── Complete tests ─────────────────────────────────────────────────────────
+
+    public function test_svg_payout_proof_is_rejected(): void
+    {
+        $withdrawal = $this->createPendingWithdrawal(20_000);
+
+        $response = $this->postJson(
+            "/api/v1/admin/withdrawals/{$withdrawal->id}/complete",
+            // A .png name does not help: validation reads the bytes.
+            ['payout_proof' => $this->scriptableSvgUpload('proof.png')],
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        );
+
+        $response->assertStatus(422);
+        $response->assertJsonStructure(['errors' => ['payout_proof']]);
+
+        $this->assertSame(WithdrawalStatus::PENDING->value, $withdrawal->fresh()->status->value);
+    }
 
     public function test_admin_complete_attaches_proof_no_ledger_write(): void
     {

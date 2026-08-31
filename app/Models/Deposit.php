@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Currency;
 use App\Enums\DepositStatus;
+use App\Support\Media\ImageUploadPolicy;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -46,7 +47,10 @@ class Deposit extends Model implements HasMedia
 
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('proof_of_payment')->singleFile();
+        $this->addMediaCollection('proof_of_payment')
+            ->singleFile()
+            // Last line of defence for callers that skip the FormRequest.
+            ->acceptsMimeTypes(ImageUploadPolicy::MIME_TYPES);
     }
 
     public function getProofImageAttribute(): array

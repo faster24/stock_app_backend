@@ -16,8 +16,9 @@ class StoreWithdrawalRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'currency' => ['required', 'string', new Enum(Currency::class)],
-            'amount'   => ['required', 'integer', 'min:1'],
+            'currency'     => ['required', 'string', new Enum(Currency::class)],
+            'amount'       => ['required', 'integer', 'min:1'],
+            'security_pin' => ['required', 'string', 'size:6'],
         ];
     }
 }

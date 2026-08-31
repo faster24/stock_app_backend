@@ -21,8 +21,7 @@ use Illuminate\Support\Carbon;
  *
  * `stockDate`/`historyId` are self-anchored on this system's own current
  * Asia/Bangkok date rather than trusting HtayApi's own top-level `"date"`
- * field, mirroring SetIndexProvider's pattern and sidestepping that field's
- * ambiguous semantics entirely.
+ * field, sidestepping that field's ambiguous semantics entirely.
  */
 class HtayApiSnapshotMapper
 {

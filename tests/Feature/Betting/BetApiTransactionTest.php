@@ -49,6 +49,34 @@ class BetApiTransactionTest extends TestCase
         ]);
     }
 
+    public function test_create_for_user_rejects_a_wrong_security_pin(): void
+    {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
+        $user    = User::factory()->normalUser()->create();
+        $wallet  = $this->createWalletWithBankInfo($user, 50_000);
+        $service = app(BetService::class);
+
+        try {
+            $service->createForUser($user->id, [
+                'bet_type'        => '2D',
+                'currency'        => 'MMK',
+                'target_opentime' => '11:00:00',
+                'security_pin'    => '999999',
+                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+            ]);
+            $this->fail('Expected ValidationException for an invalid security PIN.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('security_pin', $e->errors());
+        }
+
+        $this->assertDatabaseCount('bets', 0);
+        $this->assertDatabaseCount('wallet_transactions', 0);
+
+        $wallet->refresh();
+        $this->assertEquals(50_000, $wallet->balance);
+    }
+
     public function test_create_for_user_rolls_back_bet_when_balance_insufficient(): void
     {
         $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');

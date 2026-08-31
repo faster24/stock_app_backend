@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Withdrawal;
 
+use App\Support\Media\ImageUploadPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
 class CompleteWithdrawalRequest extends FormRequest
@@ -14,7 +15,7 @@ class CompleteWithdrawalRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'payout_proof' => ['required', 'file', 'image', 'max:10240'],
+            'payout_proof' => ImageUploadPolicy::rules(),
             'admin_note'   => ['nullable', 'string', 'max:1000'],
         ];
     }
