@@ -57,9 +57,9 @@ beyond `SELECT`, so this user is *not* SELECT-only despite what the restore sect
 below used to imply:
 
 ```sql
-CREATE USER 'backup'@'127.0.0.1' IDENTIFIED BY '<choose a strong password>';
-GRANT SELECT, SHOW VIEW, TRIGGER, EVENT ON lotto_db.* TO 'backup'@'127.0.0.1';
-GRANT SELECT ON mysql.proc TO 'backup'@'127.0.0.1';   -- MariaDB: --routines reads this
+CREATE USER 'backup_admin'@'127.0.0.1' IDENTIFIED BY '<choose a strong password>';
+GRANT SELECT, SHOW VIEW, TRIGGER, EVENT ON lotto_db.* TO 'backup_admin'@'127.0.0.1';
+GRANT SELECT ON mysql.proc TO 'backup_admin'@'127.0.0.1';   -- MariaDB: --routines reads this
 FLUSH PRIVILEGES;
 ```
 
@@ -68,7 +68,7 @@ database and cannot alter it. That also means it **cannot perform a restore** �
 DBA account for that.
 
 If `mysqldump` complains about tablespace access on a future MariaDB, add
-`GRANT PROCESS ON *.* TO 'backup'@'127.0.0.1';` — not granted by default here because
+`GRANT PROCESS ON *.* TO 'backup_admin'@'127.0.0.1';` — not granted by default here because
 `PROCESS` exposes every session's query text server-wide.
 
 **3. `~/.my.cnf` for the deploy user** — this is what `db-backup.sh` reads
@@ -78,7 +78,7 @@ If `mysqldump` complains about tablespace access on a future MariaDB, add
 ```bash
 cat > ~/.my.cnf <<'CNF'
 [client]
-user=backup
+user=backup_admin
 password=<the password from step 2>
 CNF
 chmod 0600 ~/.my.cnf
@@ -146,7 +146,7 @@ gunzip -c /opt/backups/hourly/lotto_db-20260828-1400.sql.gz \
   | mysql --defaults-file=~/.my.cnf lotto_db_restore_test
 ```
 
-Note the `backup` MySQL user holds no write privilege anywhere by design (see
+Note the `backup_admin` MySQL user holds no write privilege anywhere by design (see
 [First-time setup](#first-time-setup)) and **cannot** perform the restore — use a
 DBA/root MySQL account for this step.
 
@@ -190,7 +190,7 @@ images that no longer exist.
 
 1. Provision the box, install PHP 8.2+, MariaDB, nginx; deploy the app to
    `/opt/apps/backend`. Redo [First-time setup](#first-time-setup) — the backup
-   root, the MySQL `backup` user, `~/.my.cnf` and the cron entries are all on the
+   root, the MySQL `backup_admin` user, `~/.my.cnf` and the cron entries are all on the
    old host, and none of them are in any backup.
 2. Restore `.env` — **it is not in any backup and not in git.** Also not backed up:
    `firebase-key.json`, hand-placed on the server; without it admin push
