@@ -39,6 +39,19 @@ jobs:
             # from root's crontab, and this script runs as the deploy user --
             # syncing it would make a root-executed file writable by anyone who
             # can push. Install that one by hand, root-owned.
+            #
+            # BACKUP_ROOT itself is NOT created here. Both scripts refuse to run
+            # when it is missing (db-backup.sh:61) rather than invent a path,
+            # and /opt is root-owned, so the deploy user cannot create it
+            # anyway -- a bare mkdir just fails with "Permission denied" and
+            # tells you nothing. Provision it once, as root:
+            #   sudo mkdir -p /opt/backups && sudo chown admin:admin /opt/backups
+            #   sudo chmod 0700 /opt/backups
+            # The scripts create hourly/daily/predeploy/media underneath.
+            if [ ! -d /opt/backups ]; then
+              echo "FATAL: /opt/backups does not exist -- provision it as root first (see comment above)." >&2
+              exit 1
+            fi
             mkdir -p /opt/backups/bin
             install -m 0755 scripts/db-backup.sh /opt/backups/bin/db-backup.sh
             install -m 0755 scripts/db-backup-check.sh /opt/backups/bin/db-backup-check.sh
