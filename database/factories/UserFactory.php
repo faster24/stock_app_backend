@@ -69,14 +69,4 @@ class UserFactory extends Factory
             $user->syncRoles(['user']);
         });
     }
-
-    public function vip(): static
-    {
-        return $this->afterCreating(function (User $user): void {
-            app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
-            call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'vip', Guard::getDefaultName($user));
-
-            $user->syncRoles(['vip']);
-        });
-    }
 }

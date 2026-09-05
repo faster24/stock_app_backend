@@ -30,7 +30,7 @@ class OddSettingApiWriteAccessTest extends TestCase
         $payload = [
             'bet_type' => BetType::THREE_D->value,
             'currency' => Currency::THB->value,
-            'user_type' => OddSettingUserType::VIP->value,
+            'user_type' => OddSettingUserType::USER->value,
             'odd' => '10.00',
             'is_active' => true,
         ];
@@ -63,7 +63,7 @@ class OddSettingApiWriteAccessTest extends TestCase
             ->postJson('/api/v1/admin/odd-settings', [
                 'bet_type' => BetType::THREE_D->value,
                 'currency' => Currency::THB->value,
-                'user_type' => OddSettingUserType::VIP->value,
+                'user_type' => OddSettingUserType::USER->value,
                 'odd' => '10.00',
                 'is_active' => true,
             ]);
@@ -79,7 +79,7 @@ class OddSettingApiWriteAccessTest extends TestCase
             'id' => $oddSettingId,
             'bet_type' => BetType::THREE_D->value,
             'currency' => Currency::THB->value,
-            'user_type' => OddSettingUserType::VIP->value,
+            'user_type' => OddSettingUserType::USER->value,
         ]);
 
         $this->withHeader('Authorization', 'Bearer '.$token)
@@ -97,7 +97,7 @@ class OddSettingApiWriteAccessTest extends TestCase
             'odd' => '11.50',
             'is_active' => 0,
             'currency' => Currency::THB->value,
-            'user_type' => OddSettingUserType::VIP->value,
+            'user_type' => OddSettingUserType::USER->value,
         ]);
 
         $this->withHeader('Authorization', 'Bearer '.$token)

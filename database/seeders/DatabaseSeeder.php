@@ -24,7 +24,6 @@ class DatabaseSeeder extends Seeder
 
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin', $guard);
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
-        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'vip', $guard);
 
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
 
@@ -46,26 +45,6 @@ class DatabaseSeeder extends Seeder
             'bank_name'          => BankName::KBZ->value,
             'account_name'       => 'Test User',
             'account_number'     => '1111111111',
-        ]);
-
-        $vipUser = User::query()->updateOrCreate([
-            'email' => 'vip@example.com',
-        ], [
-            'username' => 'vipuser',
-            'password' => Hash::make('password'),
-        ]);
-
-        $vipUser->syncRoles(['vip']);
-
-        Wallet::query()->updateOrCreate([
-            'user_id' => $vipUser->id,
-        ], [
-            'balance'            => 500_000,
-            'currency'           => Currency::MMK->value,
-            'currency_locked_at' => now(),
-            'bank_name'          => BankName::AYA->value,
-            'account_name'       => 'VIP User',
-            'account_number'     => '2222222222',
         ]);
 
         $this->call(OddSettingSeeder::class);

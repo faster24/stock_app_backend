@@ -29,7 +29,7 @@ class AdminUserManagementApiTest extends TestCase
             ->assertJsonPath('message', 'Unauthenticated.');
 
         $this->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
-            'role' => 'vip',
+            'role' => 'user',
         ])
             ->assertStatus(401)
             ->assertJsonPath('message', 'Unauthenticated.');
@@ -55,7 +55,7 @@ class AdminUserManagementApiTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
-                'role' => 'vip',
+                'role' => 'user',
             ])
             ->assertStatus(403)
             ->assertJsonPath('message', 'Forbidden.');
@@ -149,27 +149,11 @@ class AdminUserManagementApiTest extends TestCase
         $this->assertNull($user->banned_at);
     }
 
-    public function test_admin_can_assign_vip_role_and_switch_back_to_user(): void
+    public function test_admin_can_assign_the_user_role(): void
     {
         $admin = User::factory()->admin()->create();
         $adminToken = $admin->createToken('auth_token')->plainTextToken;
         $user = User::factory()->normalUser()->create();
-
-        $this->assertTrue($user->hasRole('user'));
-        $this->assertFalse($user->hasRole('vip'));
-
-        $this->withHeader('Authorization', 'Bearer '.$adminToken)
-            ->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
-                'role' => 'vip',
-            ])
-            ->assertOk()
-            ->assertJsonPath('message', 'User role updated successfully.')
-            ->assertJsonPath('data.user.role', 'vip')
-            ->assertJsonPath('errors', null);
-
-        $user->refresh();
-        $this->assertTrue($user->hasRole('vip'));
-        $this->assertFalse($user->hasRole('user'));
 
         $this->withHeader('Authorization', 'Bearer '.$adminToken)
             ->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
@@ -179,6 +163,28 @@ class AdminUserManagementApiTest extends TestCase
             ->assertJsonPath('message', 'User role updated successfully.')
             ->assertJsonPath('data.user.role', 'user')
             ->assertJsonPath('errors', null);
+
+        $user->refresh();
+        $this->assertTrue($user->hasRole('user'));
+    }
+
+    public function test_admin_role_assignment_rejects_the_removed_vip_role(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+        $user = User::factory()->normalUser()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
+                'role' => 'vip',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['role'],
+            ]);
 
         $user->refresh();
         $this->assertTrue($user->hasRole('user'));
@@ -361,7 +367,7 @@ class AdminUserManagementApiTest extends TestCase
 
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->patchJson('/api/v1/admin/users/'.$admin->id.'/role', [
-                'role' => 'vip',
+                'role' => 'user',
             ])
             ->assertStatus(422)
             ->assertJsonPath('message', 'The given data was invalid.')

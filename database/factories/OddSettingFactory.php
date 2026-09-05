@@ -25,7 +25,7 @@ class OddSettingFactory extends Factory
         return $this->state([
             'bet_type' => BetType::THREE_D,
             'currency' => Currency::THB,
-            'user_type' => OddSettingUserType::VIP,
+            'user_type' => OddSettingUserType::USER,
             'odd' => '10.00',
         ]);
     }

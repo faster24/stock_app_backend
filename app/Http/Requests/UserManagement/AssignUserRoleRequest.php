@@ -10,7 +10,7 @@ class AssignUserRoleRequest extends AuthFormRequest
     public function rules(): array
     {
         return [
-            'role' => ['required', 'string', Rule::in(['user', 'vip'])],
+            'role' => ['required', 'string', Rule::in(['user'])],
         ];
     }
 }

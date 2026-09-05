@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 
 class UserManagementService extends Service
 {
-    private const CUSTOMER_ROLES = ['user', 'vip'];
+    private const CUSTOMER_ROLES = ['user'];
 
     public function listActiveUsers(int $page = 1, int $pageSize = 10): Collection
     {

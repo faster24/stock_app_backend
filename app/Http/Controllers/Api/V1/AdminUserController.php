@@ -221,10 +221,6 @@ class AdminUserController extends Controller
 
     private function resolveCustomerRole(array $roles): ?string
     {
-        if (in_array('vip', $roles, true)) {
-            return 'vip';
-        }
-
         if (in_array('user', $roles, true)) {
             return 'user';
         }

@@ -96,7 +96,7 @@ class OddSettingApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_allows_same_bet_type_for_different_currency_or_user_type(): void
+    public function test_store_allows_same_bet_type_for_different_currency(): void
     {
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -130,7 +130,7 @@ class OddSettingApiValidationTest extends TestCase
             ->postJson('/api/v1/admin/odd-settings', [
                 'bet_type' => BetType::THREE_D->value,
                 'currency' => Currency::THB->value,
-                'user_type' => OddSettingUserType::VIP->value,
+                'user_type' => OddSettingUserType::USER->value,
                 'odd' => '10.00',
                 'bet_amount' => 1000,
                 'is_active' => true,
@@ -172,7 +172,7 @@ class OddSettingApiValidationTest extends TestCase
             ]);
     }
 
-    public function test_store_requires_currency_and_user_type(): void
+    public function test_store_requires_currency(): void
     {
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
@@ -188,7 +188,46 @@ class OddSettingApiValidationTest extends TestCase
             ->assertJsonStructure([
                 'message',
                 'data',
-                'errors' => ['currency', 'user_type'],
+                'errors' => ['currency'],
+            ]);
+    }
+
+    public function test_store_defaults_user_type_to_user_when_omitted(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/admin/odd-settings', [
+                'bet_type' => BetType::THREE_D->value,
+                'currency' => Currency::THB->value,
+                'odd' => '10.00',
+                'is_active' => true,
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.odd_setting.user_type', OddSettingUserType::USER->value)
+            ->assertJsonPath('errors', null);
+    }
+
+    public function test_store_rejects_the_removed_vip_user_type(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/admin/odd-settings', [
+                'bet_type' => BetType::THREE_D->value,
+                'currency' => Currency::THB->value,
+                'user_type' => 'vip',
+                'odd' => '10.00',
+                'is_active' => true,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['user_type'],
             ]);
     }
 }

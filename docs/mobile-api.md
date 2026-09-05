@@ -2,7 +2,7 @@
 
 Everything a player-facing mobile client needs from the Zarmani108 backend. Scope is the
 **player** surface only: every route in this document is reachable by a user holding the
-`user` or `vip` role. Admin routes (`/api/v1/admin/*`) are deliberately excluded — those
+`user` role. Admin routes (`/api/v1/admin/*`) are deliberately excluded — those
 belong to the `lotto_dashboard` web client.
 
 Verified against `routes/api.php`, the controllers, the form requests and the services on
@@ -101,8 +101,8 @@ Public. Body: `email`, `password`.
 {
   "user": {
     "id": "...", "name": "...", "username": "...", "email": "...",
-    "role": "vip",                       // "vip" | "user" | null
-    "roles": ["user", "vip"],            // raw Spatie role names
+    "role": "user",                      // "user" | null
+    "roles": ["user"],                   // raw Spatie role names
     "is_banned": false,
     "banned_at": null,
     "created_at": "...", "updated_at": "..."
@@ -369,7 +369,7 @@ it client-side.
 
 | Endpoint | Key | Why |
 |---|---|---|
-| `GET /odd-settings` | `data.odd_settings` | payout multipliers by `bet_type` + `currency` + `user_type`; VIP users get their own row |
+| `GET /odd-settings` | `data.odd_settings` | payout multipliers by `bet_type` + `currency` (one row each; `user_type` is always `user`) |
 | `GET /bet-pauses` | `data.bet_pauses` | whether 2D/3D betting is stopped |
 | `GET /closed-numbers` | see below | numbers the admin has closed or capped |
 

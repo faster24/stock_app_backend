@@ -57,7 +57,7 @@ class UpdateOddSettingRequest extends AuthFormRequest
             if ($exists) {
                 $validator->errors()->add(
                     'bet_type',
-                    'The bet_type has already been taken for the selected currency and user type.'
+                    'The bet_type has already been taken for the selected currency.'
                 );
             }
         });

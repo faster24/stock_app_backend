@@ -25,16 +25,14 @@ class OddSettingSeeder extends Seeder
 
         foreach (BetType::cases() as $betType) {
             foreach (Currency::cases() as $currency) {
-                foreach (OddSettingUserType::cases() as $userType) {
-                    OddSetting::query()->updateOrCreate([
-                        'bet_type' => $betType,
-                        'currency' => $currency,
-                        'user_type' => $userType,
-                    ], [
-                        'odd' => $defaults[$betType->value][$currency->value],
-                        'is_active' => true,
-                    ]);
-                }
+                OddSetting::query()->updateOrCreate([
+                    'bet_type' => $betType,
+                    'currency' => $currency,
+                    'user_type' => OddSettingUserType::USER,
+                ], [
+                    'odd' => $defaults[$betType->value][$currency->value],
+                    'is_active' => true,
+                ]);
             }
         }
     }

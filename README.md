@@ -81,10 +81,10 @@ Authorization: Bearer <token>
 
 ## Roles and Access
 
-- `user`, `vip`, and `admin` roles are managed by Spatie Permission.
+- `user` and `admin` roles are managed by Spatie Permission.
 - Authenticated read endpoints are available to both roles.
 - Write endpoints for announcements and odd settings are under `/api/v1/admin/*` and require `admin` role.
-- Admin can switch customer users between `user` and `vip` via `PATCH /api/v1/admin/users/{user}/role` with payload `{ "role": "user" | "vip" }`.
+- `PATCH /api/v1/admin/users/{user}/role` accepts the single customer role `{ "role": "user" }`.
 
 ## 2D Result Read APIs
 

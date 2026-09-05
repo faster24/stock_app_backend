@@ -14,6 +14,8 @@ use App\Models\Wallet;
 use App\Services\Bet\BetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Guard;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class BetApiTransactionTest extends TestCase
@@ -247,6 +249,31 @@ class BetApiTransactionTest extends TestCase
 
         $wallet->refresh();
         $this->assertEquals(48_500, $wallet->balance);
+    }
+
+    public function test_create_for_user_uses_the_single_user_odd_even_for_a_legacy_vip_role(): void
+    {
+        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
+
+        $user = User::factory()->normalUser()->create();
+        $this->createWalletWithBankInfo($user, 50_000);
+
+        // Simulate a user left over from before the vip role was removed.
+        Role::findOrCreate('vip', Guard::getDefaultName($user));
+        $user->assignRole('vip');
+
+        $bet = app(BetService::class)->createForUser($user->id, [
+            'bet_type'        => '2D',
+            'currency'        => 'MMK',
+            'target_opentime' => '11:00:00',
+            'security_pin'    => '123456',
+            'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
+        ]);
+
+        $this->assertEquals(
+            '80.00',
+            BetNumber::query()->where('bet_id', $bet->id)->value('odd')
+        );
     }
 
     private function seedOddSetting(BetType $betType, Currency $currency, OddSettingUserType $userType, string $odd): void

@@ -11,6 +11,13 @@ use Illuminate\Validation\Validator;
 
 class StoreOddSettingRequest extends AuthFormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('user_type')) {
+            $this->merge(['user_type' => OddSettingUserType::USER->value]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -24,7 +31,7 @@ class StoreOddSettingRequest extends AuthFormRequest
                         ->where('user_type', (string) $this->input('user_type'))),
             ],
             'currency' => ['required', 'string', Rule::in(array_column(Currency::cases(), 'value'))],
-            'user_type' => ['required', 'string', Rule::in(array_column(OddSettingUserType::cases(), 'value'))],
+            'user_type' => ['sometimes', 'string', Rule::in(array_column(OddSettingUserType::cases(), 'value'))],
             'odd' => ['required', 'numeric', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
         ];

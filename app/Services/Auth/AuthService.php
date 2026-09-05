@@ -108,7 +108,7 @@ class AuthService extends Service
             'name' => $user->username,
             'username' => $user->username,
             'email' => $user->email,
-            'role' => in_array('vip', $roleNames, true) ? 'vip' : (in_array('user', $roleNames, true) ? 'user' : null),
+            'role' => in_array('user', $roleNames, true) ? 'user' : null,
             'roles' => $roleNames,
             'is_banned' => (bool) $user->is_banned,
             'banned_at' => $user->banned_at?->toISOString(),

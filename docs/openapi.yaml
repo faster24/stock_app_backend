@@ -1179,7 +1179,7 @@ paths:
   /admin/users/{user}/role:
     patch:
       tags: [Admin]
-      summary: Assign customer role (user or vip) to user (admin)
+      summary: Assign the customer role to a user (admin)
       security:
         - bearerAuth: []
       parameters:
@@ -1985,7 +1985,7 @@ components:
       properties:
         role:
           type: string
-          enum: [user, vip]
+          enum: [user]
 
     User:
       type: object
@@ -2001,7 +2001,7 @@ components:
         role:
           type: string
           nullable: true
-          enum: [user, vip]
+          enum: [user]
         roles:
           type: array
           items:
@@ -2077,7 +2077,7 @@ components:
           enum: [MMK, THB]
         user_type:
           type: string
-          enum: [user, vip]
+          enum: [user]
         odd:
           type: string
           example: "80.00"
@@ -2276,7 +2276,7 @@ components:
 
     OddSettingWriteRequest:
       type: object
-      required: [bet_type, currency, user_type, odd]
+      required: [bet_type, currency, odd]
       additionalProperties: false
       properties:
         bet_type:
@@ -2287,7 +2287,7 @@ components:
           enum: [MMK, THB]
         user_type:
           type: string
-          enum: [user, vip]
+          enum: [user]
         odd:
           type: number
           minimum: 0
@@ -2306,7 +2306,7 @@ components:
           enum: [MMK, THB]
         user_type:
           type: string
-          enum: [user, vip]
+          enum: [user]
         odd:
           type: number
           minimum: 0

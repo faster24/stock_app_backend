@@ -601,26 +601,22 @@ class BetService extends Service
 
     private function resolveOddValueForBet(string $userId, string $betType, string $currency): string
     {
-        $user = User::query()->find($userId);
-
-        if ($user === null) {
+        if (! User::query()->whereKey($userId)->exists()) {
             throw ValidationException::withMessages([
                 'user_id' => ['The selected user is invalid.'],
             ]);
         }
 
-        $userType = $user->hasRole('vip') ? OddSettingUserType::VIP : OddSettingUserType::USER;
-
         $oddValue = OddSetting::query()
             ->where('bet_type', $betType)
             ->where('currency', $currency)
-            ->where('user_type', $userType->value)
+            ->where('user_type', OddSettingUserType::USER->value)
             ->where('is_active', true)
             ->value('odd');
 
         if ($oddValue === null) {
             throw ValidationException::withMessages([
-                'odd_setting' => ['No active odd setting found for the selected bet type, currency, and user type.'],
+                'odd_setting' => ['No active odd setting found for the selected bet type and currency.'],
             ]);
         }
 
