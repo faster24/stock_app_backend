@@ -1210,6 +1210,137 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /admin/users/{user}/commission-rate:
+    patch:
+      tags: [Admin]
+      summary: Set an agent's commission rate (admin)
+      description: >-
+        Only a user holding the `agent` role can carry a commission rate; anything
+        else returns 422. The rate applies to bets placed from now on - bets already
+        placed keep the rate snapshotted onto them.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminSetCommissionRateRequest'
+      responses:
+        '200':
+          description: Commission rate updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/agent-commissions:
+    get:
+      tags: [Admin]
+      summary: Agent commission report bucketed by period (admin)
+      description: >-
+        Sums the commission snapshotted onto each bet at placement. Buckets follow
+        `bets.stock_date`. Rejected and refunded bets are excluded.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: agent_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agent commission report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentCommissionReportResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /admin/agent-commissions/export:
+    get:
+      tags: [Admin]
+      summary: Agent commission report as CSV (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: granularity
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: agent_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: CSV stream
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/users/{user}/ban:
     post:
       tags: [Admin]
@@ -1985,7 +2116,75 @@ components:
       properties:
         role:
           type: string
-          enum: [user]
+          enum: [user, agent]
+
+    AdminSetCommissionRateRequest:
+      type: object
+      required: [commission_rate]
+      properties:
+        commission_rate:
+          type: string
+          description: Percentage, 0-100, at most two decimals.
+          example: "2.50"
+
+    AgentCommissionRow:
+      type: object
+      properties:
+        bucket:
+          type: string
+          description: "Period key: 2026-01-31 (daily), 2026-W05 (weekly), 2026-01 (monthly)."
+        agent_id:
+          type: string
+          format: uuid
+        agent_username:
+          type: string
+          nullable: true
+        commission_rate:
+          type: string
+          description: >-
+            Rate actually earned over the bucket (commission / stake). Equals the
+            configured rate unless the admin changed it mid-period.
+          example: "2.00"
+        bets_count:
+          type: integer
+        total_stake:
+          type: string
+          example: "35000.00"
+        commission:
+          type: string
+          example: "700.00"
+
+    AgentCommissionSummary:
+      type: object
+      properties:
+        bets_count:
+          type: integer
+        total_stake:
+          type: string
+        commission:
+          type: string
+        commission_rate:
+          type: string
+
+    AgentCommissionReportResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            report:
+              type: object
+              properties:
+                summary:
+                  $ref: '#/components/schemas/AgentCommissionSummary'
+                rows:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AgentCommissionRow'
+        errors:
+          nullable: true
 
     User:
       type: object
@@ -2001,7 +2200,7 @@ components:
         role:
           type: string
           nullable: true
-          enum: [user]
+          enum: [user, agent]
         roles:
           type: array
           items:

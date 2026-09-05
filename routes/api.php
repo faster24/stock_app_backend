@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AdminAgentCommissionController;
 use App\Http\Controllers\Api\V1\AdminAnalyticsController;
 use App\Http\Controllers\Api\V1\AdminBankSettingController;
 use App\Http\Controllers\Api\V1\AdminBetReportController;
@@ -150,6 +151,10 @@ Route::prefix('v1')->group(function () {
                     Route::get('/bets', 'index');
                     Route::get('/bets/export', 'export');
                 });
+                Route::prefix('agent-commissions')->controller(AdminAgentCommissionController::class)->group(function () {
+                    Route::get('/', 'index');
+                    Route::get('/export', 'export');
+                });
                 Route::get('/bets', [BetController::class, 'adminIndex']);
                 Route::get('/bets/{bet}', [BetController::class, 'adminShow']);
                 Route::patch('/bets/{bet}/status', [BetController::class, 'updateReviewStatus']);
@@ -177,6 +182,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/{user}', 'show');
                     Route::get('/{user}/activity-summary', 'activitySummary');
                     Route::patch('/{user}/role', 'assignRole');
+                    Route::patch('/{user}/commission-rate', 'setCommissionRate');
                     Route::post('/{user}/reset-security-pin', 'resetSecurityPin');
                     Route::post('/{user}/ban', 'ban');
                     Route::post('/{user}/unban', 'unban');

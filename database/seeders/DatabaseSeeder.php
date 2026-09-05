@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
 
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'admin', $guard);
         call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'user', $guard);
+        call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'agent', $guard);
 
         app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
 

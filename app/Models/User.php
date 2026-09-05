@@ -31,6 +31,7 @@ class User extends Authenticatable
         'password',
         'security_pin',
         'security_pin_set_at',
+        'commission_rate',
     ];
 
     public function wallet(): HasOne
@@ -84,6 +85,7 @@ class User extends Authenticatable
             'banned_at' => 'datetime',
             'security_pin_set_at' => 'datetime',
             'deleted_at' => 'datetime',
+            'commission_rate' => 'decimal:2',
         ];
     }
 }

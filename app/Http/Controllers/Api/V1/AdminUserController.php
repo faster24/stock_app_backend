@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UserManagement\AssignUserRoleRequest;
 use App\Http\Requests\UserManagement\ResetUserSecurityPinRequest;
+use App\Http\Requests\UserManagement\SetCommissionRateRequest;
 use App\Models\User;
 use App\Services\Auth\AuthService;
 use App\Services\User\UserActivitySummaryService;
@@ -160,6 +161,33 @@ class AdminUserController extends Controller
         ]);
     }
 
+    public function setCommissionRate(SetCommissionRateRequest $request, string $user): JsonResponse
+    {
+        $resolvedUser = $this->userManagementService->showUser($user);
+
+        if (! $resolvedUser instanceof User) {
+            return $this->respond('User not found.', null, 404, [
+                'user' => ['The selected user is invalid.'],
+            ]);
+        }
+
+        try {
+            $updatedUser = $this->userManagementService->setCommissionRate(
+                (string) $request->user()->id,
+                $resolvedUser,
+                (string) $request->validated()['commission_rate'],
+            );
+        } catch (DomainException $exception) {
+            return $this->respond('The given data was invalid.', null, 422, [
+                'user' => [$exception->getMessage()],
+            ]);
+        }
+
+        return $this->respond('Commission rate updated successfully.', [
+            'user' => $this->userDetailPayload($updatedUser),
+        ]);
+    }
+
     public function resetSecurityPin(ResetUserSecurityPinRequest $request, string $user): JsonResponse
     {
         $resolvedUser = $this->userManagementService->showUser($user);
@@ -202,6 +230,7 @@ class AdminUserController extends Controller
     {
         return [
             ...$this->userSummaryPayload($user),
+            'commission_rate' => $user->commission_rate === null ? null : (string) $user->commission_rate,
             'bank_info' => [
                 'bank_name' => optional($user->wallet)->bank_name?->value ?? optional($user->wallet)->bank_name,
                 'account_name' => optional($user->wallet)->account_name,
@@ -221,6 +250,10 @@ class AdminUserController extends Controller
 
     private function resolveCustomerRole(array $roles): ?string
     {
+        if (in_array('agent', $roles, true)) {
+            return 'agent';
+        }
+
         if (in_array('user', $roles, true)) {
             return 'user';
         }

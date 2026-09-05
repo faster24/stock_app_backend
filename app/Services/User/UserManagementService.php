@@ -12,7 +12,7 @@ use Spatie\Permission\Models\Role;
 
 class UserManagementService extends Service
 {
-    private const CUSTOMER_ROLES = ['user'];
+    private const CUSTOMER_ROLES = ['user', 'agent'];
 
     public function listActiveUsers(int $page = 1, int $pageSize = 10): Collection
     {
@@ -77,6 +77,21 @@ class UserManagementService extends Service
         ));
 
         $user->syncRoles([...$retainedRoles, $role]);
+
+        return $user->fresh(['wallet', 'roles']);
+    }
+
+    public function setCommissionRate(string $adminUserId, User $user, string $commissionRate): User
+    {
+        $this->assertNotSelfAction($adminUserId, (string) $user->id);
+
+        if (! $user->hasRole('agent')) {
+            throw new DomainException('Only an agent can have a commission rate.');
+        }
+
+        $user->forceFill([
+            'commission_rate' => $commissionRate,
+        ])->save();
 
         return $user->fresh(['wallet', 'roles']);
     }

@@ -210,6 +210,7 @@ class BetService extends Service
 
         $totalAmount = (int) $this->calculateTotalAmount($numberEntries);
         $attributes['total_amount'] = number_format($totalAmount, 2, '.', '');
+        $attributes = array_merge($attributes, $this->resolveAgentCommission($user, $totalAmount));
         $attributes['stock_date'] = $stockDate;
         $attributes['placed_at'] = Carbon::now();
 
@@ -284,6 +285,16 @@ class BetService extends Service
             $attributes['total_amount'] = $this->calculateTotalAmount($numberEntries);
         } else {
             $attributes['total_amount'] = $this->calculateTotalAmountFromStoredBetNumbers($bet);
+        }
+
+        // Re-base the commission on the new stake, but at the rate that was
+        // snapshotted when the bet was placed — editing a bet must never re-rate
+        // it at whatever the agent's rate happens to be now.
+        if ($bet->agent_commission_rate !== null) {
+            $attributes['agent_commission'] = $this->calculateAgentCommission(
+                (float) $bet->agent_commission_rate,
+                (int) (float) $attributes['total_amount'],
+            );
         }
 
         return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd, $resolvedBetType, $resolvedCurrency): Bet {
@@ -597,6 +608,28 @@ class BetService extends Service
         $total = (int) $bet->betNumbers()->sum('amount');
 
         return number_format($total, 2, '.', '');
+    }
+
+    /**
+     * @return array{agent_commission_rate: ?string, agent_commission: ?string}
+     */
+    private function resolveAgentCommission(User $user, int $totalAmount): array
+    {
+        if (! $user->hasRole('agent')) {
+            return ['agent_commission_rate' => null, 'agent_commission' => null];
+        }
+
+        $rate = (float) ($user->commission_rate ?? 0);
+
+        return [
+            'agent_commission_rate' => number_format($rate, 2, '.', ''),
+            'agent_commission' => $this->calculateAgentCommission($rate, $totalAmount),
+        ];
+    }
+
+    private function calculateAgentCommission(float $rate, int $totalAmount): string
+    {
+        return number_format($totalAmount * $rate / 100, 2, '.', '');
     }
 
     private function resolveOddValueForBet(string $userId, string $betType, string $currency): string

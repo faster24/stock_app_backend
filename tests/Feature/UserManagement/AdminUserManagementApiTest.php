@@ -191,6 +191,69 @@ class AdminUserManagementApiTest extends TestCase
         $this->assertFalse($user->hasRole('vip'));
     }
 
+    public function test_admin_can_promote_a_user_to_agent_and_set_a_commission_rate(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $adminToken = $admin->createToken('auth_token')->plainTextToken;
+        $user = User::factory()->normalUser()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->patchJson('/api/v1/admin/users/'.$user->id.'/role', [
+                'role' => 'agent',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.user.role', 'agent')
+            ->assertJsonPath('errors', null);
+
+        $user->refresh();
+        $this->assertTrue($user->hasRole('agent'));
+        // Promotion replaces the customer role rather than stacking on it.
+        $this->assertFalse($user->hasRole('user'));
+
+        $this->withHeader('Authorization', 'Bearer '.$adminToken)
+            ->patchJson('/api/v1/admin/users/'.$user->id.'/commission-rate', [
+                'commission_rate' => '2.50',
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Commission rate updated successfully.')
+            ->assertJsonPath('data.user.commission_rate', '2.50')
+            ->assertJsonPath('errors', null);
+
+        $this->assertSame('2.50', (string) $user->fresh()->commission_rate);
+    }
+
+    public function test_commission_rate_is_rejected_for_a_user_who_is_not_an_agent(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+        $user = User::factory()->normalUser()->create();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->patchJson('/api/v1/admin/users/'.$user->id.'/commission-rate', [
+                'commission_rate' => '2.50',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.user.0', 'Only an agent can have a commission rate.');
+
+        $this->assertNull($user->fresh()->commission_rate);
+    }
+
+    public function test_commission_rate_validation_rejects_out_of_range_values(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('auth_token')->plainTextToken;
+        $agent = User::factory()->agent()->create();
+
+        foreach (['-1', '101', '2.555'] as $rate) {
+            $this->withHeader('Authorization', 'Bearer '.$token)
+                ->patchJson('/api/v1/admin/users/'.$agent->id.'/commission-rate', [
+                    'commission_rate' => $rate,
+                ])
+                ->assertStatus(422)
+                ->assertJsonStructure(['message', 'data', 'errors' => ['commission_rate']]);
+        }
+    }
+
     public function test_admin_role_assignment_rejects_invalid_role(): void
     {
         $admin = User::factory()->admin()->create();

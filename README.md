@@ -81,10 +81,12 @@ Authorization: Bearer <token>
 
 ## Roles and Access
 
-- `user` and `admin` roles are managed by Spatie Permission.
+- `user`, `agent` and `admin` roles are managed by Spatie Permission.
 - Authenticated read endpoints are available to both roles.
 - Write endpoints for announcements and odd settings are under `/api/v1/admin/*` and require `admin` role.
-- `PATCH /api/v1/admin/users/{user}/role` accepts the single customer role `{ "role": "user" }`.
+- `PATCH /api/v1/admin/users/{user}/role` accepts a customer role: `{ "role": "user" | "agent" }`. Promotion replaces the customer role, it does not stack.
+- `PATCH /api/v1/admin/users/{user}/commission-rate` sets an agent's rate: `{ "commission_rate": "2.50" }` (0-100, two decimals). 422 for a user who is not an agent.
+- `GET /api/v1/admin/agent-commissions?granularity=daily|weekly|monthly&from=&to=[&agent_id=]` reports commission per period; `/export` streams the same data as CSV.
 
 ## 2D Result Read APIs
 

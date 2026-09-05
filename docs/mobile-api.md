@@ -2,7 +2,7 @@
 
 Everything a player-facing mobile client needs from the Zarmani108 backend. Scope is the
 **player** surface only: every route in this document is reachable by a user holding the
-`user` role. Admin routes (`/api/v1/admin/*`) are deliberately excluded — those
+`user` or `agent` role (agents bet through exactly the same endpoints). Admin routes (`/api/v1/admin/*`) are deliberately excluded — those
 belong to the `lotto_dashboard` web client.
 
 Verified against `routes/api.php`, the controllers, the form requests and the services on
@@ -101,7 +101,7 @@ Public. Body: `email`, `password`.
 {
   "user": {
     "id": "...", "name": "...", "username": "...", "email": "...",
-    "role": "user",                      // "user" | null
+    "role": "user",                      // "user" | "agent" | null
     "roles": ["user"],                   // raw Spatie role names
     "is_banned": false,
     "banned_at": null,

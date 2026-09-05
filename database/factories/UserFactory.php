@@ -69,4 +69,15 @@ class UserFactory extends Factory
             $user->syncRoles(['user']);
         });
     }
+
+    public function agent(string $commissionRate = '2.00'): static
+    {
+        return $this->state(['commission_rate' => $commissionRate])
+            ->afterCreating(function (User $user): void {
+                app('Spatie\\Permission\\PermissionRegistrar')->forgetCachedPermissions();
+                call_user_func(['Spatie\\Permission\\Models\\Role', 'findOrCreate'], 'agent', Guard::getDefaultName($user));
+
+                $user->syncRoles(['agent']);
+            });
+    }
 }

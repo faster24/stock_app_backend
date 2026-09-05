@@ -35,6 +35,8 @@ class Bet extends Model
         'target_opentime',
         'stock_date',
         'total_amount',
+        'agent_commission_rate',
+        'agent_commission',
         'status',
         'bet_result_status',
         'payout_status',
@@ -91,6 +93,8 @@ class Bet extends Model
             // the wrong calendar day.
             'stock_date' => 'date:Y-m-d',
             'total_amount' => 'decimal:2',
+            'agent_commission_rate' => 'decimal:2',
+            'agent_commission' => 'decimal:2',
             'status' => BetStatus::class,
             'bet_result_status' => BetResultStatus::class,
             'payout_status' => BetPayoutStatus::class,
