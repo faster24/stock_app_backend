@@ -72,6 +72,7 @@ Public.
 |---|---|
 | `username` | required, string, max 255, unique |
 | `email` | required, email, max 255, unique |
+| `phone` | required, max 21, `^\+?[0-9]{7,20}$` (digits, optional leading `+`), unique |
 | `password` | required, min 8, `confirmed` — send `password_confirmation` too |
 | `pin` | required, exactly 6 digits, `confirmed` — send `pin_confirmation` too |
 | `pin_confirmation` | required, exactly 6 characters |
@@ -80,7 +81,7 @@ Public.
 ```jsonc
 // data
 {
-  "user":  { "id": "...", "username": "...", "email": "...", "created_at": "..." },
+  "user":  { "id": "...", "username": "...", "email": "...", "phone": "...", "created_at": "..." },
   "token": "12|AbCdEf..."
 }
 ```
@@ -101,6 +102,7 @@ Public. Body: `email`, `password`.
 {
   "user": {
     "id": "...", "name": "...", "username": "...", "email": "...",
+    "phone": "09...",                    // null on accounts predating the phone field
     "role": "user",                      // "user" | "agent" | null
     "roles": ["user"],                   // raw Spatie role names
     "is_banned": false,

@@ -92,7 +92,9 @@ class AdminUserManagementApiTest extends TestCase
         $admin = User::factory()->admin()->create();
         $token = $admin->createToken('auth_token')->plainTextToken;
 
-        $user = User::factory()->normalUser()->create();
+        $user = User::factory()->normalUser()->create([
+            'phone' => '0959876543',
+        ]);
         Wallet::query()->create([
             'user_id' => $user->id,
             'bank_name' => BankName::KBZ->value,
@@ -105,6 +107,7 @@ class AdminUserManagementApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'User retrieved successfully.')
             ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonPath('data.user.phone', '0959876543')
             ->assertJsonPath('data.user.bank_info.bank_name', BankName::KBZ->value)
             ->assertJsonPath('data.user.bank_info.account_name', 'Managed User')
             ->assertJsonPath('data.user.bank_info.account_number', '123123123')

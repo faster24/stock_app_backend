@@ -17,6 +17,7 @@ class AdminSeeder extends Seeder
             'email' => 'admin@lotto.com',
         ], [
             'username' => 'admin',
+            'phone' => '0911111111',
             'password' => Hash::make('password'),
         ]);
 

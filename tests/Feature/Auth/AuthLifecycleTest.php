@@ -20,6 +20,7 @@ class AuthLifecycleTest extends TestCase
         $response = $this->postJson('/api/v1/register', [
             'username'              => 'janedoe',
             'email'                 => 'jane@example.com',
+            'phone'                 => '0912345678',
             'password'              => 'password123',
             'password_confirmation' => 'password123',
             'currency'              => 'MMK',
@@ -32,10 +33,11 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('message', 'Registration successful.')
             ->assertJsonPath('data.user.email', 'jane@example.com')
             ->assertJsonPath('data.user.username', 'janedoe')
+            ->assertJsonPath('data.user.phone', '0912345678')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'username', 'email'], 'token'],
+                'data' => ['user' => ['id', 'username', 'email', 'phone'], 'token'],
                 'errors',
             ]);
 
@@ -72,7 +74,7 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'username', 'email'], 'token'],
+                'data' => ['user' => ['id', 'username', 'email', 'phone'], 'token'],
                 'errors',
             ]);
 
@@ -98,7 +100,7 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',
-                'data' => ['user' => ['id', 'username', 'email']],
+                'data' => ['user' => ['id', 'username', 'email', 'phone']],
                 'errors',
             ]);
     }

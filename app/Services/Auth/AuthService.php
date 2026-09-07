@@ -23,12 +23,13 @@ class AuthService extends Service
         private SecurityPinVerifier $securityPinVerifier,
     ) {}
 
-    public function register(string $username, string $email, string $password, ?Currency $currency, string $pin): array
+    public function register(string $username, string $email, string $phone, string $password, ?Currency $currency, string $pin): array
     {
-        $result = DB::transaction(function () use ($username, $email, $password, $currency, $pin) {
+        $result = DB::transaction(function () use ($username, $email, $phone, $password, $currency, $pin) {
             $user = User::query()->create([
                 'username' => $username,
                 'email'    => $email,
+                'phone'    => $phone,
                 'password' => Hash::make($password),
             ]);
 
@@ -108,6 +109,7 @@ class AuthService extends Service
             'name' => $user->username,
             'username' => $user->username,
             'email' => $user->email,
+            'phone' => $user->phone,
             'role' => in_array('agent', $roleNames, true) ? 'agent' : (in_array('user', $roleNames, true) ? 'user' : null),
             'roles' => $roleNames,
             'is_banned' => (bool) $user->is_banned,
