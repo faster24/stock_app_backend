@@ -15,7 +15,6 @@ use App\Models\OddSetting;
 use App\Models\TemporaryOddAdjustment;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Auth\SecurityPinVerifier;
 use App\Services\BettingDistribution\NumberControlService;
 use App\Services\BettingDistribution\ThreeDDrawScope;
 use App\Services\Service;
@@ -37,7 +36,6 @@ class BetService extends Service
         private NumberControlService $numberControlService,
         private ThreeDDrawScope $drawScope,
         private BetPauseService $betPauseService,
-        private SecurityPinVerifier $securityPinVerifier,
     ) {}
 
     public const DELETE_RESULT_NOT_FOUND = 'not_found';
@@ -179,9 +177,6 @@ class BetService extends Service
     public function createForUser(string $userId, array $attributes): Bet
     {
         $user = User::findOrFail($userId);
-        $this->assertPinIsValid($user, (string) ($attributes['security_pin'] ?? ''));
-        unset($attributes['security_pin']);
-
         $this->assertUserHasCompleteBankInfo($userId);
         $this->assertWalletCurrencyMatches($userId, (string) ($attributes['currency'] ?? ''));
         $this->betPauseService->assertBettingNotPaused((string) ($attributes['bet_type'] ?? ''));
@@ -729,15 +724,6 @@ class BetService extends Service
                 'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
             ];
         }, array_values($numberEntries));
-    }
-
-    private function assertPinIsValid(User $user, string $pin): void
-    {
-        $this->securityPinVerifier->assertValid(
-            $user,
-            $pin,
-            'Please set a security PIN before placing bets.',
-        );
     }
 
     private function refreshStoredBetNumberPotentialWinnings(Bet $bet, string $defaultOdd): void

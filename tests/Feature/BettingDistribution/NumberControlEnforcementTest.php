@@ -61,7 +61,6 @@ class NumberControlEnforcementTest extends TestCase
             'bet_type' => '2D',
             'currency' => 'MMK',
             'target_opentime' => '16:30:00',
-            'security_pin' => '123456',
             'bet_numbers' => $betNumbers,
         ], $overrides);
     }
@@ -286,7 +285,6 @@ class NumberControlEnforcementTest extends TestCase
             ->postJson('/api/v1/bets', [
                 'bet_type' => '3D',
                 'currency' => 'MMK',
-                'security_pin' => '123456',
                 'bet_numbers' => [['number' => 456, 'amount' => 1000]],
             ])
             ->assertStatus(422)

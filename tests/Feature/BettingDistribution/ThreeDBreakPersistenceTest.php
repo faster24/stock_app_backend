@@ -86,7 +86,6 @@ class ThreeDBreakPersistenceTest extends TestCase
             ->postJson('/api/v1/bets', [
                 'bet_type' => '3D',
                 'currency' => 'MMK',
-                'security_pin' => '123456',
                 'bet_numbers' => [['number' => $number, 'amount' => $amount]],
             ]);
     }

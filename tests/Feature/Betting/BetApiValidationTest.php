@@ -92,7 +92,6 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => 12, 'amount' => 1000],
                     ['number' => 12, 'amount' => 1000],
@@ -100,6 +99,28 @@ class BetApiValidationTest extends TestCase
             ])
             ->assertStatus(201)
             ->assertJsonPath('message', 'Validated.');
+    }
+
+    /**
+     * Betting no longer asks for the security PIN, but app builds shipped before
+     * that change still send one. The field must be dropped, not rejected —
+     * otherwise every player on an old build is locked out until they update.
+     */
+    public function test_store_ignores_a_security_pin_sent_by_an_older_client(): void
+    {
+        $user = $this->createUserWithBankInfo();
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->post('/api/v1/test-support/bets/validation', [
+                'bet_type' => '2D',
+                'currency' => Currency::MMK->value,
+                'target_opentime' => '11:00:00',
+                'security_pin' => '999999',
+                'bet_numbers' => [['number' => 12, 'amount' => 1000]],
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('data', fn (array $validatedKeys): bool => in_array('security_pin', $validatedKeys, true) === false);
     }
 
     public function test_store_rejects_2d_numbers_outside_valid_range_with_422_envelope(): void
@@ -288,7 +309,6 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => '01', 'amount' => 1000],
                     ['number' => '09', 'amount' => 1000],
@@ -302,7 +322,6 @@ class BetApiValidationTest extends TestCase
             ->post('/api/v1/test-support/bets/validation', [
                 'bet_type' => '3D',
                 'currency' => Currency::MMK->value,
-                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => '001', 'amount' => 1000],
                     ['number' => '099', 'amount' => 1000],
@@ -323,7 +342,6 @@ class BetApiValidationTest extends TestCase
                 'bet_type' => '2D',
                 'currency' => Currency::MMK->value,
                 'target_opentime' => '11:00:00',
-                'security_pin' => '123456',
                 'bet_numbers' => [
                     ['number' => 1, 'amount' => 1000],
                     ['number' => '01', 'amount' => 1000],

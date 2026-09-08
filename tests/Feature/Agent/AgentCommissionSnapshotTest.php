@@ -88,7 +88,6 @@ class AgentCommissionSnapshotTest extends TestCase
             'bet_type' => '2D',
             'currency' => 'MMK',
             'target_opentime' => '11:00:00',
-            'security_pin' => '123456',
             'bet_numbers' => [['number' => 55, 'amount' => $amount]],
         ]);
     }
