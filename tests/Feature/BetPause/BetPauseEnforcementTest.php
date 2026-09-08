@@ -13,6 +13,7 @@ use App\Models\Wallet;
 use App\Services\Bet\BetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class BetPauseEnforcementTest extends TestCase
@@ -54,7 +55,6 @@ class BetPauseEnforcementTest extends TestCase
             'bet_type' => '2D',
             'currency' => 'MMK',
             'target_opentime' => '12:01:00',
-            'security_pin' => '123456',
             'bet_numbers' => [['number' => 23, 'amount' => 1000]],
         ], $overrides);
     }
@@ -64,7 +64,6 @@ class BetPauseEnforcementTest extends TestCase
         return array_merge([
             'bet_type' => '3D',
             'currency' => 'MMK',
-            'security_pin' => '123456',
             'bet_numbers' => [['number' => 456, 'amount' => 1000]],
         ], $overrides);
     }
@@ -77,6 +76,27 @@ class BetPauseEnforcementTest extends TestCase
             'pause_from' => Carbon::now()->subMinute(),
             'message' => $message,
         ]);
+    }
+
+    /**
+     * A paused bet type is a decision, not a fault. Logging it at error put it
+     * on the Telegram alert channel, where each rejection paged someone and
+     * throttled the genuine 500s queued behind it.
+     */
+    public function test_a_paused_bet_type_is_not_logged_as_an_unexpected_error(): void
+    {
+        $this->seedOddSetting();
+        [, $token] = $this->makeUserWithWallet();
+
+        $this->activePause();
+
+        Log::spy();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->betPayload())
+            ->assertStatus(422);
+
+        Log::shouldNotHaveReceived('error');
     }
 
     public function test_active_pause_rejects_bets_for_both_currencies(): void
@@ -184,7 +204,6 @@ class BetPauseEnforcementTest extends TestCase
             ->postJson('/api/v1/bets', [
                 'bet_type' => '3D',
                 'currency' => 'MMK',
-                'security_pin' => '123456',
                 'bet_numbers' => [['number' => 456, 'amount' => 1000]],
             ])
             ->assertStatus(201);

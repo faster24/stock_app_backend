@@ -34,7 +34,6 @@ class BetApiTransactionTest extends TestCase
             'bet_type'        => '2D',
             'currency'        => 'MMK',
             'target_opentime' => '11:00:00',
-            'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
         ]);
 
@@ -49,34 +48,6 @@ class BetApiTransactionTest extends TestCase
             'reference_type' => Bet::class,
             'reference_id'   => $bet->id,
         ]);
-    }
-
-    public function test_create_for_user_rejects_a_wrong_security_pin(): void
-    {
-        $this->seedOddSetting(BetType::TWO_D, Currency::MMK, OddSettingUserType::USER, '80.00');
-
-        $user    = User::factory()->normalUser()->create();
-        $wallet  = $this->createWalletWithBankInfo($user, 50_000);
-        $service = app(BetService::class);
-
-        try {
-            $service->createForUser($user->id, [
-                'bet_type'        => '2D',
-                'currency'        => 'MMK',
-                'target_opentime' => '11:00:00',
-                'security_pin'    => '999999',
-                'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
-            ]);
-            $this->fail('Expected ValidationException for an invalid security PIN.');
-        } catch (ValidationException $e) {
-            $this->assertArrayHasKey('security_pin', $e->errors());
-        }
-
-        $this->assertDatabaseCount('bets', 0);
-        $this->assertDatabaseCount('wallet_transactions', 0);
-
-        $wallet->refresh();
-        $this->assertEquals(50_000, $wallet->balance);
     }
 
     public function test_create_for_user_rolls_back_bet_when_balance_insufficient(): void
@@ -94,7 +65,6 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected DomainException for insufficient balance.');
@@ -121,7 +91,6 @@ class BetApiTransactionTest extends TestCase
             'bet_type'        => '2D',
             'currency'        => 'MMK',
             'target_opentime' => '11:00:00',
-            'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
         ]);
 
@@ -149,7 +118,6 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected missing bank info to fail service validation.');
@@ -178,7 +146,6 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
             ]);
             $this->fail('Expected missing wallet currency to fail.');
@@ -200,7 +167,6 @@ class BetApiTransactionTest extends TestCase
                 'bet_type'        => '2D',
                 'currency'        => 'MMK',
                 'target_opentime' => '11:00:00',
-                'security_pin'    => '123456',
                 'bet_numbers'     => [
                     ['number' => 23, 'amount' => 1000],
                     ['number' => 23, 'amount' => 500],
@@ -234,7 +200,6 @@ class BetApiTransactionTest extends TestCase
             ->postJson('/api/v1/bets', [
                 'bet_type'     => '3D',
                 'currency'     => 'MMK',
-                'security_pin' => '123456',
                 'bet_numbers'  => [
                     ['number' => '007', 'amount' => 1000],
                     ['number' => 7, 'amount' => 500],
@@ -266,7 +231,6 @@ class BetApiTransactionTest extends TestCase
             'bet_type'        => '2D',
             'currency'        => 'MMK',
             'target_opentime' => '11:00:00',
-            'security_pin'    => '123456',
             'bet_numbers'     => [['number' => 55, 'amount' => 1000]],
         ]);
 

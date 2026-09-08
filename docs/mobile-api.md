@@ -143,8 +143,8 @@ one who cannot remember the PIN. A wrong password is a 422 under `password`. Rat
 to 5/minute and 20/hour per user.
 
 Until this endpoint existed there was no way to change a PIN at all: a forgotten one locked
-the player out of betting *and* withdrawals permanently. Surface it from the profile screen,
-and offer it on the "wrong PIN" error.
+the player out of withdrawals permanently. Surface it from the profile screen, and offer it
+on the "wrong PIN" error.
 
 Succeeding also clears the player's failed-attempt counter, so a reset immediately after
 being throttled works rather than waiting out the minute.
@@ -176,8 +176,8 @@ player's bet, deposit or withdrawal returns 404 rather than 403. Never show "del
 **409 is the interesting one.** Any `DomainException` thrown in a service is rendered
 globally as 409 with `errors.domain = [message]`. The message is written for humans and is
 the best thing to show the player. Recurring cases: `Insufficient balance.`,
-`Only PENDING deposits can be cancelled.`, `Please set a security PIN before placing bets.`,
-and betting-paused messages.
+`Only PENDING deposits can be cancelled.`,
+`Please set a security PIN before requesting a withdrawal.`, and betting-paused messages.
 
 **Validation errors are field-keyed** and nested keys use dot paths, e.g.
 `errors["bet_numbers.2.amount"]`. Map them onto form fields by that exact key.
@@ -186,7 +186,7 @@ and betting-paused messages.
 
 ## 4. Onboarding order (do this before the first bet)
 
-`POST /bets` rejects the request unless all three are already true. Building the flow in
+`POST /bets` rejects the request unless both are already true. Building the flow in
 this order avoids a dead end on the betting screen:
 
 1. **Wallet currency is set** — `PUT /me/wallet/currency`. One-way: once set, any later
@@ -196,7 +196,8 @@ this order avoids a dead end on the betting screen:
    `account_number`, all required). Editing later is rate-limited to **once every 30 days**;
    a too-soon update returns 422 with `errors.bank_info` and `errors.next_allowed_at`
    (ISO 8601) — render that as a date, not a raw string.
-3. **Security PIN exists** — set during registration. Every bet re-sends it.
+
+Betting does **not** ask for the security PIN. Withdrawals do — see §6.
 
 The bet request's currency must equal the wallet's currency, or it fails 422 on
 `wallet_currency`.
@@ -324,9 +325,15 @@ Balance moves on **admin approval**, not on submission. Show `PENDING` deposits 
 
 ### Withdrawals
 
-**`POST /withdrawals`** → 201 · `data.withdrawal`. JSON: `currency`, `amount` (integer ≥ 1).
+**`POST /withdrawals`** → 201 · `data.withdrawal`. JSON: `currency`, `amount` (integer ≥ 1)
+and `security_pin` (the player's 6-digit PIN — this is the only endpoint that asks for it).
 The balance is debited **immediately** on submission — a rejection or cancellation credits it
 back (`WITHDRAWAL_REFUND`). Insufficient balance is a 409 `Insufficient balance.`
+
+PIN failure modes: 422 under `security_pin` for a wrong PIN; 429 with
+`data.code = SECURITY_PIN_THROTTLED` and `data.retry_after` seconds after five wrong PINs in
+a minute; 409 `errors.domain` for `Please set a security PIN before requesting a withdrawal.`
+or `Your security PIN must be reset. Please contact support.`
 
 The wallet's bank details are snapshotted onto the withdrawal at creation
 (`bank_snapshot`), so later edits to bank info do not retarget a pending payout. Show
@@ -416,7 +423,6 @@ Passing an invalid `target_opentime` returns 422.
   "bet_type": "2D",                  // "2D" | "3D"
   "currency": "MMK",                 // must equal the wallet currency
   "target_opentime": "12:01:00",     // 2D: required, one of the four below. 3D: omit
-  "security_pin": "123456",          // the 6-digit PIN, every time
   "bet_numbers": [
     { "number": 23, "amount": 1000 },
     { "number": 7,  "amount": 500  }
@@ -441,10 +447,6 @@ Failure modes, all of which a real player will hit:
 
 | Status | `errors` key | Cause |
 |---|---|---|
-| 422 | `security_pin` | wrong PIN |
-| 429 | `security_pin` | five wrong PINs in a minute — `data.code = SECURITY_PIN_THROTTLED`, `data.retry_after` seconds |
-| 409 | `domain` | no PIN set yet — `Please set a security PIN before placing bets.` |
-| 409 | `domain` | stored PIN unusable — `Your security PIN must be reset. Please contact support.` |
 | 422 | `bank_info` | bank details incomplete |
 | 422 | `wallet_currency` | wallet currency unset, or ≠ request currency |
 | 422 | `bet_type` | betting paused for that `bet_type` — `data.code = BETTING_PAUSED`, `data.bet_type` |
@@ -457,7 +459,10 @@ Show the 422 `bet_numbers` strings verbatim — they name the offending number.
 player can do nothing about, and it is by far the most common — it deserves its own screen
 rather than the generic error toast. It used to arrive as an anonymous 422 under
 `bet_type`, indistinguishable from a malformed one, and a live pause was consequently
-reported as "the PIN is broken".
+reported as "betting is broken".
+
+A `security_pin` sent by an older build is ignored, not rejected — bets placed from an
+app that still collects a PIN keep working.
 
 ### Reading bets
 

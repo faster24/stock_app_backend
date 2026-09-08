@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\BettingPausedException;
-use App\Exceptions\TooManySecurityPinAttemptsException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Bet\AdminListBetsRequest;
 use App\Http\Requests\Bet\AdminUpdateBetStatusRequest;
@@ -308,10 +307,10 @@ class BetController extends Controller
      * Log a failed bet operation at the level it deserves, then re-throw it for
      * the global renderers in bootstrap/app.php to turn into a response.
      *
-     * A mistyped security PIN, a paused bet type and an insufficient balance are
-     * outcomes, not faults. They were all landing in a `catch (Throwable)` that
-     * called Log::error, so the log read "Unexpected error creating bet." for
-     * things the app decided on purpose — and once the Telegram channel started
+     * A paused bet type and an insufficient balance are outcomes, not faults.
+     * They were both landing in a `catch (Throwable)` that called Log::error,
+     * so the log read "Unexpected error creating bet." for things the app
+     * decided on purpose — and once the Telegram channel started
      * carrying errors, each rejection paged someone and throttled the genuine
      * 500s queued behind it. bootstrap/app.php's dontReport() list already
      * exempts these, but dontReport says nothing about an explicit Log::error.
@@ -320,7 +319,7 @@ class BetController extends Controller
      */
     private function rethrowLogged(Throwable $e, string $rejectedMessage, string $unexpectedMessage, array $context): never
     {
-        if ($e instanceof DomainException || $e instanceof BettingPausedException || $e instanceof TooManySecurityPinAttemptsException) {
+        if ($e instanceof DomainException || $e instanceof BettingPausedException) {
             Log::info($rejectedMessage, $context + ['reason' => $e->getMessage()]);
 
             throw $e;

@@ -2,42 +2,38 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Enums\BetType;
 use App\Enums\Currency;
-use App\Enums\OddSettingUserType;
-use App\Models\BetPause;
-use App\Models\OddSetting;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Services\Auth\SecurityPinVerifier;
 use Database\Factories\UserFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
- * Written against a production report that a correct PIN could not place a bet.
- * It could: the PIN check was working, a bet pause was blocking every attempt,
- * and both arrived in the log as "Unexpected error creating bet." These tests
- * hold the two apart at the HTTP boundary, which is the level the app sees and
- * the level the existing BetService tests skip.
+ * The security PIN contract at the HTTP boundary — the level the app sees.
+ *
+ * Betting used to be the endpoint that exercised it; the PIN was dropped from
+ * bet placement, so withdrawals are now the only money path that asks for one
+ * and these tests drive it from there. The verifier, its message and its
+ * throttle counter are unchanged, so what is asserted here is unchanged too.
  */
 class SecurityPinTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_correct_pin_creates_the_bet(): void
+    public function test_correct_pin_creates_the_withdrawal(): void
     {
         [, $token] = $this->playerWithWallet();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload())
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload())
             ->assertStatus(201);
 
-        $this->assertDatabaseCount('bets', 1);
+        $this->assertDatabaseCount('withdrawals', 1);
     }
 
     public function test_wrong_pin_is_rejected_and_persists_nothing(): void
@@ -45,40 +41,16 @@ class SecurityPinTest extends TestCase
         [, $token] = $this->playerWithWallet();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '999999']))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '999999']))
             ->assertStatus(422)
             ->assertJsonPath('errors.security_pin.0', 'Invalid security PIN.');
 
-        $this->assertDatabaseCount('bets', 0);
+        $this->assertDatabaseCount('withdrawals', 0);
         $this->assertDatabaseCount('wallet_transactions', 0);
     }
 
     /**
-     * The exact production sequence: one wrong PIN, then the correct one 17
-     * seconds later. The second attempt must fail on the pause, never on the
-     * PIN — that difference is what nobody could see from the logs.
-     */
-    public function test_a_correct_pin_while_paused_fails_on_the_pause_not_the_pin(): void
-    {
-        [, $token] = $this->playerWithWallet();
-
-        BetPause::query()->create([
-            'bet_type' => '2D',
-            'is_enabled' => true,
-            'pause_from' => Carbon::now()->subMinute(),
-            'message' => null,
-        ]);
-
-        $response = $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload())
-            ->assertStatus(422)
-            ->assertJsonPath('data.code', 'BETTING_PAUSED');
-
-        $response->assertJsonMissingPath('errors.security_pin');
-    }
-
-    /**
-     * The regression that made the incident unreadable. A mistyped PIN is an
+     * The regression that made a PIN incident unreadable. A mistyped PIN is an
      * outcome; logging it at error put it on the Telegram alert channel and
      * throttled the genuine 500s behind it for five minutes.
      */
@@ -89,27 +61,7 @@ class SecurityPinTest extends TestCase
         Log::spy();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '999999']))
-            ->assertStatus(422);
-
-        Log::shouldNotHaveReceived('error');
-        Log::shouldHaveReceived('info')->withArgs(fn (string $message): bool => $message === 'Bet creation rejected.')->once();
-    }
-
-    public function test_a_paused_bet_type_is_not_logged_as_an_unexpected_error(): void
-    {
-        [, $token] = $this->playerWithWallet();
-
-        BetPause::query()->create([
-            'bet_type' => '2D',
-            'is_enabled' => true,
-            'pause_from' => Carbon::now()->subMinute(),
-        ]);
-
-        Log::spy();
-
-        $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload())
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '999999']))
             ->assertStatus(422);
 
         Log::shouldNotHaveReceived('error');
@@ -128,11 +80,11 @@ class SecurityPinTest extends TestCase
         $this->writeRawPin($user, '123456');
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload())
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload())
             ->assertStatus(409)
             ->assertJsonPath('errors.domain.0', SecurityPinVerifier::RESET_REQUIRED_MESSAGE);
 
-        $this->assertDatabaseCount('bets', 0);
+        $this->assertDatabaseCount('withdrawals', 0);
     }
 
     public function test_registration_stores_the_pin_hashed(): void
@@ -170,12 +122,12 @@ class SecurityPinTest extends TestCase
         $this->assertTrue(Hash::check('654321', $user->fresh()->security_pin));
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => UserFactory::TEST_PIN]))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => UserFactory::TEST_PIN]))
             ->assertStatus(422)
             ->assertJsonPath('errors.security_pin.0', 'Invalid security PIN.');
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '654321']))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '654321']))
             ->assertStatus(201);
     }
 
@@ -201,12 +153,12 @@ class SecurityPinTest extends TestCase
 
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $this->withHeader('Authorization', 'Bearer '.$token)
-                ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '999999']))
+                ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '999999']))
                 ->assertStatus(422);
         }
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '999999']))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '999999']))
             ->assertStatus(429)
             ->assertJsonPath('data.code', 'SECURITY_PIN_THROTTLED');
 
@@ -221,7 +173,7 @@ class SecurityPinTest extends TestCase
         // Without the clear in setForUser(), a player who resets after locking
         // themselves out would still wait out the minute with a valid PIN.
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '654321']))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '654321']))
             ->assertStatus(201);
     }
 
@@ -240,7 +192,7 @@ class SecurityPinTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         $this->withHeader('Authorization', 'Bearer '.$token)
-            ->postJson('/api/v1/bets', $this->betPayload(['security_pin' => '246810']))
+            ->postJson('/api/v1/withdrawals', $this->withdrawalPayload(['security_pin' => '246810']))
             ->assertStatus(201);
     }
 
@@ -269,15 +221,6 @@ class SecurityPinTest extends TestCase
      */
     private function playerWithWallet(): array
     {
-        OddSetting::query()->updateOrCreate([
-            'bet_type' => BetType::TWO_D,
-            'currency' => Currency::MMK,
-            'user_type' => OddSettingUserType::USER,
-        ], [
-            'odd' => '80.00',
-            'is_active' => true,
-        ]);
-
         $user = User::factory()->normalUser()->create();
 
         Wallet::factory()->create([
@@ -293,14 +236,12 @@ class SecurityPinTest extends TestCase
         return [$user, $user->createToken('auth_token')->plainTextToken];
     }
 
-    private function betPayload(array $overrides = []): array
+    private function withdrawalPayload(array $overrides = []): array
     {
         return array_merge([
-            'bet_type' => '2D',
             'currency' => 'MMK',
-            'target_opentime' => '12:01:00',
+            'amount' => 1_000,
             'security_pin' => UserFactory::TEST_PIN,
-            'bet_numbers' => [['number' => 23, 'amount' => 1000]],
         ], $overrides);
     }
 }

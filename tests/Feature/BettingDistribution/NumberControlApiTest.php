@@ -207,7 +207,6 @@ class NumberControlApiTest extends TestCase
             'bet_type' => '2D',
             'currency' => 'MMK',
             'target_opentime' => '16:30:00',
-            'security_pin' => '123456',
             'bet_numbers' => [['number' => 45, 'amount' => 6000]],
         ]);
 
