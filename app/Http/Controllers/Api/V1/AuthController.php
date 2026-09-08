@@ -27,6 +27,7 @@ class AuthController extends Controller
         $payload = $this->authService->register(
             $request->string('username')->toString(),
             $request->string('email')->toString(),
+            $request->string('phone')->toString(),
             $request->string('password')->toString(),
             $currency,
             $request->string('pin')->toString(),

@@ -217,6 +217,7 @@ class AdminUserController extends Controller
             'id' => $user->id,
             'username' => $user->username,
             'email' => $user->email,
+            'phone' => $user->phone,
             'role' => $this->resolveCustomerRole($roleNames),
             'roles' => $roleNames,
             'is_banned' => (bool) $user->is_banned,

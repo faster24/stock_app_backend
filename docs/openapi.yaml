@@ -2085,7 +2085,7 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [username, email, password, password_confirmation]
+      required: [username, email, phone, password, password_confirmation]
       properties:
         username:
           type: string
@@ -2094,6 +2094,11 @@ components:
           type: string
           format: email
           maxLength: 255
+        phone:
+          type: string
+          maxLength: 21
+          pattern: '^\+?[0-9]{7,20}$'
+          description: Digits with an optional leading +. Must be unique across users.
         password:
           type: string
           minLength: 8
@@ -2197,6 +2202,10 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
+          description: Null for accounts created before phone became a registration field.
         role:
           type: string
           nullable: true

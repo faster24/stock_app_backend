@@ -35,6 +35,65 @@ class AuthFailureCasesTest extends TestCase
             ]);
     }
 
+    public function test_duplicate_registration_phone_returns_422_with_phone_error(): void
+    {
+        User::factory()->create([
+            'phone' => '0912345678',
+        ]);
+
+        $response = $this->postJson('/api/v1/register', [
+            'username'              => 'duplicate-phone-user',
+            'email'                 => 'duplicate-phone@example.com',
+            'phone'                 => '0912345678',
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
+            'pin'                   => '123456',
+            'pin_confirmation'      => '123456',
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'The given data was invalid.')
+            ->assertJsonPath('data', null)
+            ->assertJsonStructure([
+                'message',
+                'data',
+                'errors' => ['phone'],
+            ]);
+    }
+
+    public function test_register_malformed_phone_returns_422(): void
+    {
+        $response = $this->postJson('/api/v1/register', [
+            'username'              => 'badphone',
+            'email'                 => 'badphone@example.com',
+            'phone'                 => '09-123 456',
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
+            'pin'                   => '123456',
+            'pin_confirmation'      => '123456',
+        ]);
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['phone']]);
+    }
+
+    public function test_register_missing_phone_returns_422(): void
+    {
+        $response = $this->postJson('/api/v1/register', [
+            'username'              => 'nophone',
+            'email'                 => 'nophone@example.com',
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
+            'pin'                   => '123456',
+            'pin_confirmation'      => '123456',
+        ]);
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['phone']]);
+    }
+
     public function test_register_missing_currency_returns_422(): void
     {
         $response = $this->postJson('/api/v1/register', [
