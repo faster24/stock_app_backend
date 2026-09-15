@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AuthFailureCasesTest extends TestCase
@@ -44,7 +45,7 @@ class AuthFailureCasesTest extends TestCase
         $response = $this->postJson('/api/v1/register', [
             'username'              => 'duplicate-phone-user',
             'email'                 => 'duplicate-phone@example.com',
-            'phone'                 => '0912345678',
+            'phone'                 => '+95912345678',
             'password'              => 'password123',
             'password_confirmation' => 'password123',
             'currency'              => 'MMK',
@@ -77,6 +78,68 @@ class AuthFailureCasesTest extends TestCase
         ]);
 
         $response->assertStatus(422)->assertJsonStructure(['errors' => ['phone']]);
+    }
+
+    public function test_duplicate_registration_phone_in_e164_form_returns_422(): void
+    {
+        User::factory()->create([
+            'phone' => '+66812345678',
+        ]);
+
+        $response = $this->postJson('/api/v1/register', $this->phonePayload('+66812345678'));
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['phone']]);
+    }
+
+    public function test_register_accepts_thai_mobile_phone(): void
+    {
+        $response = $this->postJson('/api/v1/register', $this->phonePayload('+66 81-234-5678'));
+
+        $response
+            ->assertStatus(201)
+            ->assertJsonPath('data.user.phone', '+66812345678');
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function invalidPhoneProvider(): array
+    {
+        return [
+            'thai landline' => ['+6621234567'],
+            'thai too short' => ['+6681234567'],
+            'thai too long' => ['+668123456789'],
+            'myanmar too short' => ['+959123456'],
+            'myanmar too long' => ['+9591234567890'],
+            'myanmar not a mobile' => ['+95112345678'],
+            'unsupported country' => ['+14155550100'],
+            'local form without prefix' => ['0912345678'],
+        ];
+    }
+
+    #[DataProvider('invalidPhoneProvider')]
+    public function test_register_rejects_invalid_phone(string $phone): void
+    {
+        $response = $this->postJson('/api/v1/register', $this->phonePayload($phone));
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['phone']]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function phonePayload(string $phone): array
+    {
+        return [
+            'username'              => 'phoneuser',
+            'email'                 => 'phoneuser@example.com',
+            'phone'                 => $phone,
+            'password'              => 'password123',
+            'password_confirmation' => 'password123',
+            'currency'              => 'MMK',
+            'pin'                   => '123456',
+            'pin_confirmation'      => '123456',
+        ];
     }
 
     public function test_register_missing_phone_returns_422(): void

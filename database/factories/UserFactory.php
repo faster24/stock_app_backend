@@ -32,7 +32,7 @@ class UserFactory extends Factory
         return [
             'username' => fake()->unique()->userName(),
             'email' => fake()->unique()->safeEmail(),
-            'phone' => '09'.fake()->unique()->numerify('#########'),
+            'phone' => '+959'.fake()->unique()->numerify('#########'),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'security_pin' => static::$securityPin ??= Hash::make(self::TEST_PIN),
