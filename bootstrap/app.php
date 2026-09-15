@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\BankInfoUpdateTooSoonException;
+use App\Exceptions\BetNumbersUnavailableException;
 use App\Exceptions\BettingPausedException;
 use App\Exceptions\TooManySecurityPinAttemptsException;
 use Illuminate\Auth\AuthenticationException;
@@ -91,6 +92,23 @@ return Application::configure(basePath: dirname(__DIR__))
                     'auth' => ['Authentication is required.'],
                 ],
             ], 401);
+        });
+
+        // Registered ahead of ValidationException, its parent: Laravel uses the
+        // first render callback whose type matches.
+        $exceptions->render(function (BetNumbersUnavailableException $exception, Request $request) {
+            if (! $request->expectsJson()) {
+                return null;
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'data' => [
+                    'code' => BetNumbersUnavailableException::CODE,
+                    'unavailable_numbers' => $exception->unavailableNumbers(),
+                ],
+                'errors' => $exception->errors(),
+            ], $exception->status);
         });
 
         $exceptions->render(function (ValidationException $exception, Request $request) {

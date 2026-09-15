@@ -9,6 +9,7 @@ use App\Enums\BetType;
 use App\Enums\OddSettingUserType;
 use App\Enums\WalletTransactionDirection;
 use App\Enums\WalletTransactionType;
+use App\Exceptions\BetNumbersUnavailableException;
 use App\Models\Bet;
 use App\Models\NumberControl;
 use App\Models\OddSetting;
@@ -465,6 +466,8 @@ class BetService extends Service
         }
 
         $errors = [];
+        $unavailable = [];
+        $numberWidth = $betType === BetType::THREE_D->value ? 3 : 2;
 
         $limitedNumbers = $controls
             ->filter(fn (NumberControl $control): bool => ! $control->is_closed && $control->sales_limit !== null)
@@ -489,6 +492,11 @@ class BetService extends Service
 
             if ($control->is_closed) {
                 $errors[] = "Number {$number} is closed for this period.";
+                $unavailable[] = [
+                    'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
+                    'reason' => 'closed',
+                    'remaining' => null,
+                ];
 
                 continue;
             }
@@ -501,13 +509,16 @@ class BetService extends Service
 
             if ($sold + $incomingAmount > (float) $control->sales_limit) {
                 $errors[] = "Number {$number} exceeds the sales limit for this period.";
+                $unavailable[] = [
+                    'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
+                    'reason' => 'limit_reached',
+                    'remaining' => number_format(max(0, (float) $control->sales_limit - $sold), 2, '.', ''),
+                ];
             }
         }
 
         if ($errors !== []) {
-            throw ValidationException::withMessages([
-                'bet_numbers' => $errors,
-            ]);
+            throw BetNumbersUnavailableException::forNumbers($unavailable, $errors);
         }
     }
 
