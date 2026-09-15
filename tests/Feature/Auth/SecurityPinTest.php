@@ -92,7 +92,7 @@ class SecurityPinTest extends TestCase
         $this->postJson('/api/v1/register', [
             'username' => 'pintester',
             'email' => 'pintester@example.com',
-            'phone' => '0913579024',
+            'phone' => '+95913579024',
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'pin' => '135790',

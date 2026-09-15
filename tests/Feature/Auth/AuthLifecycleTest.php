@@ -20,7 +20,7 @@ class AuthLifecycleTest extends TestCase
         $response = $this->postJson('/api/v1/register', [
             'username'              => 'janedoe',
             'email'                 => 'jane@example.com',
-            'phone'                 => '0912345678',
+            'phone'                 => '+95912345678',
             'password'              => 'password123',
             'password_confirmation' => 'password123',
             'currency'              => 'MMK',
@@ -33,7 +33,7 @@ class AuthLifecycleTest extends TestCase
             ->assertJsonPath('message', 'Registration successful.')
             ->assertJsonPath('data.user.email', 'jane@example.com')
             ->assertJsonPath('data.user.username', 'janedoe')
-            ->assertJsonPath('data.user.phone', '0912345678')
+            ->assertJsonPath('data.user.phone', '+95912345678')
             ->assertJsonPath('errors', null)
             ->assertJsonStructure([
                 'message',

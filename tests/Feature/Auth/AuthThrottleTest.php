@@ -36,7 +36,7 @@ class AuthThrottleTest extends TestCase
         return [
             'username' => "player{$n}",
             'email' => "player{$n}@example.com",
-            'phone' => '09'.str_pad((string) $n, 9, '0', STR_PAD_LEFT),
+            'phone' => '+959'.str_pad((string) $n, 9, '0', STR_PAD_LEFT),
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'currency' => 'MMK',
