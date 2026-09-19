@@ -268,6 +268,54 @@ class NumberControlEnforcementTest extends TestCase
         }
     }
 
+    public function test_rejection_lists_every_unavailable_number_with_its_reason(): void
+    {
+        $this->seedOddSetting();
+        [$existingUser] = $this->makeUserWithWallet();
+        [, , $token] = $this->makeUserWithWallet();
+
+        NumberControl::factory()->closed()->create([
+            'number' => 5,
+            'target_opentime' => '16:30:00',
+            'stock_date' => $this->today(),
+        ]);
+        NumberControl::factory()->limited('10000.00')->create([
+            'number' => 45,
+            'target_opentime' => '16:30:00',
+            'stock_date' => $this->today(),
+        ]);
+
+        app(BetService::class)->createForUser($existingUser->id, $this->betPayload([
+            ['number' => 45, 'amount' => 6000],
+        ]));
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', $this->betPayload([
+                ['number' => '05', 'amount' => 1000],
+                ['number' => 45, 'amount' => 5000],
+                ['number' => 12, 'amount' => 1000],
+            ]))
+            ->assertStatus(422)
+            ->assertJsonPath('data.code', 'BET_NUMBERS_UNAVAILABLE')
+            ->assertJsonCount(2, 'data.unavailable_numbers')
+            ->assertJsonPath('data.unavailable_numbers.0', [
+                'number' => '05',
+                'reason' => 'closed',
+                'remaining' => null,
+            ])
+            ->assertJsonPath('data.unavailable_numbers.1', [
+                'number' => '45',
+                'reason' => 'limit_reached',
+                'remaining' => '4000.00',
+            ])
+            ->assertJsonPath('errors.bet_numbers', [
+                'Number 5 is closed for this period.',
+                'Number 45 exceeds the sales limit for this period.',
+            ]);
+
+        $this->assertDatabaseCount('bets', 1);
+    }
+
     public function test_closed_3d_number_blocks_3d_bet(): void
     {
         $this->seedOddSetting(BetType::THREE_D);
@@ -288,9 +336,33 @@ class NumberControlEnforcementTest extends TestCase
                 'bet_numbers' => [['number' => 456, 'amount' => 1000]],
             ])
             ->assertStatus(422)
-            ->assertJsonPath('errors.bet_numbers.0', 'Number 456 is closed for this period.');
+            ->assertJsonPath('errors.bet_numbers.0', 'Number 456 is closed for this period.')
+            ->assertJsonPath('data.unavailable_numbers.0.number', '456');
 
         $this->assertDatabaseCount('bets', 0);
+    }
+
+    public function test_unavailable_3d_number_is_padded_to_three_digits(): void
+    {
+        $this->seedOddSetting(BetType::THREE_D);
+        [, , $token] = $this->makeUserWithWallet();
+
+        NumberControl::factory()->closed()->create([
+            'bet_type' => BetType::THREE_D,
+            'number' => 5,
+            'target_opentime' => '',
+            'stock_date' => app(ThreeDDrawScope::class)->anchorDate(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->postJson('/api/v1/bets', [
+                'bet_type' => '3D',
+                'currency' => 'MMK',
+                'bet_numbers' => [['number' => '005', 'amount' => 1000]],
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('data.unavailable_numbers.0.number', '005')
+            ->assertJsonPath('data.unavailable_numbers.0.reason', 'closed');
     }
 
     public function test_closed_numbers_endpoint_returns_state_for_users(): void
