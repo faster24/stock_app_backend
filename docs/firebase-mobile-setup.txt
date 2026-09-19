@@ -1,0 +1,136 @@
+================================================================================
+FIREBASE / FCM PUSH — MOBILE CLIENT SETUP
+Zarmani108 backend (stock_app_backend)
+Generated: 2026-08-23
+================================================================================
+
+NOTE ON CREDENTIALS
+-------------------
+The file `firebase-key.json` at the repo root is a Google SERVICE ACCOUNT private
+key. It grants full admin access to the Firebase project (send push to any device,
+read/write project resources). It is server-only and is NOT included in this
+document and must never be shipped in a mobile app, committed, or pasted into
+chat/issue trackers.
+
+The mobile app does not need it. What the app needs is the CLIENT config file,
+which is a different artifact and is safe to bundle:
+
+  Android : google-services.json      -> app/google-services.json
+  iOS     : GoogleService-Info.plist  -> added to the Xcode target
+
+Get them from the Firebase console (project owner does this once):
+  console.firebase.google.com
+    -> project "zarmani1108"
+    -> Project settings -> "Your apps"
+    -> add the Android app (package name) and/or iOS app (bundle id)
+    -> download the generated config file
+
+If the app entries already exist, just download the existing files — do not
+create duplicate app entries.
+
+
+1. PROJECT IDENTIFIERS
+----------------------
+Firebase project id : zarmani1108
+Backend env keys    : FIREBASE_PROJECT_ID=zarmani1108
+                      FIREBASE_CREDENTIALS_PATH=firebase-key.json   (server only)
+                      FIREBASE_MESSAGING_ENABLED=true
+
+The Sender ID / Web API key / App ID are inside the downloaded client config
+file; the SDK reads them automatically. No manual copying required.
+
+
+2. API BASE URL
+---------------
+Production : https://api.zarmani108.uk/api/v1
+Local      : http://localhost:8000/api/v1
+
+All FCM endpoints below require:
+  Authorization: Bearer <sanctum token>
+  Accept: application/json
+
+
+3. TOKEN REGISTRATION ENDPOINTS
+-------------------------------
+IMPORTANT: these four routes do NOT use the standard {message,data,errors}
+envelope used everywhere else in the API. Bypass the shared response parser.
+
+POST   /fcm/token
+  body : { "token": "<fcm token, min 100 chars>",
+           "device_type": "android" | "ios" | "web",
+           "device_name": "Pixel 8"        // optional, defaults "Unknown Device"
+  201  : { "message": "...", "data": { ...FcmToken row... } }
+  Idempotent — keyed on (user_id, token). Re-posting the same token just bumps
+  last_used_at, so call it on every app start and on every onTokenRefresh.
+
+DELETE /fcm/token
+  body : { "token": "<fcm token>" }
+  200  : { "message": "FCM token removed successfully" }
+  404  : { "message": "Token not found" }
+  Call this on logout, or the device keeps receiving that account's push.
+
+POST   /fcm/logout-all
+  200  : { "message": "..." }   deactivates every token for the current user
+
+GET    /fcm/tokens
+  200  : { "count": n, "data": [ ... ] }   token strings are hidden in the output
+
+
+4. WHEN TO CALL WHAT
+--------------------
+  after login success        -> request OS permission, get token, POST /fcm/token
+  onTokenRefresh             -> POST /fcm/token with the new token
+  before/at logout           -> DELETE /fcm/token, then revoke the sanctum token
+  "sign out everywhere"      -> POST /fcm/logout-all
+
+
+5. MESSAGE SHAPE
+----------------
+Every user-facing push is sent with BOTH a notification block (title + body,
+so the OS renders it while backgrounded) and a data block. FCM rejects
+non-string data values, so the backend casts everything to string — parse ids
+as strings on the client and convert if needed.
+
+data payloads by type:
+
+  { "type": "bet_won",              "bet_id": "123" }
+  { "type": "bet_paid_out",         "bet_id": "123" }
+  { "type": "settlement_reverted",  "bet_id": "123" }
+  { "type": "deposit_approved",     "deposit_id": "..." }
+  { "type": "deposit_rejected",     "deposit_id": "..." }
+  { "type": "withdrawal_completed", "withdrawal_id": "..." }
+  { "type": "withdrawal_rejected",  "withdrawal_id": "..." }
+
+Switch on `data.type` for deep-linking. `admin_pending_requests` also exists but
+is addressed to admin devices (the web dashboard) — ignore it in the player app.
+
+Topic messages are supported server-side (sendToTopic / data-only
+sendDataToTopic) but the player app is not required to subscribe to any topic
+today.
+
+
+6. RELATED NOTIFICATION ENDPOINTS (also outside the envelope)
+-------------------------------------------------------------
+POST /notifications/test       -> { message }; 400 when user has no active token
+GET  /notifications/logs       -> { data: <full Laravel paginator> }  rows in data.data
+                                  filters: type, status, start_date, end_date, per_page (20)
+GET  /notifications/stats      -> { data: { total, sent, failed, unread, by_type } }
+POST /notifications/read-all   -> { message, updated_count }
+
+Use stats.unread for the app badge count.
+
+
+7. TROUBLESHOOTING
+------------------
+- No push arriving at all: the backend delivers through a queue. The worker must
+  be running with `php artisan queue:work --queue=notifications`. Silence on all
+  devices usually means the worker, not the client.
+- POST /fcm/token returns 422: the token is under 100 chars, or device_type is
+  not one of android/ios/web.
+- /notifications/test returns 400: no active token registered for this user —
+  registration failed or the token was deleted on a previous logout.
+- Push works foregrounded but not backgrounded: check the OS notification
+  channel / permission, not the API. The backend always includes the
+  notification block.
+
+================================================================================
