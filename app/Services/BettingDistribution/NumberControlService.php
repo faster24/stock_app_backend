@@ -6,14 +6,16 @@ use App\Enums\BetStatus;
 use App\Jobs\BroadcastNumberControlsJob;
 use App\Models\NumberControl;
 use App\Services\Service;
-use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class NumberControlService extends Service
 {
     private const THREE_D_OPENTIME = ThreeDDrawScope::OPENTIME_SENTINEL;
 
-    public function __construct(private readonly ThreeDDrawScope $drawScope) {}
+    public function __construct(
+        private readonly ThreeDDrawScope $drawScope,
+        private readonly PeriodSettlementGuard $settlementGuard,
+    ) {}
 
     public function setControls(
         string $date,
@@ -23,7 +25,7 @@ class NumberControlService extends Service
         array $controls,
         string $adminId
     ): array {
-        $this->assertPeriodNotSettled($date, $opentime);
+        $this->settlementGuard->assertPeriodNotSettled($date, $opentime);
 
         // 3D rows live for the whole open draw, not for one calendar day.
         $date = $this->drawScope->resolveStorageDate($betType, $date);
@@ -80,7 +82,7 @@ class NumberControlService extends Service
         string $currency,
         array $numbers
     ): array {
-        $this->assertPeriodNotSettled($date, $opentime);
+        $this->settlementGuard->assertPeriodNotSettled($date, $opentime);
 
         $date = $this->drawScope->resolveStorageDate($betType, $date);
 
@@ -204,29 +206,5 @@ class NumberControlService extends Service
     private function broadcast(string $betType, string $currency, string $opentime, string $date): void
     {
         BroadcastNumberControlsJob::dispatch($betType, $currency, $opentime, $date)->afterCommit();
-    }
-
-    private function assertPeriodNotSettled(string $date, string $opentime): void
-    {
-        if ($opentime === self::THREE_D_OPENTIME) {
-            return;
-        }
-
-        $settled = DB::table('bet_settlement_runs')
-            ->whereNotNull('settled_at')
-            ->where(function ($q) use ($date, $opentime): void {
-                $q->whereExists(function ($sub) use ($date, $opentime): void {
-                    $sub->select(DB::raw(1))
-                        ->from('two_d_results')
-                        ->whereColumn('two_d_results.id', 'bet_settlement_runs.two_d_result_id')
-                        ->whereDate('two_d_results.stock_date', $date)
-                        ->where('two_d_results.open_time', $opentime);
-                });
-            })
-            ->exists();
-
-        if ($settled) {
-            throw new DomainException('Cannot modify number controls for a settled period.');
-        }
     }
 }

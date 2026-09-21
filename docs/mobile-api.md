@@ -425,7 +425,9 @@ Passing an invalid `target_opentime` returns 422.
   "target_opentime": "12:01:00",     // 2D: required, one of the four below. 3D: omit
   "bet_numbers": [
     { "number": 23, "amount": 1000 },
-    { "number": 7,  "amount": 500  }
+    { "number": 7,  "amount": 500  },
+    { "number": 34, "amount": 500, "origin": "reverse" },   // an R pair —
+    { "number": 43, "amount": 500, "origin": "reverse" }    // both legs tagged
   ]
 }
 ```
@@ -437,6 +439,11 @@ Passing an invalid `target_opentime` returns 422.
 - `amount`: integer ≥ 1. The same number may appear more than once in one request — each
   entry is kept as its own line, and the amounts are summed for the wallet debit, the
   sales-limit check and the payout.
+- `origin`: optional, `"direct"` or `"reverse"`. Anything else is a 422 on
+  `bet_numbers.{i}.origin`; **omitting it means `"direct"`**. It matters only when an admin
+  has closed the number's first digit for the period (see *Hot first digits* below). Tag
+  **both** legs of an R pick `"reverse"` — a lone tagged leg is refused. Bulk picks
+  (ခွေ, အပူး, ပါဝါ, နက္ခတ်, ညီအစ်ကို, X ပါ) are direct bets and stay untagged.
 - `status`, `bet_result_status` and `payout_status` are `prohibited` — sending any of them
   fails the whole request.
 
@@ -450,10 +457,39 @@ Failure modes, all of which a real player will hit:
 | 422 | `bank_info` | bank details incomplete |
 | 422 | `wallet_currency` | wallet currency unset, or ≠ request currency |
 | 422 | `bet_type` | betting paused for that `bet_type` — `data.code = BETTING_PAUSED`, `data.bet_type` |
-| 422 | `bet_numbers` | `Number 17 is closed for this period.` / `...exceeds the sales limit...` |
+| 422 | `bet_numbers` | `Number 17 is closed for this period.` / `...exceeds the sales limit...` / first digit closed / R not paired |
 | 409 | `domain` | `Insufficient balance.` |
 
 Show the 422 `bet_numbers` strings verbatim — they name the offending number.
+
+#### Hot first digits
+
+An admin can close a whole **first-digit row** of the 2D board for one period — every
+number starting with that digit — instead of closing ten numbers one by one. Two carve-outs
+survive:
+
+- a **double** (`00`, `11`, … `99`) is always bettable;
+- a **reverse (R)** bet is bettable, but only when the mirror leg is on the same slip at
+  the same amount. This is why `origin` is checked server-side rather than trusted: the
+  flag alone is forgeable, a paid-for mirror is not.
+
+The current set is on `GET /closed-numbers` as `hot_first_digits` (always present, `[]`
+when there are none and for 3D), so a client can warn before the player submits.
+
+A refused number comes back through the **existing** `BET_NUMBERS_UNAVAILABLE` contract
+with `reason: "closed"` — deliberately, so a build that predates this feature still renders
+it — plus an additive `blocked_by`:
+
+```jsonc
+{
+  "number": "34",
+  "reason": "closed",
+  "remaining": null,
+  "blocked_by": "hot_first_digit"    // or "reverse_unpaired"
+}
+```
+
+Treat an unknown `blocked_by` as a plain closed number.
 
 **Branch on `data.code`, not on the message.** A paused bet type is the one rejection a
 player can do nothing about, and it is by far the most common — it deserves its own screen

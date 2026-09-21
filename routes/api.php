@@ -219,6 +219,8 @@ Route::prefix('v1')->group(function () {
                         Route::post('/number-controls', 'setNumberControls')->name('number-controls.set');
                         Route::post('/number-controls/reopen', 'reopenNumberControls')->name('number-controls.reopen');
                         Route::get('/number-controls/{date}/{targetOpentime}', 'getNumberControls')->name('number-controls.index');
+                        Route::post('/hot-first-digits', 'setHotFirstDigits')->name('hot-first-digits.set');
+                        Route::get('/hot-first-digits/{date}/{targetOpentime}', 'getHotFirstDigits')->name('hot-first-digits.index');
                         Route::get('/{date}/{targetOpentime}', 'getDistributionForPeriod')->name('show');
                     });
             });

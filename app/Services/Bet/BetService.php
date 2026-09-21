@@ -37,6 +37,7 @@ class BetService extends Service
         private NumberControlService $numberControlService,
         private ThreeDDrawScope $drawScope,
         private BetPauseService $betPauseService,
+        private HotFirstDigitGuard $hotFirstDigitGuard,
     ) {}
 
     public const DELETE_RESULT_NOT_FOUND = 'not_found';
@@ -211,7 +212,7 @@ class BetService extends Service
         $attributes['placed_at'] = Carbon::now();
 
         return DB::transaction(function () use ($userId, $attributes, $numberEntries, $totalAmount, $stockDate): Bet {
-            $this->assertNumbersNotClosedOrOverLimit(
+            $this->assertNumbersBettable(
                 $numberEntries,
                 (string) ($attributes['bet_type'] ?? ''),
                 (string) ($attributes['currency'] ?? ''),
@@ -295,7 +296,7 @@ class BetService extends Service
 
         return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd, $resolvedBetType, $resolvedCurrency): Bet {
             if ($hasBetNumbers) {
-                $this->assertNumbersNotClosedOrOverLimit(
+                $this->assertNumbersBettable(
                     $numberEntries,
                     $resolvedBetType,
                     $resolvedCurrency,
@@ -424,15 +425,18 @@ class BetService extends Service
     }
 
     /**
-     * Reject the whole bet when any of its numbers is closed or would push the
-     * period's sold volume past an admin-set sales limit.
+     * Reject the whole bet when any of its numbers is closed, would push the
+     * period's sold volume past an admin-set sales limit, or sits on a first
+     * digit the admin has marked hot.
      *
      * Must run as the FIRST statement inside the caller's DB transaction: the
      * lockForUpdate below serializes concurrent bets on controlled numbers, and
      * the sold-volume SUM only sees other transactions' committed rows because
-     * no earlier consistent read has pinned the InnoDB snapshot yet.
+     * no earlier consistent read has pinned the InnoDB snapshot yet. For the
+     * same reason the hot-digit read happens LAST — it is pure config, needs no
+     * lock, and must not pin the snapshot ahead of the SUM.
      */
-    private function assertNumbersNotClosedOrOverLimit(
+    private function assertNumbersBettable(
         array $numberEntries,
         string $betType,
         string $currency,
@@ -455,10 +459,6 @@ class BetService extends Service
             ->get()
             ->keyBy('number');
 
-        if ($controls->isEmpty()) {
-            return;
-        }
-
         $incomingByNumber = [];
         foreach ($numberEntries as $entry) {
             $number = (int) $entry['number'];
@@ -467,59 +467,108 @@ class BetService extends Service
 
         $errors = [];
         $unavailable = [];
+        $reported = [];
         $numberWidth = $betType === BetType::THREE_D->value ? 3 : 2;
 
-        $limitedNumbers = $controls
-            ->filter(fn (NumberControl $control): bool => ! $control->is_closed && $control->sales_limit !== null)
-            ->keys()
-            ->all();
+        // A slip touching no controlled number still has to clear the hot-digit
+        // pass below, so this skips the loop rather than returning.
+        if ($controls->isNotEmpty()) {
+            $limitedNumbers = $controls
+                ->filter(fn (NumberControl $control): bool => ! $control->is_closed && $control->sales_limit !== null)
+                ->keys()
+                ->all();
 
-        $soldByNumber = $this->numberControlService->soldVolumesByNumber(
-            $stockDate,
-            $opentimeKey,
+            $soldByNumber = $this->numberControlService->soldVolumesByNumber(
+                $stockDate,
+                $opentimeKey,
+                $betType,
+                $currency,
+                $limitedNumbers,
+                $excludeBetId,
+            );
+
+            foreach ($incomingByNumber as $number => $incomingAmount) {
+                $control = $controls->get($number);
+
+                if ($control === null) {
+                    continue;
+                }
+
+                if ($control->is_closed) {
+                    $errors[] = "Number {$number} is closed for this period.";
+                    $unavailable[] = [
+                        'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
+                        'reason' => 'closed',
+                        'remaining' => null,
+                    ];
+                    $reported[$number] = true;
+
+                    continue;
+                }
+
+                if ($control->sales_limit === null) {
+                    continue;
+                }
+
+                $sold = (float) ($soldByNumber[$number] ?? 0.0);
+
+                if ($sold + $incomingAmount > (float) $control->sales_limit) {
+                    $errors[] = "Number {$number} exceeds the sales limit for this period.";
+                    $unavailable[] = [
+                        'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
+                        'reason' => 'limit_reached',
+                        'remaining' => number_format(max(0, (float) $control->sales_limit - $sold), 2, '.', ''),
+                    ];
+                    $reported[$number] = true;
+                }
+            }
+        }
+
+        $hotBlocked = $this->hotFirstDigitGuard->blockedNumbers(
+            $numberEntries,
             $betType,
             $currency,
-            $limitedNumbers,
-            $excludeBetId,
+            $opentimeKey,
+            $controlDate,
         );
 
-        foreach ($incomingByNumber as $number => $incomingAmount) {
-            $control = $controls->get($number);
-
-            if ($control === null) {
+        foreach ($hotBlocked as $number => $blockReason) {
+            // Already refused as closed or over limit — one entry per number.
+            if (isset($reported[$number])) {
                 continue;
             }
 
-            if ($control->is_closed) {
-                $errors[] = "Number {$number} is closed for this period.";
-                $unavailable[] = [
-                    'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
-                    'reason' => 'closed',
-                    'remaining' => null,
-                ];
+            $padded = str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT);
 
-                continue;
-            }
+            $errors[] = $blockReason === HotFirstDigitGuard::REASON_UNPAIRED
+                ? "R bet {$padded} needs {$this->paddedMirror($number, $numberWidth)} on the same slip for the same amount."
+                : "Number {$padded} is closed for direct betting: first digit {$this->firstDigit($number)} is closed for this period. Doubles and R pairs are still allowed.";
 
-            if ($control->sales_limit === null) {
-                continue;
-            }
-
-            $sold = (float) ($soldByNumber[$number] ?? 0.0);
-
-            if ($sold + $incomingAmount > (float) $control->sales_limit) {
-                $errors[] = "Number {$number} exceeds the sales limit for this period.";
-                $unavailable[] = [
-                    'number' => str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT),
-                    'reason' => 'limit_reached',
-                    'remaining' => number_format(max(0, (float) $control->sales_limit - $sold), 2, '.', ''),
-                ];
-            }
+            $unavailable[] = [
+                // Kept as 'closed' on the wire: both player clients discard an
+                // unavailable entry whose reason they do not recognise, which
+                // would blank the removal modal on every build already shipped.
+                // The precise cause rides in the additive 'blocked_by' key.
+                'number' => $padded,
+                'reason' => 'closed',
+                'remaining' => null,
+                'blocked_by' => $blockReason,
+            ];
         }
 
         if ($errors !== []) {
             throw BetNumbersUnavailableException::forNumbers($unavailable, $errors);
         }
+    }
+
+    private function firstDigit(int $number): int
+    {
+        return intdiv($number, 10);
+    }
+
+    private function paddedMirror(int $number, int $numberWidth): string
+    {
+        return str_pad((string) $this->hotFirstDigitGuard->mirror($number), $numberWidth, '0', STR_PAD_LEFT);
     }
 
     private function normalizeBetNumberEntries(string $betType, array $betNumbers): array
@@ -546,9 +595,17 @@ class BetService extends Service
             $resolvedNumber = null;
             $resolvedAmount = null;
 
+            $resolvedOrigin = HotFirstDigitGuard::ORIGIN_DIRECT;
+
             if (is_array($entry)) {
                 $resolvedNumber = $this->resolveInteger($entry['number'] ?? null);
                 $resolvedAmount = $this->resolveInteger($entry['amount'] ?? null);
+                // Anything that is not an explicit 'reverse' is direct. The form
+                // request already rejects a malformed origin with a 422; this is
+                // the last line of defence for callers that bypass it.
+                $resolvedOrigin = ($entry['origin'] ?? null) === HotFirstDigitGuard::ORIGIN_REVERSE
+                    ? HotFirstDigitGuard::ORIGIN_REVERSE
+                    : HotFirstDigitGuard::ORIGIN_DIRECT;
             } else {
                 throw ValidationException::withMessages([
                     'bet_numbers.'.$index => ['Each bet number must be an object with number and amount.'],
@@ -571,6 +628,7 @@ class BetService extends Service
                 $entries[] = [
                     'number' => $resolvedNumber,
                     'amount' => $resolvedAmount,
+                    'origin' => $resolvedOrigin,
                 ];
 
                 continue;
@@ -733,6 +791,9 @@ class BetService extends Service
                 'amount' => $amount,
                 'odd' => $odd,
                 'potential_winning' => number_format($amount * (float) $odd, 2, '.', ''),
+                // This rebuild is what reaches the transaction, so origin has to
+                // survive it or the hot-digit R exemption never sees the flag.
+                'origin' => $entry['origin'] ?? HotFirstDigitGuard::ORIGIN_DIRECT,
             ];
         }, array_values($numberEntries));
     }
