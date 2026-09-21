@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\BettingDistribution\AdjustOddsRequest;
 use App\Http\Requests\BettingDistribution\ReopenNumberControlsRequest;
+use App\Http\Requests\BettingDistribution\SetHotFirstDigitsRequest;
 use App\Http\Requests\BettingDistribution\SetNumberControlsRequest;
 use App\Services\BettingDistribution\BettingDistributionService;
+use App\Services\BettingDistribution\DigitControlService;
 use App\Services\BettingDistribution\NumberControlService;
 use App\Services\BettingDistribution\TemporaryOddAdjustmentService;
 use App\Services\BettingDistribution\ThreeDDistributionService;
@@ -23,6 +25,7 @@ class BettingDistributionController extends Controller
         private readonly BettingDistributionService $distributionService,
         private readonly TemporaryOddAdjustmentService $oddAdjustmentService,
         private readonly NumberControlService $numberControlService,
+        private readonly DigitControlService $digitControlService,
         private readonly ThreeDDistributionService $threeDDistributionService,
     ) {}
 
@@ -142,6 +145,44 @@ class BettingDistributionController extends Controller
         ]);
     }
 
+    public function setHotFirstDigits(SetHotFirstDigitsRequest $request): JsonResponse
+    {
+        try {
+            $result = $this->digitControlService->setHotDigits(
+                $request->validated('stock_date'),
+                $request->validated('target_opentime'),
+                $request->validated('bet_type'),
+                $request->validated('currency'),
+                $request->validated('digits'),
+                (string) $request->user()->id,
+            );
+
+            return $this->respond('Hot first digits updated successfully.', $result);
+        } catch (DomainException $e) {
+            return $this->respond($e->getMessage(), null, 409, ['period' => [$e->getMessage()]]);
+        }
+    }
+
+    public function getHotFirstDigits(Request $request, string $date, string $targetOpentime): JsonResponse
+    {
+        $this->validatePeriodParams($date, $targetOpentime);
+        ['bet_type' => $betType, 'currency' => $currency] = $this->validateBetTypeAndCurrency($request, required: false);
+
+        $digits = $betType === '2D'
+            ? $this->digitControlService->listHotDigits($date, $targetOpentime, $betType, $currency)
+            : [];
+
+        return $this->respond('Hot first digits retrieved successfully.', [
+            'period' => [
+                'target_opentime' => $targetOpentime,
+                'stock_date' => $date,
+            ],
+            'bet_type' => $betType,
+            'currency' => $currency,
+            'hot_first_digits' => array_map(strval(...), $digits),
+        ]);
+    }
+
     public function getClosedNumbers(Request $request): JsonResponse
     {
         ['bet_type' => $betType, 'currency' => $currency] = $this->validateBetTypeAndCurrency($request, required: false);
@@ -184,6 +225,11 @@ class BettingDistributionController extends Controller
             'currency' => $currency,
             'closed' => $closed,
             'limited' => $limited,
+            // Always present, [] when there are none and for 3D, so no client
+            // has to branch on the key existing.
+            'hot_first_digits' => $betType === '2D'
+                ? array_map(strval(...), $this->digitControlService->listHotDigits($date, $opentime, $betType, $currency))
+                : [],
             'updated_at' => now('Asia/Bangkok')->toIso8601String(),
         ]);
     }

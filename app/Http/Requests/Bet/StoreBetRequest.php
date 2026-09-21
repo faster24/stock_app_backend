@@ -6,8 +6,9 @@ use App\Enums\BetType;
 use App\Enums\Currency;
 use App\Http\Requests\Auth\AuthFormRequest;
 use App\Models\Wallet;
-use Illuminate\Validation\Validator;
+use App\Services\Bet\HotFirstDigitGuard;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreBetRequest extends AuthFormRequest
 {
@@ -50,14 +51,25 @@ class StoreBetRequest extends AuthFormRequest
             foreach (array_values($betNumbers) as $index => $entry) {
                 if (! is_array($entry)) {
                     $validator->errors()->add('bet_numbers.'.$index, 'Each bet number must be an object with number and amount.');
+
                     continue;
                 }
 
                 $number = $this->resolveInteger($entry['number'] ?? null);
                 $amount = $this->resolveInteger($entry['amount'] ?? null);
 
+                // Mirrored in BetService::normalizeBetNumberEntries(), which coerces
+                // rather than rejecting. Both are deliberate: this one gives the
+                // player a keyed 422, that one guards callers bypassing the request.
+                $origin = $entry['origin'] ?? null;
+
+                if ($origin !== null && ! in_array($origin, [HotFirstDigitGuard::ORIGIN_DIRECT, HotFirstDigitGuard::ORIGIN_REVERSE], true)) {
+                    $validator->errors()->add('bet_numbers.'.$index.'.origin', 'The bet_numbers.'.$index.'.origin field must be direct or reverse.');
+                }
+
                 if ($number === null) {
                     $validator->errors()->add('bet_numbers.'.$index.'.number', 'The bet_numbers.'.$index.'.number field must be an integer.');
+
                     continue;
                 }
 

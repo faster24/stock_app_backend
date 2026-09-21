@@ -3085,13 +3085,9 @@ components:
 
     BetStoreRequest:
       type: object
-      required: [pay_slip_image, bet_type, currency, transaction_id_last_two_digits, bet_numbers]
+      required: [bet_type, currency, bet_numbers]
       description: Client-writable fields only. Review/result/payout statuses are server-managed and rejected if supplied. Bet numbers must be objects with per-number amount.
       properties:
-        pay_slip_image:
-          type: string
-          format: binary
-          description: Required pay slip image attachment (jpg/jpeg/png/webp; max 10MB).
         bet_type:
           type: string
           enum: ['2D', '3D']
@@ -3104,13 +3100,9 @@ components:
           type: string
           enum: ['11:00:00', '12:01:00', '15:00:00', '16:30:00']
           description: Target stock market open time. Required for 2D bets; prohibited for 3D bets.
-        transaction_id_last_two_digits:
-          type: string
-          pattern: '^\d{2}$'
-          description: Required last two digits of the transaction ID (00-99).
         bet_numbers:
           type: array
-          description: Array of objects {number, amount}. Leading-zero strings like 01/001 are accepted and normalized numerically.
+          description: Array of objects {number, amount, origin?}. Leading-zero strings like 01/001 are accepted and normalized numerically.
           items:
             type: object
             required: [number, amount]
@@ -3125,6 +3117,15 @@ components:
               amount:
                 type: integer
                 minimum: 1
+              origin:
+                type: string
+                enum: [direct, reverse]
+                default: direct
+                description: >-
+                  How the number was staked. Omitting it means "direct". It matters only when an
+                  admin has closed the number's first digit for the period, where a double is always
+                  allowed and a reverse bet is allowed only when its mirror is on the same slip at
+                  the same amount. Tag BOTH legs of an R pick; bulk picks are direct.
 
     BetUpdateRequest:
       type: object
@@ -3140,7 +3141,7 @@ components:
           description: Target stock market open time. Only applicable for 2D bets; prohibited for 3D bets.
         bet_numbers:
           type: array
-          description: Replaces existing bet numbers when provided. Array shape is objects {number, amount}; leading-zero strings like 01/001 are accepted and normalized numerically.
+          description: Replaces existing bet numbers when provided. Array shape is objects {number, amount, origin?}; leading-zero strings like 01/001 are accepted and normalized numerically.
           items:
             type: object
             required: [number, amount]
@@ -3155,6 +3156,15 @@ components:
               amount:
                 type: integer
                 minimum: 1
+              origin:
+                type: string
+                enum: [direct, reverse]
+                default: direct
+                description: >-
+                  How the number was staked. Omitting it means "direct". It matters only when an
+                  admin has closed the number's first digit for the period, where a double is always
+                  allowed and a reverse bet is allowed only when its mirror is on the same slip at
+                  the same amount. Tag BOTH legs of an R pick; bulk picks are direct.
 
     BetPayoutRequest:
       type: object
