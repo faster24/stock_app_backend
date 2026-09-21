@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\Withdrawal;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class WithdrawalListTest extends TestCase
@@ -136,5 +138,33 @@ class WithdrawalListTest extends TestCase
         $this->getJson('/api/v1/withdrawals')->assertStatus(401);
         $this->postJson('/api/v1/withdrawals')->assertStatus(401);
         $this->getJson('/api/v1/admin/withdrawals')->assertStatus(401);
+    }
+
+    public function test_admin_list_carries_payout_proof_on_every_item(): void
+    {
+        Storage::fake('bet_slips');
+
+        $pending   = $this->createWithdrawal($this->user->id);
+        $completed = $this->createWithdrawal($this->user->id, 'COMPLETED');
+        $completed->addMedia(UploadedFile::fake()->image('proof.jpg'))->toMediaCollection('payout_proof');
+
+        $response = $this->getJson('/api/v1/admin/withdrawals',
+            ['Authorization' => "Bearer {$this->adminToken}"]
+        )->assertStatus(200);
+
+        // The dashboard's detail drawer reads payout_proof.exists on completed
+        // rows; a missing key blanked the whole page.
+        $items = collect($response->json('data.withdrawals'))->keyBy('id');
+
+        foreach ($items as $item) {
+            $this->assertSame(
+                ['exists', 'download_url', 'file_name', 'mime_type', 'size'],
+                array_keys($item['payout_proof']),
+            );
+            $this->assertArrayHasKey('user', $item);
+        }
+
+        $this->assertTrue($items[$completed->id]['payout_proof']['exists']);
+        $this->assertFalse($items[$pending->id]['payout_proof']['exists']);
     }
 }

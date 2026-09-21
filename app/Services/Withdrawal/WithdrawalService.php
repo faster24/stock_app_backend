@@ -101,7 +101,8 @@ class WithdrawalService extends Service
     public function listForAdmin(int $page, int $pageSize, ?WithdrawalStatus $status, ?string $userId = null): LengthAwarePaginator
     {
         $query = Withdrawal::query()
-            ->with('user')
+            // media: the controller appends payout_proof, which reads it per row.
+            ->with(['user', 'media'])
             ->orderBy('created_at', 'desc');
 
         if ($status !== null) {

@@ -24,6 +24,11 @@ class AdminWithdrawalController extends Controller
 
         $withdrawals = $this->withdrawalService->listForAdmin($page, $pageSize, $status, $userId);
 
+        // payout_proof is an accessor, not an attribute, so raw models serialize
+        // without it. The dashboard's detail drawer reads it on every completed
+        // row; without the key it threw and blanked the whole page.
+        $withdrawals->getCollection()->each->append('payout_proof');
+
         return $this->respond('Withdrawals retrieved successfully.', [
             'withdrawals' => $withdrawals->items(),
             'pagination'  => [
