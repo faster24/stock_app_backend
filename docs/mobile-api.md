@@ -440,10 +440,8 @@ Passing an invalid `target_opentime` returns 422.
   entry is kept as its own line, and the amounts are summed for the wallet debit, the
   sales-limit check and the payout.
 - `origin`: optional, `"direct"` or `"reverse"`. Anything else is a 422 on
-  `bet_numbers.{i}.origin`; **omitting it means `"direct"`**. It matters only when an admin
-  has closed the number's first digit for the period (see *Hot first digits* below). Tag
-  **both** legs of an R pick `"reverse"` — a lone tagged leg is refused. Bulk picks
-  (ခွေ, အပူး, ပါဝါ, နက္ခတ်, ညီအစ်ကို, X ပါ) are direct bets and stay untagged.
+  `bet_numbers.{i}.origin`; omitting it means `"direct"`. It is informational: the hot-digit
+  rule (see *Hot digits* below) decides on amounts alone.
 - `status`, `bet_result_status` and `payout_status` are `prohibited` — sending any of them
   fails the whole request.
 
@@ -457,37 +455,51 @@ Failure modes, all of which a real player will hit:
 | 422 | `bank_info` | bank details incomplete |
 | 422 | `wallet_currency` | wallet currency unset, or ≠ request currency |
 | 422 | `bet_type` | betting paused for that `bet_type` — `data.code = BETTING_PAUSED`, `data.bet_type` |
-| 422 | `bet_numbers` | `Number 17 is closed for this period.` / `...exceeds the sales limit...` / first digit closed / R not paired |
+| 422 | `bet_numbers` | `Number 17 is closed for this period.` / `...exceeds the sales limit...` / hot digit: reverse missing / amounts differ |
 | 409 | `domain` | `Insufficient balance.` |
 
 Show the 422 `bet_numbers` strings verbatim — they name the offending number.
 
-#### Hot first digits
+#### Hot digits
 
-An admin can close a whole **first-digit row** of the 2D board for one period — every
-number starting with that digit — instead of closing ten numbers one by one. Two carve-outs
-survive:
+An admin can mark digits hot for one 2D period. A number is **covered** when **either** of
+its digits is hot: with 6 hot, `61`, `16` and `66` are all covered. Covered numbers are not
+banned. They are held to a same-amount rule:
 
-- a **double** (`00`, `11`, … `99`) is always bettable;
-- a **reverse (R)** bet is bettable, but only when the mirror leg is on the same slip at
-  the same amount. This is why `origin` is checked server-side rather than trusted: the
-  flag alone is forgeable, a paid-for mirror is not.
+- each covered number needs its **reverse on the same slip**. `61` needs `16`; a double
+  such as `66` is its own reverse.
+- every covered number on the slip carries **one amount**, doubles included.
+- that amount must match the one the player **already uses for covered numbers in the same
+  draw** (same date, open time and currency). After a slip with `61`/`16` at 100, a later
+  slip with `67`/`76` at 200 is refused. The exception is a draw where the player's earlier
+  bets already hold several amounts, which happens only if they were placed before the digit
+  went hot; then only the slip itself is checked.
 
-The current set is on `GET /closed-numbers` as `hot_first_digits` (always present, `[]`
-when there are none and for 3D), so a client can warn before the player submits.
+How the numbers were entered does not matter. Two Direct lines pass exactly like an R pick,
+and `origin` no longer changes the outcome (it is still accepted and validated).
+
+The current set is on `GET /closed-numbers` as `hot_first_digits`. The key keeps its
+original name, is always present, and is `[]` when there are none and for 3D. The client
+can pre-check the slip-level rules, but only the server knows the draw amount.
 
 A refused number comes back through the **existing** `BET_NUMBERS_UNAVAILABLE` contract
-with `reason: "closed"` — deliberately, so a build that predates this feature still renders
-it — plus an additive `blocked_by`:
+with `reason: "closed"`, deliberately, so that builds predating this feature still render
+it. It also carries an additive `blocked_by`:
 
 ```jsonc
 {
-  "number": "34",
+  "number": "61",
   "reason": "closed",
   "remaining": null,
-  "blocked_by": "hot_first_digit"    // or "reverse_unpaired"
+  "blocked_by": "amount_mismatch"    // or "reverse_unpaired"
 }
 ```
+
+`amount_mismatch` lists **every** covered number on the slip, with a single
+`errors.bet_numbers` sentence such as
+`Numbers with 6, 7, 8 must all be bet at the same amount (100 this draw).` The player should
+change the amounts rather than remove the numbers. `reverse_unpaired` lists only the numbers
+missing their reverse.
 
 Treat an unknown `blocked_by` as a plain closed number.
 

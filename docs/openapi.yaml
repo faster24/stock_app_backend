@@ -3122,10 +3122,9 @@ components:
                 enum: [direct, reverse]
                 default: direct
                 description: >-
-                  How the number was staked. Omitting it means "direct". It matters only when an
-                  admin has closed the number's first digit for the period, where a double is always
-                  allowed and a reverse bet is allowed only when its mirror is on the same slip at
-                  the same amount. Tag BOTH legs of an R pick; bulk picks are direct.
+                  How the number was staked. Omitting it means "direct". Informational only: the
+                  hot-digit rule decides on amounts (reverse on the same slip, one amount across
+                  every covered number in the draw), never on origin.
 
     BetUpdateRequest:
       type: object
@@ -3161,10 +3160,9 @@ components:
                 enum: [direct, reverse]
                 default: direct
                 description: >-
-                  How the number was staked. Omitting it means "direct". It matters only when an
-                  admin has closed the number's first digit for the period, where a double is always
-                  allowed and a reverse bet is allowed only when its mirror is on the same slip at
-                  the same amount. Tag BOTH legs of an R pick; bulk picks are direct.
+                  How the number was staked. Omitting it means "direct". Informational only: the
+                  hot-digit rule decides on amounts (reverse on the same slip, one amount across
+                  every covered number in the draw), never on origin.
 
     BetPayoutRequest:
       type: object

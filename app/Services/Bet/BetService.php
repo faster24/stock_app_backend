@@ -218,6 +218,7 @@ class BetService extends Service
                 (string) ($attributes['currency'] ?? ''),
                 $attributes['target_opentime'] ?? null,
                 $stockDate,
+                $userId,
             );
 
             $bet = Bet::query()->create(array_merge($attributes, [
@@ -294,7 +295,7 @@ class BetService extends Service
             );
         }
 
-        return DB::transaction(function () use ($bet, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd, $resolvedBetType, $resolvedCurrency): Bet {
+        return DB::transaction(function () use ($bet, $userId, $attributes, $hasBetNumbers, $numberEntries, $hasOddContextChange, $odd, $resolvedBetType, $resolvedCurrency): Bet {
             if ($hasBetNumbers) {
                 $this->assertNumbersBettable(
                     $numberEntries,
@@ -302,6 +303,7 @@ class BetService extends Service
                     $resolvedCurrency,
                     $bet->target_opentime,
                     $bet->stock_date->toDateString(),
+                    $userId,
                     excludeBetId: $bet->id,
                 );
             }
@@ -442,6 +444,7 @@ class BetService extends Service
         string $currency,
         ?string $opentime,
         string $stockDate,
+        string $userId,
         ?string $excludeBetId = null,
     ): void {
         $opentimeKey = (string) $opentime;
@@ -524,15 +527,19 @@ class BetService extends Service
             }
         }
 
-        $hotBlocked = $this->hotFirstDigitGuard->blockedNumbers(
+        $hotVerdict = $this->hotFirstDigitGuard->blockedNumbers(
             $numberEntries,
             $betType,
             $currency,
             $opentimeKey,
             $controlDate,
+            $userId,
+            $excludeBetId,
         );
 
-        foreach ($hotBlocked as $number => $blockReason) {
+        $mismatchReported = false;
+
+        foreach ($hotVerdict['blocked'] as $number => $blockReason) {
             // Already refused as closed or over limit — one entry per number.
             if (isset($reported[$number])) {
                 continue;
@@ -540,9 +547,13 @@ class BetService extends Service
 
             $padded = str_pad((string) $number, $numberWidth, '0', STR_PAD_LEFT);
 
-            $errors[] = $blockReason === HotFirstDigitGuard::REASON_UNPAIRED
-                ? "R bet {$padded} needs {$this->paddedMirror($number, $numberWidth)} on the same slip for the same amount."
-                : "Number {$padded} is closed for direct betting: first digit {$this->firstDigit($number)} is closed for this period. Doubles and R pairs are still allowed.";
+            if ($blockReason === HotFirstDigitGuard::REASON_UNPAIRED) {
+                $errors[] = "Number {$padded} needs {$this->paddedMirror($number, $numberWidth)} on the same slip for the same amount.";
+            } elseif (! $mismatchReported) {
+                // One sentence for the whole group, not one per number.
+                $errors[] = $this->amountMismatchMessage($hotVerdict['hotDigits'], $hotVerdict['requiredAmount']);
+                $mismatchReported = true;
+            }
 
             $unavailable[] = [
                 // Kept as 'closed' on the wire: both player clients discard an
@@ -561,9 +572,17 @@ class BetService extends Service
         }
     }
 
-    private function firstDigit(int $number): int
+    /**
+     * @param  list<int>  $hotDigits
+     */
+    private function amountMismatchMessage(array $hotDigits, ?int $requiredAmount): string
     {
-        return intdiv($number, 10);
+        $digits = implode(', ', $hotDigits);
+        $message = "Numbers with {$digits} must all be bet at the same amount";
+
+        return $requiredAmount !== null
+            ? "{$message} ({$requiredAmount} this draw)."
+            : "{$message}.";
     }
 
     private function paddedMirror(int $number, int $numberWidth): string
